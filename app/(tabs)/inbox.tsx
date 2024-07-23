@@ -2,7 +2,7 @@ import React, {useMemo, useState} from 'react';
 import {View, StyleSheet, FlatList, ListRenderItem, Dimensions, Alert} from 'react-native';
 import Modal from 'react-native-modal';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
-import {useTheme, Text, TextInput, Button, HelperText} from 'react-native-paper';
+import {useTheme, TextInput, Button, HelperText} from 'react-native-paper';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {SectionItem, TodoItem} from '@/contexts/TodoContext.types';
 import ToDoItem from '@/components/ToDoItem';
