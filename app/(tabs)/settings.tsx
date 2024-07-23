@@ -1,5 +1,4 @@
-import {router, Stack} from 'expo-router';
-import {SafeAreaView, StyleSheet, Alert, SectionList, View, useColorScheme} from 'react-native';
+import {SafeAreaView, StyleSheet, Alert, SectionList, View} from 'react-native';
 import {supabase} from '@/utils/supabase';
 import {useUser} from '@/contexts/UserContext';
 import {

@@ -1,4 +1,4 @@
-import {Database, Tables} from '@/utils/database.types';
+import {Tables} from '@/utils/database.types';
 import {ReactNode} from 'react';
 
 /**
