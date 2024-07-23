@@ -1,12 +1,16 @@
 import React from 'react';
-import {Text, Button, SectionList, StyleSheet, SafeAreaView, StatusBar} from 'react-native';
+import {SectionList, StyleSheet, SafeAreaView} from 'react-native';
 import {useTodo} from '@/contexts/TodoContext';
 import {TodoItem} from '@/contexts/TodoContext.types'; // Assuming TodoItem interface is imported
-
+import {Text, ActivityIndicator} from 'react-native-paper';
 import ToDoItem from '@/components/ToDoItem';
+import {StatusBar} from 'expo-status-bar';
+import {useUser} from '@/contexts/UserContext';
+import AddTodoFAB from '@/components/addTodoFAB';
 
 const HomeScreen = () => {
-  const {overdueTodos, todayTodos, completedTodos, setShowInputModal} = useTodo();
+  const {isLoading} = useUser();
+  const {overdueTodos, todayTodos, completedTodos} = useTodo();
 
   const renderTodoItem = ({item}: {item: TodoItem}) => <ToDoItem todo={item} />;
 
@@ -20,9 +24,13 @@ const HomeScreen = () => {
     {title: 'Completed Todos', data: completedTodos},
   ];
 
+  if (isLoading) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar />
+      <StatusBar style="auto" />
       <SectionList
         sections={sections}
         keyExtractor={(item, index) => item.id?.toString() || index.toString()}
@@ -30,17 +38,15 @@ const HomeScreen = () => {
         renderSectionHeader={renderSectionHeader}
         ListEmptyComponent={<Text>No todos found</Text>}
       />
-      <Button title="Add Todo" onPress={() => setShowInputModal(true)} />
+      <AddTodoFAB />
     </SafeAreaView>
   );
 };
 
-const statusBarHeight = StatusBar.currentHeight || 0;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    marginTop: statusBarHeight,
   },
   sectionHeader: {
     fontSize: 18,

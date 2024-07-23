@@ -1,3 +1,4 @@
+import {Database, Tables} from '@/utils/database.types';
 import {ReactNode} from 'react';
 
 /**
@@ -25,7 +26,7 @@ export interface TodoItem {
   start_date?: Date;
   recurrence?: RecurrenceType;
   priority: PriorityType;
-  section_id?: number;
+  section_id?: number; // split section by this id
   created_by: string;
   parent_id?: number;
 }
@@ -53,10 +54,14 @@ export interface TodoContextType {
   toggleCompleteTodo: (todoId: number) => void;
   openEditBottomSheet: (selectedTodo: TodoItem) => void;
   closeEditBottomSheet: () => void;
+  addSection: (newSectionName: string) => Tables<'sections'> | null;
+  updateSectionName: (updatedSection: SectionItem) => void;
+  deleteSection: (section_id: number) => Promise<boolean>;
   overdueTodos: TodoItem[];
   todayTodos: TodoItem[];
   completedTodos: TodoItem[];
   selectedTodo: TodoItem | null;
+  todoSortedByDate: {[key: string]: TodoItem[]};
   setSelectedTodo: (todo: TodoItem | null) => void;
   setShowInputModal: (show: boolean) => void;
 }

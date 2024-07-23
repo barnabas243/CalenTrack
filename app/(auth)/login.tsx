@@ -9,7 +9,10 @@ import {supabase} from '@/utils/supabase';
 
 import React, {useState} from 'react';
 import {Alert, StyleSheet, View, AppState} from 'react-native';
-import {Button, Input} from '@rneui/themed';
+import {SafeAreaView} from 'react-native-safe-area-context';
+import {router} from 'expo-router';
+import {Button, TextInput} from 'react-native-paper';
+import {useUser} from '@/contexts/UserContext';
 
 // Tells Supabase Auth to continuously refresh the session automatically if
 // the app is in the foreground. When this is added, you will continue to receive
@@ -22,7 +25,7 @@ AppState.addEventListener('change', state => {
     supabase.auth.stopAutoRefresh();
   }
 });
-export default function Auth() {
+export default function LoginScreen() {
   GoogleSignin.configure({
     scopes: ['https://www.googleapis.com/auth/drive.readonly'],
     webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com',
@@ -32,33 +35,42 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const {setSession} = useUser();
   async function signInWithEmail() {
     setLoading(true);
-    const {error} = await supabase.auth.signInWithPassword({
+    const {data, error} = await supabase.auth.signInWithPassword({
       email: email,
       password: password,
     });
 
-    if (error) Alert.alert(error.message);
     setLoading(false);
+    if (error) {
+      Alert.alert(error.message);
+      return;
+    }
+
+    console.log('successfully signed in with email');
+    setSession(data.session);
+    router.replace('/(tabs)');
   }
 
-  async function signUpWithEmail() {
-    setLoading(true);
-    const {
-      data: {session},
-      error,
-    } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-    });
+  // async function signUpWithEmail() {
+  //   setLoading(true);
+  //   const {
+  //     data: {session},
+  //     error,
+  //   } = await supabase.auth.signUp({
+  //     email: email,
+  //     password: password,
+  //   });
 
-    if (error) Alert.alert(error.message);
-    if (!session) Alert.alert('Please check your inbox for email verification!');
-    setLoading(false);
-  }
+  //   if (error) Alert.alert(error.message);
+  //   if (!session) Alert.alert('Please check your inbox for email verification!');
+  //   setLoading(false);
+  // }
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={[styles.verticallySpaced, styles.mt20]}>
         <GoogleSigninButton
           size={GoogleSigninButton.Size.Wide}
@@ -68,58 +80,73 @@ export default function Auth() {
               console.log('signing in with google');
               await GoogleSignin.hasPlayServices();
               const userInfo = await GoogleSignin.signIn();
-              console.log(JSON.stringify(userInfo, null, 2));
+
               if (userInfo.idToken) {
                 const {data, error} = await supabase.auth.signInWithIdToken({
                   provider: 'google',
                   token: userInfo.idToken,
                 });
-                console.log(error, data);
+
+                if (error) throw error;
+
+                setSession(data.session);
+                router.replace('/(tabs)');
               } else {
                 throw new Error('no ID token present!');
               }
             } catch (error: any) {
               if (error.code === statusCodes.SIGN_IN_CANCELLED) {
                 // user cancelled the login flow
+                console.log('user cancelled the login flow');
               } else if (error.code === statusCodes.IN_PROGRESS) {
                 // operation (e.g. sign in) is in progress already
+                console.log('operation (e.g. sign in) is in progress already');
               } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
                 // play services not available or outdated
+                console.log('play services not available or outdated');
               } else {
                 // some other error happened
+                console.log('some other error happened', error.message);
               }
             }
           }}
         />
       </View>
       <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input
+        <TextInput
+          mode="outlined"
           label="Email"
-          leftIcon={{type: 'font-awesome', name: 'envelope'}}
           onChangeText={text => setEmail(text)}
           value={email}
           placeholder="email@address.com"
           autoCapitalize={'none'}
+          keyboardType={'email-address'}
+          autoComplete="email"
+          autoFocus
         />
       </View>
       <View style={styles.verticallySpaced}>
-        <Input
+        <TextInput
+          mode="outlined"
           label="Password"
-          leftIcon={{type: 'font-awesome', name: 'lock'}}
           onChangeText={text => setPassword(text)}
           value={password}
           secureTextEntry={true}
-          placeholder="Password"
           autoCapitalize={'none'}
+          autoComplete="password"
         />
       </View>
       <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Button title="Sign in" disabled={loading} onPress={() => signInWithEmail()} />
+        <Button disabled={loading} onPress={signInWithEmail}>
+          Sign in
+        </Button>
       </View>
-      <View style={styles.verticallySpaced}>
-        <Button title="Sign up" disabled={loading} onPress={() => signUpWithEmail()} />
-      </View>
-    </View>
+      {/* <View style={styles.verticallySpaced}>
+        <Button disabled={loading} onPress={signUpWithEmail}>
+          Sign up
+        </Button>
+      </View> */}
+    </SafeAreaView>
   );
 }
 
