@@ -1,50 +1,61 @@
-# Welcome to your Expo app 👋
+# CalenTRACK
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+CalenTRACK is a mobile task management app that puts the calendar view at the center of your productivity journey. It's designed to help you stay organized, manage tasks efficiently, and keep track of your emotions effortlessly.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Calendar View Integration**:
+  Seamlessly sync your tasks with Outlook and/or Google Calendar, ensuring you're always up-to-date across platforms.
+- **Real-Time Synchronization**:
+  Enjoy instant updates and synchronization across multiple devices, ensuring your tasks are always current, no matter where you are.
 
-   ```bash
-   npm install
-   ```
+## Frameworks
 
-2. Start the app
+### Front-End
 
-   ```bash
-    npx expo start
-   ```
+- **React Native with Expo**:
+  Utilize the power of React Native along with Expo's comprehensive toolkit to build a sleek and responsive mobile interface that caters to a wide range of devices and screen sizes.
 
-In the output, you'll find options to open the app in a
+### Back-End
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- **Supabase with PowerSync**:
+  Leverage the robust capabilities of Supabase for your backend needs, including data storage, authentication, and real-time updates. PowerSync enhances your app with offline capabilities, ensuring seamless functionality even when connectivity is limited.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+  Database password: `wRluOO8eIwMp5FG6`
 
-## Get a fresh project
+## Tasks
 
-When you're ready, run:
+- [ ] Task 1
+- [x] Task 2
 
-```bash
-npm run reset-project
+## Getting Started
+
+To get started with CalenTRACK, follow these simple steps:
+
+1. **Clone the Repository**:
+
+```
+    git clone https://github.com/barnabas243/CalenTrack.git
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. **Install Dependencies**:
 
-## Learn more
+```
+    cd CalenTRACK && npm install
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+3. **Run the Application**:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```
+    npx expo start
+```
 
-## Join the community
+4. **Start Exploring**: Access the app on your device or emulator and start exploring its features!
 
-Join our community of developers creating universal apps.
+## Support
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+If you encounter any issues or have any questions, feel free to reach out to us at [bttf243@gmail.com](mailto:bttf243@gmail.com). We're here to help!
+
+## License
+
+CalenTRACK is licensed under the [MIT License](LICENSE).

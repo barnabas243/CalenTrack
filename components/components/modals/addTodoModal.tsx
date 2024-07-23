@@ -36,8 +36,7 @@ const AddTodoModal = ({
 
   const [shortcut, setShortcut] = useState('');
 
-  const [selectedSection, setSelectedSection] = useState('Inbox');
-  const [sectionId, setSectionId] = useState<number | undefined>();
+  const [selectedSection, setSelectedSection] = useState<SectionItem['name']>('');
 
   const shortcutsBtns = [
     {
@@ -212,7 +211,7 @@ const AddTodoModal = ({
     updateTextIfSymbolIsLastChar('!', priority.toString());
   };
 
-  function handleLabelPress(label: SectionItem): void {
+  function handleLabelPress(label: string): void {
     updateTextIfSymbolIsLastChar('@', label);
   }
   const handleSubmitEditing = () => {
@@ -226,7 +225,7 @@ const AddTodoModal = ({
         start_date: startDate,
         recurrence: undefined,
         priority: todoPriority,
-        section_id: sectionId,
+        section_id: undefined,
         created_by: userId,
         parent_id: undefined,
       },
@@ -269,7 +268,7 @@ const AddTodoModal = ({
         })
         .map(([labelKey, labelValue]) => {
           tooltipRows.push(
-            <TouchableOpacity key={labelValue.id} onPress={() => handleLabelPress(labelValue)}>
+            <TouchableOpacity key={labelValue.id} onPress={() => handleLabelPress(labelValue.name)}>
               <Text>{labelValue.name}</Text>
             </TouchableOpacity>,
           );
@@ -293,7 +292,7 @@ const AddTodoModal = ({
     }
     if (tooltipRows.length > 0) return <>{tooltipRows}</>;
   };
-  const updateTextIfSymbolIsLastChar = (symbol: string, label: SectionItem) => {
+  const updateTextIfSymbolIsLastChar = (symbol: string, option: string) => {
     // console.log("highlightedText: ", highlightedText);
     // console.log("option: ", option);
     // console.log("cursorPos: ", cursorPosition);
@@ -310,13 +309,12 @@ const AddTodoModal = ({
 
     if (!symbolPresent) {
       setTooltipVisible(true);
-
       return;
     }
 
     const newText = (
-      <Text key={`${symbol}${label.name}`} style={styles.mention}>
-        {symbol + label.name}
+      <Text key={`${symbol}${option}`} style={styles.mention}>
+        {symbol + option}
       </Text>
     );
 
@@ -326,9 +324,6 @@ const AddTodoModal = ({
     updatedText.push(newText); // Add the new text
     setHighlightedText([...updatedText, ' ']);
     setTooltipVisible(false);
-
-    setSectionId(label.id);
-    setSelectedSection(label.name);
   };
 
   const insertShortcutText = (symbol: string) => {
@@ -351,11 +346,7 @@ const AddTodoModal = ({
       const newHighlightedText = [...highlightedText];
       newHighlightedText.splice(existingIndex, 2); // Remove the existing symbol
 
-      if (symbol === '@') {
-        setSectionId(undefined);
-        setSelectedSection('Inbox');
-      } else if (symbol === '!') setTodoPriority('4');
-
+      if (symbol === '!') setTodoPriority('4');
       setHighlightedText(newHighlightedText);
       setTooltipVisible(false);
     } else {
@@ -414,7 +405,6 @@ const AddTodoModal = ({
               {
                 left: tooltipX,
                 top: -tooltipY,
-                backgroundColor: colors.surface,
               },
             ]}
             onLayout={event => {
@@ -503,6 +493,7 @@ const styles = StyleSheet.create({
   },
   tooltip: {
     position: 'absolute',
+    backgroundColor: '#fff',
     width: '80%',
     padding: 10,
     borderRadius: 5,

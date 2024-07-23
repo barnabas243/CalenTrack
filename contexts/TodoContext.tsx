@@ -1,5 +1,5 @@
 import React, {createContext, useState, useEffect, useContext, useRef, useMemo} from 'react';
-import {Keyboard, StyleSheet} from 'react-native';
+import {Alert, Keyboard, StyleSheet} from 'react-native';
 import {supabase} from '@/utils/supabase';
 import {PostgrestError} from '@supabase/supabase-js';
 
@@ -27,9 +27,13 @@ const TodoContext = createContext<TodoContextType>({
   toggleCompleteTodo: () => {},
   openEditBottomSheet: () => {},
   closeEditBottomSheet: () => {},
+  addSection: async () => null,
+  updateSectionName: async () => {},
+  deleteSection: async () => false,
   overdueTodos: [],
   todayTodos: [],
   completedTodos: [],
+  todoSortedByDate: {},
   selectedTodo: null,
   setSelectedTodo: () => {},
   setShowInputModal: () => {},
@@ -38,7 +42,7 @@ const TodoContext = createContext<TodoContextType>({
 export const useTodo = () => useContext(TodoContext);
 
 export const TodoProvider = ({children}: ToDoProviderProps) => {
-  const {user} = useUser();
+  const {user, isLoading} = useUser();
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [sections, setSections] = useState<SectionItem[]>([]);
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null);
@@ -50,8 +54,14 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
   const snapPoints = useMemo(() => ['50%', '75%'], []);
 
   useEffect(() => {
+    if (isLoading) {
+      return;
+    }
     const fetchTodos = async () => {
-      if (!user) return;
+      if (!user) {
+        alert('User not found');
+        return null;
+      }
 
       const {data, error} = await supabase.from('todos').select('*').eq('created_by', user!.id);
       if (error) {
@@ -62,12 +72,17 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
       }
     };
     const fetchSections = async () => {
-      if (!user) return;
-
+      if (!user) {
+        alert('[fetchSections] User not found');
+        return null;
+      }
+      // Fetch sections that belong to the user or are unassigned (Inbox)
       const {data, error} = await supabase
         .from('sections')
-        .select('id, name')
-        .eq('owner_id', user!.id);
+        .select('*')
+        .or(`user_id.eq.${user!.id},user_id.is.null`)
+        .order('id', {ascending: true});
+
       if (error) {
         console.error('Error fetching sections:', error.message);
       } else {
@@ -78,7 +93,7 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
 
     fetchTodos();
     fetchSections();
-  }, [user]);
+  }, [isLoading, user]);
 
   useEffect(() => {
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
@@ -92,7 +107,7 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
 
   const addTodo = async (newTodo: TodoItem) => {
     const {data, error} = await supabase.from('todos').insert(newTodo).select();
-    console.log(data);
+
     if (error) {
       console.error('Error adding todo:', error.message);
     } else {
@@ -150,7 +165,7 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
       }
     } catch (error) {
       if (isPostgrestError(error))
-        console.log('toggleCompleteTodo PostgrestError :', error.message);
+        console.error('toggleCompleteTodo PostgrestError :', error.message);
       if (error instanceof Error)
         console.error('toggleCompleteTodo Error toggling todo completion:', error.message);
     }
@@ -179,17 +194,95 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
     }
   };
 
-  const handleSubmitEditing = (newTodo: TodoItem) => {
-    if (newTodo) {
-      addTodo(newTodo);
+  const addSection = async (newSectionName: string) => {
+    if (!newSectionName || !user) return false;
+
+    if (sections.some(section => section.name === newSectionName)) {
+      return false;
+    }
+
+    const {data, error} = await supabase
+      .from('sections')
+      .insert({name: newSectionName, user_id: user.id})
+      .select();
+
+    if (error) {
+      console.error('Error adding section:', error.message);
+    } else {
+      if (data) {
+        setSections([...sections, data[0]]);
+        return data[0];
+      }
+    }
+
+    return null;
+  };
+
+  const updateSectionName = async (updatedSection: SectionItem) => {
+    if (sections.some(section => section.name === updatedSection.name)) {
+      return Alert.alert('Error', 'Section name already exists');
+    }
+
+    const {id, ...updateFields} = updatedSection; // Destructure to exclude id
+    const {error} = await supabase
+      .from('sections')
+      .update(updateFields) // Update with the fields excluding id
+      .match({id}); // Match the record by id
+
+    if (error) {
+      console.error('Error updating section:', error.message);
+    } else {
+      setSections(
+        sections.map(section => (section.id === updatedSection.id ? updatedSection : section)),
+      );
+      return updatedSection;
+    }
+
+    return null;
+  };
+
+  const deleteSection = async (sectionId: number) => {
+    if (!user) return;
+
+    const {error} = await supabase
+      .from('sections')
+      .delete()
+      .match({id: sectionId, user_id: user?.id});
+
+    if (error) {
+      console.error('Error deleting section:', error.message);
+    } else {
+      setSections(sections.filter(section => section.id !== sectionId));
+      return true;
+    }
+    return false;
+  };
+
+  const handleSubmitEditing = async (newTodo: TodoItem, selectedSection = 'Inbox') => {
+    if (!newTodo) return;
+    if (selectedSection !== 'Inbox' && !newTodo.section_id) {
+      const isCreated = await addSection(selectedSection);
+      console.log('isCreated:', isCreated);
+      if (!isCreated) {
+        return Alert.alert('Error', '[isCreated] Failed to create section');
+      }
+
+      const updatedTodo = {...newTodo, section_id: isCreated.id};
+      return await addTodo(updatedTodo);
+    }
+
+    if (newTodo.section_id || selectedSection === 'Inbox') {
+      await addTodo(newTodo);
+    } else {
+      return Alert.alert('Error', 'section_id is missing or invalid');
     }
   };
 
-  const {overdueTodos, todayTodos, completedTodos} = useMemo(() => {
+  const {overdueTodos, todayTodos, completedTodos, todoSortedByDate} = useMemo(() => {
     const overdue = todos.filter(todo => {
       const dueDate = dayjs(todo.due_date);
       const yesterday = dayjs().subtract(1, 'day');
-      return dueDate.isValid() && dueDate.isBefore(yesterday, 'day');
+      return dueDate.isValid() && !todo.completed && dueDate.isBefore(yesterday, 'day');
     });
 
     const today = todos.filter(todo => {
@@ -200,7 +293,25 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
 
     const completed = todos.filter(todo => todo.completed);
 
-    return {overdueTodos: overdue, todayTodos: today, completedTodos: completed};
+    const todoSortedByDate: {[key: string]: TodoItem[]} = todos.reduce<{[key: string]: TodoItem[]}>(
+      (acc, todo) => {
+        const dueDate = dayjs(todo.due_date);
+        const key = dueDate.isValid() ? dueDate.format('YYYY-MM-DD') : 'No Due Date';
+        if (!acc[key]) {
+          acc[key] = [];
+        }
+        acc[key].push(todo);
+        return acc;
+      },
+      {},
+    );
+
+    return {
+      overdueTodos: overdue,
+      todayTodos: today,
+      completedTodos: completed,
+      todoSortedByDate: todoSortedByDate,
+    };
   }, [todos]); // Only re-compute when todos change
 
   const contextValue: TodoContextType = {
@@ -212,10 +323,14 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
     toggleCompleteTodo,
     openEditBottomSheet,
     closeEditBottomSheet,
+    addSection,
+    updateSectionName,
+    deleteSection,
     overdueTodos,
     todayTodos,
     completedTodos,
     selectedTodo,
+    todoSortedByDate,
     setSelectedTodo,
     setShowInputModal,
   };

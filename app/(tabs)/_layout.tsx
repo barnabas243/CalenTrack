@@ -1,64 +1,112 @@
-import {Tabs} from 'expo-router';
-import React from 'react';
-import {TabBarIcon} from '@/components/navigation/TabBarIcon';
-import {Colors} from '@/constants/Colors';
-import {useColorScheme} from '@/hooks/useColorScheme';
-import {CalendarTabBarIcon} from '@/components/navigation/CalendarTabBarIcon';
+// app/(tabs)/_layout.tsx
+
+import React, {useEffect, useState} from 'react';
 import {TodoProvider} from '@/contexts/TodoContext';
-import {UserProvider} from '@/contexts/UserContext';
-import {SafeAreaView, StatusBar, StyleSheet} from 'react-native';
+import {AuthProvider} from '@/contexts/UserContext';
+import {useTheme} from 'react-native-paper';
+import {MaterialBottomTabs} from '@/layouts/material-bottom-tabs';
+import {MaterialCommunityIcons} from '@expo/vector-icons';
+import dayjs from 'dayjs';
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+export default function Layout() {
+  const {colors} = useTheme();
+  const [currentTime, setCurrentTime] = useState(dayjs());
 
+  // Update current time every hour
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(dayjs());
+    }, 3600000); // Update every 1 hour (3600000 milliseconds)
+    return () => clearInterval(interval);
+  }, []);
+
+  // Function to convert hour number to text representation
+  const hourToText = (hour: number) => {
+    const hoursText = [
+      'twelve',
+      'one',
+      'two',
+      'three',
+      'four',
+      'five',
+      'six',
+      'seven',
+      'eight',
+      'nine',
+      'ten',
+      'eleven',
+    ];
+    return hoursText[hour % 12]; // Ensure hour cycles from 1 to 12
+  };
+
+  // Determine which clock icon to display based on the current hour
+  const currentHourText = hourToText(currentTime.hour());
+  const clockIcon = `clock-time-${currentHourText}`; // Example icons: clock-time-one, clock-time-two, ..., clock-time-twelve
   return (
-    <UserProvider>
+    <AuthProvider>
       <TodoProvider>
-        <SafeAreaView style={styles.container}>
-          <StatusBar />
-          <Tabs
-            screenOptions={{
-              tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-              headerShown: false,
-            }}>
-            <Tabs.Screen
-              name="today"
-              options={{
-                tabBarLabel: 'Today',
-                tabBarIcon: ({color, focused}) => (
-                  <CalendarTabBarIcon
-                    name={focused ? 'calendar-clear' : 'calendar-clear-outline'}
-                    color={color}
-                  />
-                ),
-              }}
-            />
-            <Tabs.Screen
-              name="calendar"
-              options={{
-                title: 'calendar',
-                tabBarIcon: ({color, focused}) => (
-                  <TabBarIcon name={focused ? 'settings' : 'settings-outline'} color={color} />
-                ),
-              }}
-            />
-            <Tabs.Screen
-              name="settings"
-              options={{
-                title: 'Settings',
-                tabBarIcon: ({color, focused}) => (
-                  <TabBarIcon name={focused ? 'settings' : 'settings-outline'} color={color} />
-                ),
-              }}
-            />
-          </Tabs>
-        </SafeAreaView>
+        <MaterialBottomTabs
+          safeAreaInsets={{bottom: 0}}
+          activeColor={colors.primary}
+          screenOptions={
+            {
+              // API Reference: https://reactnavigation.org/docs/material-bottom-tab-navigator#options
+            }
+          }>
+          <MaterialBottomTabs.Screen
+            name="index"
+            options={{
+              tabBarLabel: `Today (${currentTime.get('date')})`, // Include current day in label
+              tabBarIcon: ({color, focused}) => (
+                <MaterialCommunityIcons
+                  color={color}
+                  size={24}
+                  name={focused ? clockIcon : `${clockIcon}-outline`}
+                />
+              ),
+            }}
+          />
+          <MaterialBottomTabs.Screen
+            name="inbox"
+            options={{
+              tabBarLabel: 'inbox',
+              tabBarIcon: ({color, focused}) => (
+                <MaterialCommunityIcons
+                  color={color}
+                  size={24}
+                  name={focused ? 'inbox' : 'inbox-outline'}
+                />
+              ),
+            }}
+          />
+          <MaterialBottomTabs.Screen
+            name="calendar"
+            options={{
+              tabBarLabel: 'calendar',
+              tabBarIcon: ({color, focused}) => (
+                <MaterialCommunityIcons
+                  color={color}
+                  size={24}
+                  name={focused ? 'calendar-clock' : 'calendar-clock-outline'}
+                />
+              ),
+            }}
+          />
+          <MaterialBottomTabs.Screen
+            name="settings"
+            options={{
+              tabBarLabel: 'settings',
+              tabBarIcon: ({color, focused}) => (
+                <MaterialCommunityIcons
+                  color={color}
+                  size={24}
+                  name={focused ? 'cog' : 'cog-outline'}
+                />
+              ),
+            }}
+          />
+        </MaterialBottomTabs>
       </TodoProvider>
-    </UserProvider>
+    </AuthProvider>
   );
 }
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

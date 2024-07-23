@@ -1,19 +1,23 @@
+import React from 'react';
 import {Link, Stack} from 'expo-router';
-import {StyleSheet} from 'react-native';
-
-import {ThemedText} from '@/components/ThemedText';
-import {ThemedView} from '@/components/ThemedView';
+import {StyleSheet, View} from 'react-native';
+import {ActivityIndicator, Text} from 'react-native-paper';
+import {useUser} from '@/contexts/UserContext';
 
 export default function NotFoundScreen() {
+  const {user, isLoading} = useUser();
+
+  if (isLoading) return <ActivityIndicator />;
+
   return (
     <>
       <Stack.Screen options={{title: 'Oops!'}} />
-      <ThemedView style={styles.container}>
-        <ThemedText type="title">This screen doesn't exist.</ThemedText>
-        <Link href="/" style={styles.link}>
-          <ThemedText type="link">Go to home screen!</ThemedText>
+      <View style={styles.container}>
+        <Text>This screen doesn't exist.</Text>
+        <Link href={user ? '/(tabs)' : '/(auth)/login'} style={styles.link}>
+          <Text>Go to home screen!</Text>
         </Link>
-      </ThemedView>
+      </View>
     </>
   );
 }
