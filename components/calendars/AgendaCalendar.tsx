@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react';
+import React, {createRef, PureComponent, useRef} from 'react';
 import {Alert, StyleSheet, Text, View, TouchableOpacity} from 'react-native';
 import {Agenda, DateData, AgendaEntry, AgendaSchedule} from 'react-native-calendars';
 
@@ -8,58 +8,40 @@ interface State {
 
 interface Props {
   onMonthChange: (month: string) => void;
+  selectedDate: string;
+  setSelectedDate: (date: string) => void;
 }
-
 export default class AgendaCalendar extends PureComponent<Props, State> {
+  private agendaRef = createRef<Agenda>();
   state: State = {
     items: undefined,
   };
 
-  // reservationsKeyExtractor = (item, index) => {
-  //   return `${item?.reservation?.day}${index}`;
-  // };
+  onDayPress = (day: DateData) => {
+    this.props.setSelectedDate(day.dateString);
+  };
 
   render() {
     return (
       <Agenda
+        ref={this.agendaRef}
         pastScrollRange={50}
         items={this.state.items}
         loadItemsForMonth={this.loadItems}
-        selected={'2024-05-16'}
+        selected={this.props.selectedDate}
         renderItem={this.renderItem}
         renderEmptyDate={this.renderEmptyDate}
         rowHasChanged={this.rowHasChanged}
         showClosingKnob={true}
-        // onMonthChange={onMonthChange}
-        // markingType={'period'}
-        // markedDates={{
-        //    '2017-05-08': {textColor: '#43515c'},
-        //    '2017-05-09': {textColor: '#43515c'},
-        //    '2017-05-14': {startingDay: true, endingDay: true, color: 'blue'},
-        //    '2017-05-21': {startingDay: true, color: 'blue'},
-        //    '2017-05-22': {endingDay: true, color: 'gray'},
-        //    '2017-05-24': {startingDay: true, color: 'gray'},
-        //    '2017-05-25': {color: 'gray'},
-        //    '2017-05-26': {endingDay: true, color: 'gray'}}}
-        // monthFormat={'yyyy'}
-        // theme={{calendarBackground: 'red', agendaKnobColor: 'green'}}
-        // renderDay={this.renderDay}
-        // hideExtraDays={false}
-        // showOnlySelectedDayItems
-        // reservationsKeyExtractor={this.reservationsKeyExtractor}
+        // onDayChange={this.onDayChange}
+        onDayPress={this.onDayPress}
       />
     );
   }
 
   loadItems = (day: DateData) => {
     const items = this.state.items || {};
-    // const newMonth = this.extractMonth(day); // Extract the month from the provided day
 
-    // // Call the onMonthChange callback function whenever the month changes
-    // if (newMonth !== currentMonth) {
-    //   setCurrentMonth(newMonth);
-    //   onMonthChange(newMonth);
-    // }
     setTimeout(() => {
       for (let i = -10; i < 40; i++) {
         const time = day.timestamp + i * 24 * 60 * 60 * 1000;
@@ -93,12 +75,6 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
     const date = new Date(day.timestamp);
     return date.toLocaleString('default', {month: 'long', year: 'numeric'});
   };
-  // renderDay = day => {
-  //   if (day) {
-  //     return <Text style={styles.customDay}>{day.getDay()}</Text>;
-  //   }
-  //   return <View style={styles.dayItem} />;
-  // };
 
   renderItem = (reservation: AgendaEntry, isFirst: boolean) => {
     const fontSize = isFirst ? 16 : 14;

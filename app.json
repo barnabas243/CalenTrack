@@ -3,7 +3,6 @@
     "name": "CalenTrack",
     "slug": "CalenTrack",
     "version": "1.0.0",
-    "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
@@ -13,14 +12,19 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.barnabas243.CalenTrack",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.barnabas243.CalenTrack"
+      "package": "com.barnabas243.CalenTrack",
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +42,9 @@
       "eas": {
         "projectId": "2f019e33-9f2e-48b7-8b86-531f572d7ef5"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2f019e33-9f2e-48b7-8b86-531f572d7ef5"
     }
   }
 }

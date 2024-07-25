@@ -20,7 +20,7 @@ const generateEvents = () => {
   }));
 };
 
-const WeekCalendar = () => {
+const WeekCalendar = ({selectedDate, setSelectedDate}) => {
   const {height} = useWindowDimensions();
   const [additionalEvents, setAdditionalEvents] = useState<ICalendarEventBase[]>([]);
 
@@ -37,14 +37,14 @@ const WeekCalendar = () => {
   // Callback to add a new event
   const addEvent = useCallback((start: Date) => {
     const title = 'new Event';
-    const end = dayjs(start).add(59, 'minute').toDate();
+    const end = dayjs(start).add(29, 'minute').toDate();
     setAdditionalEvents(prevEvents => [...prevEvents, {start, end, title}]);
   }, []);
 
   // Callback to add a long event
   const addLongEvent = useCallback((start: Date) => {
     const title = 'new Long Event';
-    const end = dayjs(start).add(1, 'hour').add(59, 'minute').toDate();
+    const end = dayjs(start).add(2, 'hour').add(59, 'minute').toDate();
     setAdditionalEvents(prevEvents => [...prevEvents, {start, end, title}]);
   }, []);
 
@@ -53,6 +53,7 @@ const WeekCalendar = () => {
 
   return (
     <Calendar
+      date={selectedDate}
       height={height - 60}
       events={filteredEvents}
       maxVisibleEventCount={3}

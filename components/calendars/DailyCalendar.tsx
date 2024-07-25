@@ -1,4 +1,4 @@
-import React, {createRef, PureComponent} from 'react';
+import React, {createRef, PureComponent, useMemo} from 'react';
 import {Alert, View, Text, StyleSheet} from 'react-native';
 import {
   ExpandableCalendar,
@@ -13,6 +13,7 @@ import groupBy from 'lodash/groupBy';
 import filter from 'lodash/filter';
 import find from 'lodash/find';
 import dayjs from 'dayjs';
+import {TodoItem} from '@/contexts/TodoContext.types';
 
 const EVENT_COLOR = '#e6add8';
 const today = new Date();
@@ -142,27 +143,42 @@ interface DailyCalendarState {
   eventsByDate: {[key: string]: TimelineEventProps[]};
   selectedEvent: TimelineEventProps | null;
 }
-export default class DailyCalendar extends PureComponent {
+interface DailyCalendarProps {
+  events: TimelineEventProps[];
+  selectedDate: string;
+  setSelectedDate: (date: string) => void;
+}
+
+export default class DailyCalendar extends PureComponent<DailyCalendarProps, DailyCalendarState> {
   bottomSheetRef = createRef<BottomSheet>();
 
-  state: DailyCalendarState = {
-    currentDate: dayjs(new Date()).format('YYYY-MM-DD'),
-    events: EVENTS,
-    eventsByDate: groupBy(EVENTS, e => CalendarUtils.getCalendarDateString(e.start)),
-    selectedEvent: null,
+  constructor(props: DailyCalendarProps) {
+    super(props);
+
+    this.state = {
+      currentDate: props.selectedDate,
+      events: props.events,
+      eventsByDate: this.groupEventsByDate(props.events),
+      selectedEvent: null,
+    };
+  }
+
+  groupEventsByDate = (events: TimelineEventProps[]) => {
+    return groupBy(events, e => CalendarUtils.getCalendarDateString(e.start));
   };
 
-  marked = {
-    [`${getDate(-1)}`]: {marked: true},
-    [`${getDate()}`]: {marked: true},
-    [`${getDate(1)}`]: {marked: true},
-    [`${getDate(2)}`]: {marked: true},
-    [`${getDate(4)}`]: {marked: true},
-  };
+  marked = (() => {
+    const marked: {[key: string]: any} = {};
+    this.props.events.forEach(event => {
+      const date = CalendarUtils.getCalendarDateString(event.start);
+      marked[date] = {marked: true};
+    });
+    return marked;
+  })();
 
   onDateChanged = (date: string, source: string) => {
     console.log('DailyCalendar onDateChanged: ', date, source);
-    this.setState({currentDate: date});
+    this.props.setSelectedDate(date);
   };
 
   onMonthChange = (month: any, updateSource: any) => {

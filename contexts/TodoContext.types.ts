@@ -1,5 +1,6 @@
 import {Tables} from '@/utils/database.types';
 import {ReactNode} from 'react';
+import {TimelineEventProps} from 'react-native-calendars';
 
 /**
  * Defines the structure of a todo item in the application.
@@ -62,6 +63,8 @@ export interface TodoContextType {
   completedTodos: TodoItem[];
   selectedTodo: TodoItem | null;
   todoSortedByDate: {[key: string]: TodoItem[]};
+  monthlyTodoArray: [string, TodoItem[]][];
+  timelineTodoEvents: TimelineEventProps[];
   setSelectedTodo: (todo: TodoItem | null) => void;
   setShowInputModal: (show: boolean) => void;
 }
@@ -95,3 +98,8 @@ export type PriorityType = '1' | '2' | '3' | '4';
 export type ToDoProviderProps = {
   children: ReactNode;
 };
+
+export interface MonthlyTodo {
+  dueDate: string;
+  data: TodoItem[];
+}

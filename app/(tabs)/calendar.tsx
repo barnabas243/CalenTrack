@@ -1,12 +1,10 @@
-import React, {useMemo, useState} from 'react';
+import React, {useState} from 'react';
 import {StyleSheet, View, ScrollView, TouchableOpacity} from 'react-native';
 import {Text, useTheme} from 'react-native-paper';
 import {DateData} from 'react-native-calendars';
 
 import dayjs from 'dayjs';
-import {TodoItem} from '@/contexts/TodoContext.types';
 import {useTodo} from '@/contexts/TodoContext';
-import ToDoItem from '@/components/ToDoItem';
 import MonthCalendar from '@/components/calendars/MonthCalendar';
 import DailyCalendar from '@/components/calendars/DailyCalendar';
 import AgendaCalendar from '@/components/calendars/AgendaCalendar';
@@ -14,40 +12,20 @@ import WeekCalendar from '@/components/calendars/WeekCalendar';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {Mode} from 'react-native-big-calendar';
 
-type MarkedDates = {
-  [key: string]: {marked: boolean};
-};
+// type MarkedDates = {
+//   [key: string]: {marked: boolean};
+// };
 
 const CalendarPage = () => {
   const {colors} = useTheme();
-  const {todoSortedByDate} = useTodo();
+  const {timelineTodoEvents, monthlyTodoArray} = useTodo();
   const [mode, setMode] = useState<Mode>('month');
   const [selectedDate, setSelectedDate] = useState(dayjs(new Date()).format('YYYY-MM-DD'));
 
-  const marked = useMemo<MarkedDates>(() => {
-    const markedDates: MarkedDates = {};
-    for (const date in todoSortedByDate) {
-      markedDates[date] = {marked: true};
-    }
-    return markedDates;
-  }, [todoSortedByDate]);
-
-  const renderTodoItem = ({item}: {item: TodoItem}) => <ToDoItem todo={item} />;
-
-  const onDayPress = (day: DateData) => {
-    setSelectedDate(day.dateString);
-  };
+  console.log('CalendarPage is rendered');
 
   const changeMode = (m: Mode) => {
     setMode(m);
-  };
-
-  const onSwipeLeft = () => {
-    setSelectedDate(dayjs(selectedDate).add(1, 'day').format('YYYY-MM-DD'));
-  };
-
-  const onSwipeRight = () => {
-    setSelectedDate(dayjs(selectedDate).subtract(1, 'day').format('YYYY-MM-DD'));
   };
 
   const renderCalendarComponent = () => {
@@ -55,30 +33,43 @@ const CalendarPage = () => {
       case 'month':
         return (
           <MonthCalendar
-            onSwipeLeft={onSwipeLeft}
-            onSwipeRight={onSwipeRight}
-            todoSortedByDate={todoSortedByDate}
+            // onSwipeLeft={onSwipeLeft}
+            // onSwipeRight={onSwipeRight}
+            monthlyTodoArray={monthlyTodoArray}
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
-            marked={marked}
-            onDayPress={onDayPress}
-            renderTodoItem={renderTodoItem}
+            // marked={marked}
+            // onDayPress={onDayPress}
           />
         );
       case 'day':
-        return <DailyCalendar />;
+        return (
+          <DailyCalendar
+            events={timelineTodoEvents}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+          />
+        );
       case 'week':
-        return <WeekCalendar />;
+        return <WeekCalendar selectedDate={selectedDate} setSelectedDate={setSelectedDate} />;
       case 'schedule':
         return (
           <AgendaCalendar
             onMonthChange={(month: string) => {
               console.log('month changed');
             }}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
           />
         );
       default:
-        return <DailyCalendar />;
+        return (
+          <DailyCalendar
+            events={timelineTodoEvents}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+          />
+        );
     }
   };
   return (

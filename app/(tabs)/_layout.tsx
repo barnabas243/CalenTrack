@@ -41,22 +41,18 @@ export default function Layout() {
 
   // Determine which clock icon to display based on the current hour
   const currentHourText = hourToText(currentTime.hour());
-  const clockIcon = `clock-time-${currentHourText}`; // Example icons: clock-time-one, clock-time-two, ..., clock-time-twelve
+  const clockIcon = `clock-time-${currentHourText}` as 'clock'; // Example icons: clock-time-one, clock-time-two, ..., clock-time-twelve
   return (
     <AuthProvider>
       <TodoProvider>
         <MaterialBottomTabs
           safeAreaInsets={{bottom: 0}}
           activeColor={colors.primary}
-          screenOptions={
-            {
-              // API Reference: https://reactnavigation.org/docs/material-bottom-tab-navigator#options
-            }
-          }>
+          screenOptions={{}}>
           <MaterialBottomTabs.Screen
             name="index"
             options={{
-              tabBarLabel: `Today (${currentTime.get('date')})`, // Include current day in label
+              tabBarLabel: `Today (${currentTime.format('Do')})`, // Include current day in label. Example: Today (23rd)
               tabBarIcon: ({color, focused}) => (
                 <MaterialCommunityIcons
                   color={color}
@@ -69,7 +65,7 @@ export default function Layout() {
           <MaterialBottomTabs.Screen
             name="inbox"
             options={{
-              tabBarLabel: 'inbox',
+              tabBarLabel: 'Inbox',
               tabBarIcon: ({color, focused}) => (
                 <MaterialCommunityIcons
                   color={color}

@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {View, FlatList, TouchableOpacity, StyleSheet, Dimensions, TextInput} from 'react-native';
 import Modal from 'react-native-modal';
-import {AddTodoModalProps, HighlightedElementType} from './addTodoModal.types';
+import {AddTodoModalProps, HighlightedElementType} from './AddTodoModal.types';
 import {PriorityType, SectionItem} from '@/contexts/TodoContext.types';
 import * as chrono from 'chrono-node';
 import {Text, Button, useTheme} from 'react-native-paper';
@@ -293,7 +293,7 @@ const AddTodoModal = ({
     }
     if (tooltipRows.length > 0) return <>{tooltipRows}</>;
   };
-  const updateTextIfSymbolIsLastChar = (symbol: string, label: SectionItem) => {
+  const updateTextIfSymbolIsLastChar = (symbol: string, label: SectionItem | PriorityType) => {
     // console.log("highlightedText: ", highlightedText);
     // console.log("option: ", option);
     // console.log("cursorPos: ", cursorPosition);
@@ -314,9 +314,10 @@ const AddTodoModal = ({
       return;
     }
 
+    const labelValue = label?.name || label;
     const newText = (
-      <Text key={`${symbol}${label.name}`} style={styles.mention}>
-        {symbol + label.name}
+      <Text key={`${symbol}${labelValue}`} style={styles.mention}>
+        {symbol + labelValue}
       </Text>
     );
 
@@ -327,8 +328,10 @@ const AddTodoModal = ({
     setHighlightedText([...updatedText, ' ']);
     setTooltipVisible(false);
 
-    setSectionId(label.id);
-    setSelectedSection(label.name);
+    if (typeof label !== 'string') {
+      setSectionId(label.id);
+      setSelectedSection(label.name);
+    }
   };
 
   const insertShortcutText = (symbol: string) => {

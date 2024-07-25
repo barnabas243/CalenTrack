@@ -7,6 +7,10 @@ import ToDoItem from '@/components/ToDoItem';
 import {StatusBar} from 'expo-status-bar';
 import {useUser} from '@/contexts/UserContext';
 import AddTodoFAB from '@/components/addTodoFAB';
+import dayjs from 'dayjs';
+import advancedFormat from 'dayjs/plugin/advancedFormat';
+
+dayjs.extend(advancedFormat);
 
 const HomeScreen = () => {
   const {isLoading} = useUser();

@@ -1,60 +1,117 @@
-import {TodoItem} from '@/contexts/TodoContext.types';
-import React, {PureComponent} from 'react';
-import {StyleSheet, View, Text, FlatList, ListRenderItem} from 'react-native';
+import React, {createRef, PureComponent} from 'react';
+import {
+  StyleSheet,
+  View,
+  FlatList,
+  ListRenderItem,
+  Dimensions,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+} from 'react-native';
 import {ExpandableCalendar, CalendarProvider} from 'react-native-calendars';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
-import GestureRecognizer from 'react-native-swipe-gestures';
+import {SwiperFlatList} from 'react-native-swiper-flatlist';
+import {Text} from 'react-native-paper';
+import ToDoItem from '../ToDoItem';
+import {MonthlyTodo, TodoItem} from '@/contexts/TodoContext.types';
+import {MarkedDates} from 'react-native-calendars/src/types';
+import {throttle} from 'lodash';
 
 interface MonthCalendarProps {
-  onSwipeLeft: () => void;
-  onSwipeRight: () => void;
-  todoSortedByDate: Record<string, TodoItem[]>;
+  monthlyTodoArray: MonthlyTodo[];
   selectedDate: string;
   setSelectedDate: (date: string) => void;
-  marked: Record<string, any>;
-  onDayPress: (date: {dateString: string}) => void;
-  renderTodoItem: ListRenderItem<TodoItem>;
 }
 
-class MonthCalendar extends PureComponent<MonthCalendarProps> {
-  handleCalendarToggled = (opened: boolean) => {
-    this.setState({isClosed: !opened});
+interface MonthCalendarState {
+  currentDate: string;
+  markedDates: MarkedDates;
+}
+
+class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState> {
+  private swiperRef = createRef<SwiperFlatList>();
+
+  constructor(props: MonthCalendarProps) {
+    super(props);
+    this.state = {
+      currentDate: props.selectedDate,
+      markedDates: this.calculateMarkedDates(props.monthlyTodoArray),
+    };
+  }
+
+  componentDidUpdate(prevProps: MonthCalendarProps) {
+    // Update marked dates if monthlyTodoArray changes
+    if (prevProps.monthlyTodoArray !== this.props.monthlyTodoArray) {
+      this.setState({
+        markedDates: this.calculateMarkedDates(this.props.monthlyTodoArray),
+      });
+    }
+  }
+
+  calculateMarkedDates = (monthlyTodoArray: MonthlyTodo[]): MarkedDates => {
+    const markedDates: MarkedDates = {};
+    monthlyTodoArray.forEach(item => {
+      const {dueDate} = item;
+      if (item.data.length > 0) {
+        markedDates[dueDate] = {marked: true};
+      }
+    });
+    return markedDates;
   };
 
+  findIndexByDate = (date: string): number => {
+    const exist = this.props.monthlyTodoArray.findIndex(item => item.dueDate === date);
+    return exist === -1 ? 0 : exist;
+  };
+
+  onDayPress = (date: {dateString: string}) => {
+    const index = this.findIndexByDate(date.dateString);
+    this.props.setSelectedDate(date.dateString);
+    this.swiperRef.current?.scrollToIndex({index});
+  };
+
+  onDateChanged = (date: string) => {
+    const index = this.findIndexByDate(date);
+    this.props.setSelectedDate(date);
+    this.swiperRef.current?.scrollToIndex({index});
+  };
+
+  onMomentumScrollEnd = (indexObject: {index: number}) => {
+    const {index} = indexObject;
+    const newDate = this.props.monthlyTodoArray[index]?.dueDate || this.props.selectedDate;
+    console.log('onMomentumScrollEnd', index, newDate);
+    this.setState({currentDate: newDate});
+    this.props.setSelectedDate(newDate);
+  };
+  renderTodoItem: ListRenderItem<TodoItem> = ({item}) => <ToDoItem todo={item} />;
+
   render() {
-    const {
-      onSwipeLeft,
-      onSwipeRight,
-      todoSortedByDate,
-      selectedDate,
-      setSelectedDate,
-      marked,
-      onDayPress,
-      renderTodoItem,
-    } = this.props;
-    console.log('why is still rendering');
+    const {monthlyTodoArray} = this.props;
+    const {currentDate, markedDates} = this.state;
+    const initialIndex = this.findIndexByDate(this.props.selectedDate);
+
     return (
-      <GestureHandlerRootView style={styles.container}>
-        <CalendarProvider
-          date={selectedDate}
-          showTodayButton
-          onDateChanged={date => setSelectedDate(date)}>
-          <ExpandableCalendar
-            initialPosition={ExpandableCalendar.positions.OPEN}
-            onCalendarToggled={this.handleCalendarToggled}
-            firstDay={1}
-            markedDates={marked}
-            onDayPress={onDayPress}
-          />
-          <GestureRecognizer
-            onSwipeLeft={onSwipeLeft}
-            onSwipeRight={onSwipeRight}
-            style={styles.container}>
+      <CalendarProvider date={currentDate} showTodayButton onDateChanged={this.onDateChanged}>
+        <ExpandableCalendar
+          initialPosition={ExpandableCalendar.positions.OPEN}
+          firstDay={1}
+          markedDates={markedDates}
+          onDayPress={this.onDayPress}
+        />
+        <SwiperFlatList
+          ref={this.swiperRef}
+          data={monthlyTodoArray}
+          initialNumToRender={10} // Adjust this number based on performance needs
+          index={initialIndex}
+          // onChangeIndex={this.onChangeIndex}
+          onMomentumScrollBegin={() => console.log('onMomentumScrollBegin')}
+          onMomentumScrollEnd={index => this.onMomentumScrollEnd(index)}
+          renderItem={({item}) => (
             <FlatList
-              showsVerticalScrollIndicator
-              data={todoSortedByDate[selectedDate] || []}
-              renderItem={renderTodoItem}
-              initialNumToRender={10}
+              showsVerticalScrollIndicator={false}
+              data={item.data}
+              renderItem={this.renderTodoItem}
+              initialNumToRender={5} // Adjust as needed for performance
               keyExtractor={item => item.id.toString()}
               contentContainerStyle={styles.todoList}
               ListEmptyComponent={
@@ -63,14 +120,14 @@ class MonthCalendar extends PureComponent<MonthCalendarProps> {
                 </View>
               }
             />
-          </GestureRecognizer>
-        </CalendarProvider>
-      </GestureHandlerRootView>
+          )}
+        />
+      </CalendarProvider>
     );
   }
 }
 
-export default MonthCalendar;
+const width = Dimensions.get('window').width;
 
 const styles = StyleSheet.create({
   container: {
@@ -78,20 +135,13 @@ const styles = StyleSheet.create({
   },
   todoList: {
     padding: 16,
+    justifyContent: 'center',
+    width,
   },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  itemSeparator: {
-    height: 5,
-    marginBottom: 20,
-  },
-  box: {
-    width: 100,
-    height: 100,
-    backgroundColor: '#b58df1',
-    borderRadius: 20,
   },
 });
+
+export default MonthCalendar;

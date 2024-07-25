@@ -3,7 +3,13 @@ import {Alert, Keyboard, StyleSheet} from 'react-native';
 import {supabase} from '@/utils/supabase';
 import {PostgrestError} from '@supabase/supabase-js';
 
-import {SectionItem, TodoContextType, TodoItem, ToDoProviderProps} from './TodoContext.types';
+import {
+  MonthlyTodo,
+  SectionItem,
+  TodoContextType,
+  TodoItem,
+  ToDoProviderProps,
+} from './TodoContext.types';
 
 import dayjs from 'dayjs';
 import {
@@ -15,8 +21,10 @@ import {
 import bottomSheetModal from '@gorhom/bottom-sheet/lib/typescript/components/bottomSheetModal';
 import EditTodoModalContent from '@/components/bottomModalContents/EditTodoModalContent';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
-import AddTodoModal from '@/components/modals/addTodoModal';
+import AddTodoModal from '@/components/modals/AddTodoModal';
 import {useUser} from './UserContext';
+import {TimelineEventProps} from 'react-native-calendars';
+import {useTheme} from 'react-native-paper';
 
 const TodoContext = createContext<TodoContextType>({
   todos: [],
@@ -34,6 +42,8 @@ const TodoContext = createContext<TodoContextType>({
   todayTodos: [],
   completedTodos: [],
   todoSortedByDate: {},
+  monthlyTodoArray: [],
+  timelineTodoEvents: [],
   selectedTodo: null,
   setSelectedTodo: () => {},
   setShowInputModal: () => {},
@@ -52,6 +62,9 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
   const [showInputModal, setShowInputModal] = useState(false);
 
   const snapPoints = useMemo(() => ['50%', '75%'], []);
+
+  const theme = useTheme();
+  const DEFAULT_COLOR = theme.colors.onPrimaryContainer;
 
   useEffect(() => {
     if (isLoading) {
@@ -278,7 +291,14 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
     }
   };
 
-  const {overdueTodos, todayTodos, completedTodos, todoSortedByDate} = useMemo(() => {
+  const {
+    overdueTodos,
+    todayTodos,
+    completedTodos,
+    todoSortedByDate,
+    monthlyTodoArray,
+    timelineTodoEvents,
+  } = useMemo(() => {
     const overdue = todos.filter(todo => {
       const dueDate = dayjs(todo.due_date);
       const yesterday = dayjs().subtract(1, 'day');
@@ -293,26 +313,69 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
 
     const completed = todos.filter(todo => todo.completed);
 
-    const todoSortedByDate: {[key: string]: TodoItem[]} = todos.reduce<{[key: string]: TodoItem[]}>(
-      (acc, todo) => {
-        const dueDate = dayjs(todo.due_date);
-        const key = dueDate.isValid() ? dueDate.format('YYYY-MM-DD') : 'No Due Date';
-        if (!acc[key]) {
-          acc[key] = [];
-        }
-        acc[key].push(todo);
-        return acc;
-      },
-      {},
-    );
+    // Helper function to generate an array of dates
+    const generateDateRange = (startDate: dayjs.Dayjs, days: number): string[] => {
+      return Array.from({length: days}, (_, i) => startDate.add(i, 'day').format('YYYY-MM-DD'));
+    };
+
+    // Get today's date and generate a range of 101 days (50 before, today, 50 after)
+    const todayDate = dayjs();
+    const dateRange = generateDateRange(todayDate.subtract(30, 'day'), 61);
+
+    // Initialize the sorted object with the date range and empty arrays
+    const todoSortedByDate: {[key: string]: TodoItem[]} = {};
+    dateRange.forEach(date => {
+      todoSortedByDate[date] = [];
+    });
+
+    // Populate the object with the grouped todos
+    todos.forEach(todo => {
+      const dueDate = dayjs(todo.due_date);
+      const key = dueDate.isValid() ? dueDate.format('YYYY-MM-DD') : 'No Due Date';
+      // Only add to the object if the date is within the expected range
+      if (key in todoSortedByDate) {
+        todoSortedByDate[key].push(todo);
+      }
+    });
+
+    // Convert the object to a nested array format
+    const monthlyTodoArray: MonthlyTodo[] = dateRange.map(date => ({
+      dueDate: date,
+      data: todoSortedByDate[date],
+    }));
+
+    const timelineTodoEvents: TimelineEventProps[] = todos
+      .filter(todo => todo.start_date && todo.due_date) // Filter todos with both start_date and due_date
+      .map(todo => ({
+        start: dayjs(todo.start_date!).format('YYYY-MM-DD HH:mm:ss'),
+        end: dayjs(todo.due_date!).format('YYYY-MM-DD HH:mm:ss'),
+        title: todo.title,
+        summary: todo.summary,
+        color: DEFAULT_COLOR, // Provide a default color for now
+      }));
+
+    // const todoSortedByDate: {[key: string]: TodoItem[]} = todos.reduce<{[key: string]: TodoItem[]}>(
+    //   (acc, todo) => {
+    //     const dueDate = dayjs(todo.due_date);
+    //     const key = dueDate.isValid() ? dueDate.format('YYYY-MM-DD') : 'No Due Date';
+    //     if (!acc[key]) {
+    //       acc[key] = [];
+    //     }
+    //     acc[key].push(todo);
+    //     return acc;
+    //   },
+    //   {},
+    // );
 
     return {
       overdueTodos: overdue,
       todayTodos: today,
       completedTodos: completed,
       todoSortedByDate: todoSortedByDate,
+      monthlyTodoArray: monthlyTodoArray,
+      timelineTodoEvents: timelineTodoEvents,
     };
-  }, [todos]); // Only re-compute when todos change
+  }, [DEFAULT_COLOR, todos]); // Only re-compute when todos change
 
   const contextValue: TodoContextType = {
     todos,
@@ -331,6 +394,8 @@ export const TodoProvider = ({children}: ToDoProviderProps) => {
     completedTodos,
     selectedTodo,
     todoSortedByDate,
+    monthlyTodoArray,
+    timelineTodoEvents,
     setSelectedTodo,
     setShowInputModal,
   };
