@@ -122,7 +122,7 @@ export default function LoginScreen() {
           autoCapitalize={'none'}
           keyboardType={'email-address'}
           autoComplete="email"
-          autoFocus
+          tabIndex={0}
         />
       </View>
       <View style={styles.verticallySpaced}>
@@ -134,6 +134,7 @@ export default function LoginScreen() {
           secureTextEntry={true}
           autoCapitalize={'none'}
           autoComplete="password"
+          tabIndex={0}
         />
       </View>
       <View style={[styles.verticallySpaced, styles.mt20]}>

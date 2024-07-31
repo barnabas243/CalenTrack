@@ -28,14 +28,8 @@ export const AuthProvider = ({children}: UserProviderProps) => {
     const initializeUser = async () => {
       setIsLoading(true);
       try {
-        const {data, error} = await supabase.auth.getUser(); // Use .api.getUser() for better error handling
+        const {error} = await supabase.auth.getSession();
         if (error) throw error;
-
-        if (data && data.user) {
-          setUser(data.user);
-        } else {
-          Alert.alert('User not found');
-        }
       } catch (error: any) {
         if (error instanceof AuthError) {
           Alert.alert('Authentication Error', 'You are not authenticated.');
@@ -43,12 +37,14 @@ export const AuthProvider = ({children}: UserProviderProps) => {
         } else {
           Alert.alert('Unexpected Error', 'Please try again later.');
           console.error('Unexpected Error:', error);
-          // Additional specific error handling can go here
         }
+        // Redirect to login on error to handle potential issues
+        router.replace('/(auth)/login');
       } finally {
         setIsLoading(false); // Ensure loading state is always set to false
       }
     };
+
     initializeUser();
   }, []);
 
@@ -57,16 +53,16 @@ export const AuthProvider = ({children}: UserProviderProps) => {
       switch (event) {
         case 'INITIAL_SESSION':
         case 'SIGNED_IN':
-          setUser(newSession?.user ?? null);
           if (!session) setSession(newSession ?? null);
+          setUser(newSession?.user ?? null);
           setTimeout(() => {
             router.replace('/(tabs)');
-          }, 0);
+          }, 100);
           break;
         case 'SIGNED_OUT':
           setTimeout(() => {
             router.replace('/(auth)/login');
-          }, 0);
+          }, 100);
           break;
         case 'PASSWORD_RECOVERY':
           // Handle password recovery event

@@ -1,10 +1,13 @@
-import {SafeAreaView, StyleSheet, Alert, SectionList, View} from 'react-native';
+import {StyleSheet, Alert, SectionList, View} from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {supabase} from '@/utils/supabase';
 import {useUser} from '@/contexts/UserContext';
 import {
   ActivityIndicator,
   Avatar,
   Button,
+  Card,
+  IconButton,
   List,
   Modal,
   Portal,
@@ -15,6 +18,7 @@ import {
 import {useState} from 'react';
 import dayjs from 'dayjs';
 import React from 'react';
+import {StatusBar} from 'expo-status-bar';
 
 type ThemeProps = 'system' | 'dark' | 'light';
 export default function SettingsPage() {
@@ -133,6 +137,7 @@ export default function SettingsPage() {
   }
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar style="auto" />
       <SectionList
         showsVerticalScrollIndicator={false}
         sections={sections}
@@ -142,20 +147,15 @@ export default function SettingsPage() {
           return section.renderItem({item, index, section});
         }}
         ListHeaderComponent={() => (
-          <View style={styles.profileContainer}>
-            <Avatar.Image size={100} source={{uri: user?.user_metadata.avatar_url}} />
-            <View style={styles.profileTextContainer}>
-              <Text ellipsizeMode="tail" style={styles.profileName}>
-                {user?.user_metadata.full_name}
-              </Text>
-              <Text style={{fontSize: 16, color: colors.outline, paddingBottom: 8}}>
-                {user?.user_metadata.email}
-              </Text>
-              <Text style={{color: colors.outline}}>
-                Joined since {dayjs(user?.created_at).format('MMMM DD, YYYY')}
-              </Text>
-            </View>
-          </View>
+          <Card onPress={() => console.log('pressed Card')}>
+            <Card.Title
+              title={user?.user_metadata.full_name}
+              subtitle={user?.user_metadata.email}
+              left={props => (
+                <Avatar.Image {...props} source={{uri: user?.user_metadata.avatar_url}} />
+              )}
+            />
+          </Card>
         )}
         renderSectionFooter={() => <View style={{paddingBottom: 20}} />}
       />
@@ -179,9 +179,8 @@ export default function SettingsPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: 40,
-    padding: 12,
-    marginHorizontal: 12,
+    paddingHorizontal: 12,
+    margin: 12,
   },
 
   profileContainer: {

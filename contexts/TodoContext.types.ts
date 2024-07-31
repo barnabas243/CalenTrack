@@ -1,5 +1,6 @@
 import {Tables} from '@/utils/database.types';
 import {ReactNode} from 'react';
+import {TimelineEventProps} from 'react-native-calendars';
 
 /**
  * Defines the structure of a todo item in the application.
@@ -17,11 +18,11 @@ import {ReactNode} from 'react';
  * - `parent_id`: Optional ID of the parent task if this todo item is a subtask.
  */
 export interface TodoItem {
-  id?: number;
+  id?: string;
   title: string;
   summary: string;
   completed: boolean;
-  completed_at?: Date;
+  completed_at?: Date | null;
   due_date?: Date;
   start_date?: Date;
   recurrence?: RecurrenceType;
@@ -35,6 +36,12 @@ export interface SectionItem {
   id: number;
   name: string;
 }
+export interface Section {
+  key: string;
+  name: string;
+  data: TodoItem[];
+}
+
 /**
  * Defines the context type for managing todo items within the application.
  * - `todos`: Array of all todo items.
@@ -48,10 +55,14 @@ export interface SectionItem {
 export interface TodoContextType {
   todos: TodoItem[];
   sections: SectionItem[];
+  groupedSections: Section[];
+  handleEndDrag: (results: TodoItem[], name: string) => void;
   addTodo: (newTodo: TodoItem) => void;
   deleteTodo: (todoId: number) => void;
+  batchDeleteTodos: (todoIds: number[]) => Promise<boolean>;
   updateTodo: (updatedTodo: TodoItem) => void;
   toggleCompleteTodo: (todoId: number) => void;
+  batchCompleteTodos: (todoIds: number[]) => Promise<boolean>;
   openEditBottomSheet: (selectedTodo: TodoItem) => void;
   closeEditBottomSheet: () => void;
   addSection: (newSectionName: string) => Tables<'sections'> | null;
@@ -61,7 +72,10 @@ export interface TodoContextType {
   todayTodos: TodoItem[];
   completedTodos: TodoItem[];
   selectedTodo: TodoItem | null;
-  todoSortedByDate: {[key: string]: TodoItem[]};
+  todoSortedByDate: Record<string, TodoItem[]>;
+  monthlyTodoArray: MonthlyTodo[];
+  MonthlyTodoRecord: Record<string, TodoItem[]>;
+  timelineTodoEvents: TimelineEventProps[];
   setSelectedTodo: (todo: TodoItem | null) => void;
   setShowInputModal: (show: boolean) => void;
 }
@@ -95,3 +109,8 @@ export type PriorityType = '1' | '2' | '3' | '4';
 export type ToDoProviderProps = {
   children: ReactNode;
 };
+
+export interface MonthlyTodo {
+  dueDate: string;
+  data: TodoItem[];
+}
