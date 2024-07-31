@@ -1,32 +1,29 @@
 import React, {createRef, PureComponent} from 'react';
-import {
-  StyleSheet,
-  View,
-  FlatList,
-  ListRenderItem,
-  Dimensions,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-} from 'react-native';
+import {StyleSheet, View, FlatList, ListRenderItem, Dimensions} from 'react-native';
 import {ExpandableCalendar, CalendarProvider} from 'react-native-calendars';
-import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SwiperFlatList} from 'react-native-swiper-flatlist';
-import {Text} from 'react-native-paper';
+import {Text, useTheme, MD3Theme, Divider} from 'react-native-paper';
 import ToDoItem from '../ToDoItem';
 import {MonthlyTodo, TodoItem} from '@/contexts/TodoContext.types';
 import {MarkedDates} from 'react-native-calendars/src/types';
-import {throttle} from 'lodash';
+import {MD3Colors} from 'react-native-paper/lib/typescript/types';
+import DraggableFlatList, {RenderItemParams} from 'react-native-draggable-flatlist';
+import dayjs from 'dayjs';
 
 interface MonthCalendarProps {
   monthlyTodoArray: MonthlyTodo[];
   selectedDate: string;
   setSelectedDate: (date: string) => void;
+  colors: MD3Colors;
+  handleEndDrag: (results: TodoItem[], name: string | Date) => void;
 }
 
 interface MonthCalendarState {
-  currentDate: string;
   markedDates: MarkedDates;
+  currentDate: string;
 }
+
+let count = 0;
 
 class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState> {
   private swiperRef = createRef<SwiperFlatList>();
@@ -34,13 +31,12 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
   constructor(props: MonthCalendarProps) {
     super(props);
     this.state = {
-      currentDate: props.selectedDate,
       markedDates: this.calculateMarkedDates(props.monthlyTodoArray),
+      currentDate: props.selectedDate,
     };
   }
 
   componentDidUpdate(prevProps: MonthCalendarProps) {
-    // Update marked dates if monthlyTodoArray changes
     if (prevProps.monthlyTodoArray !== this.props.monthlyTodoArray) {
       this.setState({
         markedDates: this.calculateMarkedDates(this.props.monthlyTodoArray),
@@ -66,32 +62,48 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
 
   onDayPress = (date: {dateString: string}) => {
     const index = this.findIndexByDate(date.dateString);
-    this.props.setSelectedDate(date.dateString);
-    this.swiperRef.current?.scrollToIndex({index});
+    if (this.state.currentDate !== date.dateString) {
+      this.setState({currentDate: date.dateString});
+      this.props.setSelectedDate(date.dateString);
+      this.swiperRef.current?.scrollToIndex({index});
+    }
   };
 
   onDateChanged = (date: string) => {
     const index = this.findIndexByDate(date);
-    this.props.setSelectedDate(date);
-    this.swiperRef.current?.scrollToIndex({index});
+    if (this.state.currentDate !== date) {
+      this.setState({currentDate: date});
+      this.props.setSelectedDate(date);
+      this.swiperRef.current?.scrollToIndex({index});
+    }
   };
 
-  onMomentumScrollEnd = (indexObject: {index: number}) => {
-    const {index} = indexObject;
-    const newDate = this.props.monthlyTodoArray[index]?.dueDate || this.props.selectedDate;
-    console.log('onMomentumScrollEnd', index, newDate);
-    this.setState({currentDate: newDate});
-    this.props.setSelectedDate(newDate);
+  onChangeIndex = (item: {index: number; prevIndex: number}) => {
+    const {index, prevIndex} = item;
+    if (index !== prevIndex) {
+      const newDate = this.props.monthlyTodoArray[index]?.dueDate || this.props.selectedDate;
+      if (this.state.currentDate !== newDate) {
+        this.setState({currentDate: newDate});
+        this.props.setSelectedDate(newDate);
+      }
+    }
   };
-  renderTodoItem: ListRenderItem<TodoItem> = ({item}) => <ToDoItem todo={item} />;
+
+  renderTodoItem = (params: RenderItemParams<TodoItem>) => (
+    <ToDoItem {...params} colors={this.props.colors} />
+  );
 
   render() {
+    console.log('MonthCalendar rendered:', ++count);
     const {monthlyTodoArray} = this.props;
-    const {currentDate, markedDates} = this.state;
+    const {markedDates} = this.state;
     const initialIndex = this.findIndexByDate(this.props.selectedDate);
 
     return (
-      <CalendarProvider date={currentDate} showTodayButton onDateChanged={this.onDateChanged}>
+      <CalendarProvider
+        date={this.props.selectedDate}
+        showTodayButton
+        onDateChanged={this.onDateChanged}>
         <ExpandableCalendar
           initialPosition={ExpandableCalendar.positions.OPEN}
           firstDay={1}
@@ -101,25 +113,48 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
         <SwiperFlatList
           ref={this.swiperRef}
           data={monthlyTodoArray}
-          initialNumToRender={10} // Adjust this number based on performance needs
+          initialNumToRender={3}
           index={initialIndex}
-          // onChangeIndex={this.onChangeIndex}
-          onMomentumScrollBegin={() => console.log('onMomentumScrollBegin')}
-          onMomentumScrollEnd={index => this.onMomentumScrollEnd(index)}
+          onChangeIndex={this.onChangeIndex}
           renderItem={({item}) => (
-            <FlatList
-              showsVerticalScrollIndicator={false}
+            <DraggableFlatList
               data={item.data}
               renderItem={this.renderTodoItem}
-              initialNumToRender={5} // Adjust as needed for performance
               keyExtractor={item => item.id.toString()}
-              contentContainerStyle={styles.todoList}
+              initialNumToRender={5}
+              onDragEnd={({data}) => this.props.handleEndDrag(data, dayjs(item.dueDate).toDate())}
+              activationDistance={20}
+              containerStyle={styles.todoList}
               ListEmptyComponent={
                 <View style={styles.centerContainer}>
                   <Text>No tasks for this date</Text>
                 </View>
               }
+              renderPlaceholder={() => (
+                <Divider
+                  bold
+                  style={{
+                    backgroundColor: this.props.colors.primary,
+                    borderWidth: 1,
+                    borderColor: this.props.colors.primary,
+                  }}
+                />
+              )}
             />
+            // <FlatList
+            //   showsVerticalScrollIndicator={false}
+            //   data={item.data}
+            //   renderItem={this.renderTodoItem}
+            //   disableScrollViewPanResponder
+            //   initialNumToRender={5}
+            //   keyExtractor={item => item.id.toString()}
+            //   contentContainerStyle={styles.todoList}
+            //   ListEmptyComponent={
+            //     <View style={styles.centerContainer}>
+            //       <Text>No tasks for this date</Text>
+            //     </View>
+            //   }
+            // />
           )}
         />
       </CalendarProvider>

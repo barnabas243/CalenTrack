@@ -48,10 +48,11 @@ export default function Layout() {
         <MaterialBottomTabs
           safeAreaInsets={{bottom: 0}}
           activeColor={colors.primary}
-          screenOptions={{}}>
+          initialRouteName="index">
           <MaterialBottomTabs.Screen
             name="index"
             options={{
+              title: 'Today',
               tabBarLabel: `Today (${currentTime.format('Do')})`, // Include current day in label. Example: Today (23rd)
               tabBarIcon: ({color, focused}) => (
                 <MaterialCommunityIcons

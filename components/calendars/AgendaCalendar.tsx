@@ -1,33 +1,51 @@
-import React, {createRef, PureComponent, useRef} from 'react';
+import {TodoItem} from '@/contexts/TodoContext.types';
+import dayjs from 'dayjs';
+import {set} from 'lodash';
+import React, {createRef, PureComponent} from 'react';
 import {Alert, StyleSheet, Text, View, TouchableOpacity} from 'react-native';
-import {Agenda, DateData, AgendaEntry, AgendaSchedule} from 'react-native-calendars';
+import {Agenda, DateData, AgendaEntry} from 'react-native-calendars';
+import {MD3Colors} from 'react-native-paper/lib/typescript/types';
 
 interface State {
-  items?: AgendaSchedule;
+  items?: Record<string, TodoItem[]>;
 }
 
 interface Props {
-  onMonthChange: (month: string) => void;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
+  colors: MD3Colors;
+  monthlyTodoRecord: Record<string, TodoItem[]>;
 }
 export default class AgendaCalendar extends PureComponent<Props, State> {
   private agendaRef = createRef<Agenda>();
+
   state: State = {
-    items: undefined,
+    items: {},
   };
 
   onDayPress = (day: DateData) => {
     this.props.setSelectedDate(day.dateString);
   };
 
+  onMonthChange = (date: DateData) => {
+    this.props.setSelectedDate(date.dateString);
+  };
   render() {
     return (
       <Agenda
         ref={this.agendaRef}
         pastScrollRange={50}
+        // onMonthChange={(date: DateData) => this.onMonthChange(date)}
+        onMomentumScrollEnd={() => {
+          const date = dayjs(this.agendaRef.current?.state.selectedDay).format('YYYY-MM-DD');
+          console.log('onMomentumScrollEnd', date);
+
+          setTimeout(() => {
+            this.props.setSelectedDate(date);
+          }, 0);
+        }}
         items={this.state.items}
-        loadItemsForMonth={this.loadItems}
+        loadItemsForMonth={this.loadItemsForMonth}
         selected={this.props.selectedDate}
         renderItem={this.renderItem}
         renderEmptyDate={this.renderEmptyDate}
@@ -38,53 +56,41 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
       />
     );
   }
+  loadItemsForMonth = (day: DateData) => {
+    const items: Record<string, TodoItem[]> = {};
 
-  loadItems = (day: DateData) => {
-    const items = this.state.items || {};
+    // Ensure monthlyTodoRecord is defined and has the correct type
+    const monthlyTodoRecord = this.props.monthlyTodoRecord || {}; // Provide default empty object if undefined
 
-    setTimeout(() => {
-      for (let i = -10; i < 40; i++) {
-        const time = day.timestamp + i * 24 * 60 * 60 * 1000;
-        const strTime = this.timeToString(time);
+    // Calculate the range from 3 months before to 3 months after
+    const startDate = dayjs(day.timestamp).subtract(12, 'month').startOf('month');
+    const endDate = dayjs(day.timestamp).add(12, 'month').endOf('month');
 
-        if (!items[strTime]) {
-          items[strTime] = [];
+    let currentDate = startDate;
 
-          const numItems = Math.floor(Math.random() * 3 + 1);
-          for (let j = 0; j < numItems; j++) {
-            items[strTime].push({
-              name: 'Item for ' + strTime + ' #' + j,
-              height: Math.max(50, Math.floor(Math.random() * 150)),
-              day: strTime,
-            });
-          }
-        }
-      }
+    while (currentDate.isBefore(endDate) || currentDate.isSame(endDate, 'day')) {
+      const dateStr = this.timeToString(currentDate.valueOf());
+      items[dateStr] = monthlyTodoRecord[dateStr] || []; // Use empty array if dateStr is not found
+      currentDate = currentDate.add(1, 'day');
+    }
 
-      const newItems: AgendaSchedule = {};
-      Object.keys(items).forEach(key => {
-        newItems[key] = items[key];
-      });
-      this.setState({
-        items: newItems,
-      });
-    }, 0);
+    this.setState({
+      items,
+    });
   };
 
-  extractMonth = (day: DateData) => {
-    const date = new Date(day.timestamp);
-    return date.toLocaleString('default', {month: 'long', year: 'numeric'});
-  };
-
-  renderItem = (reservation: AgendaEntry, isFirst: boolean) => {
+  renderItem = (reservation: TodoItem, isFirst: boolean) => {
     const fontSize = isFirst ? 16 : 14;
     const color = isFirst ? 'black' : '#43515c';
 
     return (
       <TouchableOpacity
-        style={[styles.item, {height: reservation.height}]}
-        onPress={() => Alert.alert(reservation.name)}>
-        <Text style={{fontSize, color}}>{reservation.name}</Text>
+        style={[
+          styles.item,
+          {backgroundColor: this.props.colors.background, borderColor: this.props.colors.outline},
+        ]}
+        onPress={() => Alert.alert(reservation.title)}>
+        <Text style={{fontSize, color}}>{reservation.title}</Text>
       </TouchableOpacity>
     );
   };
@@ -109,7 +115,6 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
 
 const styles = StyleSheet.create({
   item: {
-    backgroundColor: 'white',
     flex: 1,
     borderRadius: 5,
     padding: 10,

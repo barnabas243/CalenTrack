@@ -1,13 +1,31 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {View, FlatList, TouchableOpacity, StyleSheet, Dimensions, TextInput} from 'react-native';
+import React, {useCallback, useMemo, useRef, useState} from 'react';
+import {
+  View,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions,
+  TextInput,
+  KeyboardAvoidingView,
+} from 'react-native';
 import Modal from 'react-native-modal';
 import {AddTodoModalProps, HighlightedElementType} from './AddTodoModal.types';
 import {PriorityType, SectionItem} from '@/contexts/TodoContext.types';
 import * as chrono from 'chrono-node';
-import {Text, Button, useTheme} from 'react-native-paper';
+import {Text, useTheme, Chip, Divider} from 'react-native-paper';
+import BottomSheet, {BottomSheetBackdrop, BottomSheetView} from '@gorhom/bottom-sheet';
+import DateTimePicker, {DateType} from 'react-native-ui-datepicker';
+import dayjs from 'dayjs';
+import calendar from 'dayjs/plugin/calendar';
+import isBetween from 'dayjs/plugin/isBetween';
+import {MaterialCommunityIcons} from '@expo/vector-icons';
+
+dayjs.extend(isBetween);
+dayjs.extend(calendar);
 
 const AddTodoModal = ({
   isVisible,
+  setIsVisible,
   onBackdropPress,
   onSubmitEditing,
   sections,
@@ -39,16 +57,24 @@ const AddTodoModal = ({
   const [selectedSection, setSelectedSection] = useState('Inbox');
   const [sectionId, setSectionId] = useState<number | undefined>();
 
+  const dueDateBottomSheetRef = useRef<BottomSheet>(null);
+
   const shortcutsBtns = [
     {
       title: dueDateTitle,
-
+      icon: 'calendar',
+      color: colors.primaryContainer,
       onPress: () => {
-        alert('Clicked on due date');
+        if (dueDateBottomSheetRef.current) {
+          dueDateBottomSheetRef.current.expand();
+          setIsVisible(false);
+        }
       },
     },
     {
       title: 'Priority',
+      icon: 'flag',
+      color: colors.errorContainer,
       onPress: () => {
         setShortcut('priority');
         insertShortcutText('!');
@@ -56,6 +82,8 @@ const AddTodoModal = ({
     },
     {
       title: 'Section',
+      icon: 'label',
+      color: colors.secondaryContainer,
       onPress: () => {
         setShortcut('label');
         insertShortcutText('@');
@@ -63,19 +91,13 @@ const AddTodoModal = ({
     },
     {
       title: 'Reminder',
+      icon: 'bell',
+      color: colors.tertiaryContainer,
       onPress: () => {
         alert('Clicked on Reminder badge');
       },
     },
   ];
-
-  useEffect(() => {
-    if (isVisible) {
-      setTimeout(() => {
-        if (inputRef.current) inputRef.current?.focus();
-      }, 100); // Adjust the delay as needed
-    }
-  }, [isVisible]);
 
   const resetUserToDoInput = () => {
     setHighlightedText([]);
@@ -204,7 +226,7 @@ const AddTodoModal = ({
     }
   };
   const handleSummaryChange = (text: string) => {
-    setSummary(text);
+    setSummary(text.trim());
   };
 
   const handlePriorityPress = (priority: PriorityType) => {
@@ -218,8 +240,8 @@ const AddTodoModal = ({
   const handleSubmitEditing = () => {
     onSubmitEditing(
       {
-        title: todoName,
-        summary: summary, // Fill in the summary property
+        title: todoName.trim(),
+        summary: summary.trim(), // Fill in the summary property
         completed: false,
         completed_at: undefined,
         due_date: dueDate,
@@ -372,76 +394,200 @@ const AddTodoModal = ({
     }
   };
 
-  return (
-    <Modal
-      isVisible={isVisible}
-      onBackdropPress={onBackdropPress}
-      style={{
-        width: '100%',
-        padding: 0,
-        margin: 0,
-        zIndex: 0,
-      }}
-      animationIn="fadeInUp">
-      <View style={styles.inputModal}>
-        <TextInput
-          ref={inputRef}
-          placeholder="Task Name"
-          onChangeText={handleTextChange}
-          onSelectionChange={e => {
-            const selection = e.nativeEvent.selection;
-            let start = 20 + selection.start * 5.6;
-            if (screenWidth < start + tooltipWidth + 20) start = screenWidth - tooltipWidth;
-            setTooltipX(start);
-          }}
-          onSubmitEditing={handleSubmitEditing}
-          style={styles.textInput}
-          blurOnSubmit={false}>
-          <Text style={[styles.highlightContainer, {color: colors.onPrimary}]}>
-            {highlightedText}
-          </Text>
-        </TextInput>
-        <TextInput
-          placeholder="Summary"
-          value={summary}
-          onChangeText={handleSummaryChange}
-          blurOnSubmit={false}
-          style={styles.textInput}
-          onSubmitEditing={handleSubmitEditing}
-        />
+  function getCustomFormattedDate(date: dayjs.Dayjs): string {
+    const now = dayjs();
+    const dateObj = dayjs(date);
 
-        {tooltipVisible && (
-          <View
-            style={[
-              styles.tooltip,
-              {
-                left: tooltipX,
-                top: -tooltipY,
-                backgroundColor: colors.surface,
-              },
-            ]}
-            onLayout={event => {
-              const {height, width} = event.nativeEvent.layout;
-              setTooltipY(height);
-              setTooltipWidth(width);
-            }}>
-            {renderTooltipRows(shortcut)}
-          </View>
-        )}
-        <FlatList
-          horizontal
-          keyboardShouldPersistTaps="always"
-          data={shortcutsBtns}
-          renderItem={({item}) => (
-            <View style={styles.buttonContainer}>
-              <Button mode="contained" onPress={item.onPress}>
-                {item.title}
-              </Button>
+    // Define the start and end of the current week
+    const startOfThisWeek = now.startOf('week');
+    const endOfThisWeek = startOfThisWeek.endOf('week');
+
+    // Define the start and end of the next week
+    const startOfNextWeek = startOfThisWeek.add(1, 'week');
+    const endOfNextWeek = startOfNextWeek.endOf('week');
+
+    // Define the start and end of the last week
+    const startOfLastWeek = startOfThisWeek.subtract(1, 'week');
+    const endOfLastWeek = startOfLastWeek.endOf('week');
+
+    // Check if the date is today
+    if (dateObj.isSame(now, 'day')) {
+      return dateObj.format('[Today] h:mm A');
+    }
+    // Check if the date is yesterday
+    if (dateObj.isSame(now.subtract(1, 'day'), 'day')) {
+      return dateObj.format('[Yesterday] h:mm A');
+    }
+    // Check if the date is tomorrow
+    if (dateObj.isSame(now.add(1, 'day'), 'day')) {
+      return dateObj.format('[Tomorrow] h:mm A');
+    }
+    // Check if the date is within the current week
+    if (dateObj.isBetween(startOfThisWeek, endOfThisWeek, 'week', '[]')) {
+      return dateObj.format('dddd h:mm A');
+    }
+    if (dateObj.isBetween(startOfNextWeek, endOfNextWeek, 'week', '[]')) {
+      return dateObj.format('[Next] dddd h:mm A');
+    }
+    if (dateObj.isBetween(startOfLastWeek, endOfLastWeek, 'week', '[]')) {
+      return dateObj.format('[Last] dddd h:mm A');
+    }
+
+    // For all other dates exceeding the range of +/- 7days
+    return dateObj.format('DD/MM/YYYY');
+  }
+
+  const handleDateChange = (newDate: DateType) => {
+    // Use setDueDate to update the state with the new date
+    const date = getCustomFormattedDate(dayjs(newDate));
+
+    console.log(date);
+
+    setDueDate(dayjs(newDate).toDate());
+    // Use setDueDateTitle to update the title based on the new due date
+    setDueDateTitle(date);
+  };
+  const handleSheetChanges = useCallback(
+    (index: number) => {
+      console.log('handleSheetChanges', index);
+      if (index === -1) {
+        setIsVisible(true);
+      }
+    },
+    [setIsVisible],
+  );
+  const snapPoints = useMemo(() => ['50%', '75%'], []);
+  return (
+    <>
+      <Modal
+        isVisible={isVisible}
+        onBackdropPress={onBackdropPress}
+        style={{
+          width: '100%',
+          padding: 0,
+          margin: 0,
+          zIndex: 0,
+        }}
+        animationIn="fadeInUp">
+        <View style={[styles.inputModal, {backgroundColor: colors.inverseOnSurface}]}>
+          <TextInput
+            ref={inputRef}
+            placeholder="Task Name"
+            onChangeText={handleTextChange}
+            onSelectionChange={e => {
+              const selection = e.nativeEvent.selection;
+              let start = 20 + selection.start * 5.6;
+              if (screenWidth < start + tooltipWidth + 20) start = screenWidth - tooltipWidth;
+              setTooltipX(start);
+            }}
+            autoFocus
+            onSubmitEditing={handleSubmitEditing}
+            style={[styles.textInput, {color: colors.onSurface}]}
+            blurOnSubmit={false}>
+            <Text style={[styles.highlightContainer]}>{highlightedText}</Text>
+          </TextInput>
+          <TextInput
+            placeholder="Summary"
+            value={summary}
+            onChangeText={handleSummaryChange}
+            blurOnSubmit={false}
+            style={[styles.textInput, {color: colors.onSurface}]}
+            onSubmitEditing={handleSubmitEditing}
+          />
+
+          {tooltipVisible && (
+            <View
+              style={[
+                styles.tooltip,
+                {
+                  left: tooltipX,
+                  top: -tooltipY,
+                  backgroundColor: colors.surface,
+                },
+              ]}
+              onLayout={event => {
+                const {height, width} = event.nativeEvent.layout;
+                setTooltipY(height);
+                setTooltipWidth(width);
+              }}>
+              {renderTooltipRows(shortcut)}
             </View>
           )}
-        />
-      </View>
-    </Modal>
+          <FlatList
+            horizontal
+            keyboardShouldPersistTaps="always"
+            data={shortcutsBtns}
+            renderItem={({item}) => (
+              <View style={styles.buttonContainer}>
+                <Chip
+                  mode="flat"
+                  icon={item.icon}
+                  onPress={item.onPress}
+                  style={{backgroundColor: item.color}}>
+                  {item.title}
+                </Chip>
+              </View>
+            )}
+          />
+        </View>
+      </Modal>
+      <BottomSheet
+        ref={dueDateBottomSheetRef}
+        index={-1}
+        snapPoints={snapPoints}
+        onChange={handleSheetChanges}
+        enableContentPanningGesture={false}
+        enablePanDownToClose={true}
+        backgroundStyle={{backgroundColor: colors.inverseOnSurface, flex: 1}}
+        backdropComponent={(
+          props, // found from https://github.com/gorhom/react-native-bottom-sheet/issues/187
+        ) => (
+          <BottomSheetBackdrop
+            {...props}
+            opacity={0.5}
+            enableTouchThrough={false}
+            appearsOnIndex={0}
+            disappearsOnIndex={-1}
+            style={[{backgroundColor: 'rgba(0, 0, 0, 1)'}, StyleSheet.absoluteFillObject]}
+          />
+        )}>
+        <BottomSheetView style={[styles.container, {backgroundColor: colors.inverseOnSurface}]}>
+          <KeyboardAvoidingView style={{flex: 1}} behavior="padding">
+            <View style={{flexDirection: 'row', marginVertical: 20}}>
+              <MaterialCommunityIcons name="pen" size={24} color={colors.onSurface} />
+              <TextInput
+                placeholder="due date"
+                value={dayjs(dueDate).format('DD MMM')}
+                style={[styles.textInput, {color: colors.onSurface}]}
+                editable={false}
+              />
+            </View>
+            <Divider style={{backgroundColor: colors.secondary}} />
+            <View style={{marginVertical: 20}}>
+              <View style={{marginVertical: 20}}>
+                <DateTimePicker
+                  mode="single"
+                  date={dueDate}
+                  minDate={dayjs().toDate()}
+                  weekDaysTextStyle={{color: colors.onSurface}}
+                  headerTextStyle={{color: colors.onSurface}}
+                  timePickerTextStyle={{color: colors.onSurface}}
+                  calendarTextStyle={{color: colors.onSurface}}
+                  yearContainerStyle={{backgroundColor: colors.inverseOnSurface}}
+                  dayContainerStyle={{backgroundColor: colors.inverseOnSurface}}
+                  monthContainerStyle={{backgroundColor: colors.inverseOnSurface}}
+                  timePickerIndicatorStyle={{backgroundColor: colors.inverseOnSurface}}
+                  onChange={params => {
+                    handleDateChange(params.date);
+                  }}
+                  timePicker
+                />
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </BottomSheetView>
+      </BottomSheet>
+    </>
   );
 };
 const styles = StyleSheet.create({
@@ -465,7 +611,6 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   inputModal: {
-    backgroundColor: 'white',
     padding: 20,
     width: '100%',
     top: 155,

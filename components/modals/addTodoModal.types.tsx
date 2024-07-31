@@ -3,6 +3,7 @@ import {User} from '@supabase/supabase-js';
 
 export interface AddTodoModalProps {
   isVisible: boolean;
+  setIsVisible: (visible: boolean) => void;
   onBackdropPress: () => void;
   onSubmitEditing: (newTodo: TodoItem, selectedSection: string) => void;
   sections: SectionItem[];
