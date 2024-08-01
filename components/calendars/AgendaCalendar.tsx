@@ -1,10 +1,11 @@
 import {TodoItem} from '@/contexts/TodoContext.types';
 import dayjs from 'dayjs';
-import {set} from 'lodash';
 import React, {createRef, PureComponent} from 'react';
-import {Alert, StyleSheet, Text, View, TouchableOpacity} from 'react-native';
+import {Alert, StyleSheet, View, TouchableOpacity, ScrollView} from 'react-native';
+import {Text} from 'react-native-paper';
 import {Agenda, DateData, AgendaEntry} from 'react-native-calendars';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
+import {debounce} from 'lodash';
 
 interface State {
   items?: Record<string, TodoItem[]>;
@@ -24,26 +25,41 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
   };
 
   onDayPress = (day: DateData) => {
-    this.props.setSelectedDate(day.dateString);
+    if (this.props.selectedDate !== day.dateString) {
+      this.props.setSelectedDate(day.dateString);
+    }
   };
 
   onMonthChange = (date: DateData) => {
     this.props.setSelectedDate(date.dateString);
   };
+
+  onDayChange = debounce((day: DateData) => {
+    if (this.props.selectedDate !== day.dateString) {
+      this.props.setSelectedDate(day.dateString);
+    }
+  }, 800); // Adjust the delay (in milliseconds) as needed
   render() {
     return (
       <Agenda
+        theme={{
+          calendarBackground: this.props.colors.background,
+          dayTextColor: this.props.colors.secondary,
+          textDisabledColor: this.props.colors.surfaceVariant,
+          arrowColor: this.props.colors.error,
+          textSectionTitleColor: this.props.colors.secondary,
+          monthTextColor: this.props.colors.secondary,
+          todayDotColor: this.props.colors.error,
+          todayTextColor: this.props.colors.error,
+          selectedDayBackgroundColor: this.props.colors.onErrorContainer,
+          selectedDayTextColor: this.props.colors.onError,
+          agendaDayNumColor: this.props.colors.secondary,
+          agendaTodayColor: this.props.colors.error,
+          agendaKnobColor: this.props.colors.secondary,
+          reservationsBackgroundColor: this.props.colors.background,
+        }}
         ref={this.agendaRef}
         pastScrollRange={50}
-        // onMonthChange={(date: DateData) => this.onMonthChange(date)}
-        onMomentumScrollEnd={() => {
-          const date = dayjs(this.agendaRef.current?.state.selectedDay).format('YYYY-MM-DD');
-          console.log('onMomentumScrollEnd', date);
-
-          setTimeout(() => {
-            this.props.setSelectedDate(date);
-          }, 0);
-        }}
         items={this.state.items}
         loadItemsForMonth={this.loadItemsForMonth}
         selected={this.props.selectedDate}
@@ -51,7 +67,8 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
         renderEmptyDate={this.renderEmptyDate}
         rowHasChanged={this.rowHasChanged}
         showClosingKnob={true}
-        // onDayChange={this.onDayChange}
+        // onMonthChange={this.onMonthChange}
+        onDayChange={this.onDayChange}
         onDayPress={this.onDayPress}
       />
     );
@@ -97,7 +114,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
 
   renderEmptyDate = () => {
     return (
-      <View style={styles.emptyDate}>
+      <View style={[styles.emptyDate, {backgroundColor: this.props.colors.background}]}>
         <Text>This is empty date!</Text>
       </View>
     );

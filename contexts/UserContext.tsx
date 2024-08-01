@@ -28,8 +28,9 @@ export const AuthProvider = ({children}: UserProviderProps) => {
     const initializeUser = async () => {
       setIsLoading(true);
       try {
-        const {error} = await supabase.auth.getSession();
+        const {data, error} = await supabase.auth.getSession();
         if (error) throw error;
+        if (!data.session) throw new AuthError('No session found');
       } catch (error: any) {
         if (error instanceof AuthError) {
           Alert.alert('Authentication Error', 'You are not authenticated.');

@@ -1,5 +1,5 @@
 import React, {useState, useMemo, useEffect} from 'react';
-import {View, StyleSheet, FlatList, Dimensions, Alert} from 'react-native';
+import {View, StyleSheet, Dimensions, Alert} from 'react-native';
 import Modal from 'react-native-modal';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import {
@@ -11,6 +11,7 @@ import {
   Menu,
   Divider,
   Searchbar,
+  Chip,
 } from 'react-native-paper';
 import {SectionItem, TodoItem} from '@/contexts/TodoContext.types';
 import ToDoItem from '@/components/ToDoItem';
@@ -31,14 +32,19 @@ const SectionScreen = ({sectionData, name}: SectionScreenProps) => {
   const {handleEndDrag} = useTodo();
 
   const renderTodoItem = (params: RenderItemParams<TodoItem>) => (
-    <ToDoItem {...params} colors={colors} />
+    <ToDoItem {...params} colors={colors} enableSwipe={false} />
   );
+
   return (
     <DraggableFlatList
       data={sectionData}
       onDragEnd={({data}) => handleEndDrag(data, name)}
       keyExtractor={item => item.id?.toString() || ''}
       renderItem={renderTodoItem}
+      showsVerticalScrollIndicator={false}
+      containerStyle={{flex: 1, backgroundColor: colors.background}}
+      scrollEnabled={true} // Ensure scrolling is enabled
+      activationDistance={20}
       renderPlaceholder={() => (
         <Divider
           bold
@@ -56,12 +62,6 @@ const SectionScreen = ({sectionData, name}: SectionScreenProps) => {
 interface AddSectionScreenProps {
   onAddSection: () => void;
 }
-
-const AddSectionScreen = ({onAddSection}: AddSectionScreenProps) => (
-  <View style={[styles.addSection]}>
-    <Button onPress={onAddSection}>+ Add Section</Button>
-  </View>
-);
 
 const InboxScreen = () => {
   const {colors} = useTheme();
@@ -97,6 +97,12 @@ const InboxScreen = () => {
       subscription?.remove();
     };
   }, []);
+
+  const AddSectionScreen = ({onAddSection}: AddSectionScreenProps) => (
+    <View style={[styles.addSection, {backgroundColor: colors.background}]}>
+      <Button onPress={onAddSection}>+ Add Section</Button>
+    </View>
+  );
 
   const handleAddSection = () => {
     const trimmedSectionName = newSectionName.trim();
@@ -178,145 +184,152 @@ const InboxScreen = () => {
   }, [searchQuery, sections]);
 
   return (
-    <>
-      <View style={[styles.container, {backgroundColor: colors.background}]}>
-        <Appbar.Header>
-          <Appbar.Content title="Inbox" />
-          {isSearchVisible ? (
-            <Searchbar
-              placeholder="Search"
-              onChangeText={setSearchQuery}
-              value={searchQuery}
-              onIconPress={hideSearch}
-              style={styles.searchbar}
-            />
-          ) : (
-            <Appbar.Action icon="magnify" color={colors.onSurface} onPress={showSearch} />
-          )}
-          <Menu
-            anchorPosition="bottom"
-            visible={isMenuVisible}
-            onDismiss={closeMenu}
-            anchor={
-              <Appbar.Action icon="dots-vertical" color={colors.onSurface} onPress={showMenu} />
-            }>
-            <Menu.Item onPress={() => {}} title="Sort" />
-            <Menu.Item onPress={() => {}} title="Select tasks" />
-            <Divider />
-            <Menu.Item onPress={() => {}} title="Activity log" />
-            <Divider />
-            <Menu.Item
-              onPress={() => {
-                closeMenu();
-                router.push('/_feature-feedback');
-              }}
-              title="CalenTrack Feedback"
-            />
-          </Menu>
-
-          <Menu
-            anchorPosition="bottom"
-            visible={isTabMenuVisible}
-            onDismiss={closeTabMenu}
-            anchor={{x: dimensions.width / 2, y: dimensions.height / 5}}>
-            <Menu.Item
-              onPress={() => {
-                closeTabMenu();
-                showAddSectionModal();
-              }}
-              title="edit name"
-            />
-            <Menu.Item
-              onPress={() => {
-                closeTabMenu();
-                displayDeleteSectionAlert();
-              }}
-              title="delete section"
-            />
-          </Menu>
-        </Appbar.Header>
-        <Tab.Navigator
-          onLayout={e => console.log(e)}
-          screenOptions={{tabBarScrollEnabled: true}}
-          screenListeners={{
-            state: e => {
-              const isAddSectionTab = e.data.state.index === filteredSections.length;
-              setShowFAB(!isAddSectionTab);
-            },
-            tabLongPress: e => {
-              if (!e.target) return;
-              const sectionId = parseInt(e.target?.split('-')[0]);
-              if (!sectionId || sectionId === 1) return;
-
-              handleLongPress(sectionId);
-            },
-          }}
-          initialLayout={{
-            width: Dimensions.get('window').width,
-          }}
-          initialRouteName="Inbox">
-          {filteredSections.map(section => {
-            const sectionData =
-              groupedSections.find(sec => sec.key === section.id.toString())?.data || [];
-
-            return (
-              <Tab.Screen
-                key={section.id}
-                name={section.id.toString()}
-                options={{title: section.name}}>
-                {() => <SectionScreen sectionData={sectionData} name={section.name} />}
-              </Tab.Screen>
-            );
-          })}
-          <Tab.Screen name={'-1'} options={{title: '+ Add Section'}}>
-            {() => <AddSectionScreen onAddSection={showAddSectionModal} />}
-          </Tab.Screen>
-        </Tab.Navigator>
-        <Modal
-          isVisible={isSectionModalVisible}
-          onDismiss={hideAddSectionModal}
-          onBackdropPress={hideAddSectionModal}>
-          <View style={[styles.modalContent, {backgroundColor: colors.background}]}>
-            <TextInput
-              mode="flat"
-              style={styles.input}
-              placeholder="Enter section name"
-              value={newSectionName}
-              onChangeText={setNewSectionName}
-              autoFocus
-              maxLength={20}
-            />
-            <HelperText type="error" visible={isSectionNameInvalid}>
-              {newSectionName === ''
-                ? 'Section name cannot be empty.'
-                : /\s/.test(newSectionName)
-                  ? 'Section name cannot contain spaces.'
-                  : newSectionName.length > 20
-                    ? 'Section name must be 20 characters or fewer.'
-                    : ''}
-            </HelperText>
-            <View style={styles.buttonContainer}>
-              <Button mode="text" onPress={hideAddSectionModal} style={styles.cancelButton}>
-                Cancel
-              </Button>
-              {selectedSection ? (
-                <Button
-                  mode="contained"
-                  onPress={handleUpdateSection}
-                  disabled={isSectionNameInvalid}>
-                  Update
-                </Button>
-              ) : (
-                <Button mode="contained" onPress={handleAddSection} disabled={isSectionNameInvalid}>
-                  Add Section
-                </Button>
-              )}
-            </View>
+    <View style={[styles.container, {backgroundColor: colors.background}]}>
+      <Appbar.Header>
+        <Appbar.Content title="Inbox" />
+        {isSearchVisible ? (
+          <Searchbar
+            placeholder="Search"
+            onChangeText={setSearchQuery}
+            value={searchQuery}
+            onIconPress={hideSearch}
+            style={styles.searchbar}
+          />
+        ) : (
+          <View style={styles.searchContainer}>
+            <Chip icon="magnify" onPress={showSearch}>
+              {searchQuery}
+            </Chip>
           </View>
-        </Modal>
-        {showFAB && <AddTodoFAB />}
-      </View>
-    </>
+        )}
+        <Menu
+          anchorPosition="bottom"
+          visible={isMenuVisible}
+          onDismiss={closeMenu}
+          anchor={
+            <Appbar.Action icon="dots-vertical" color={colors.onSurface} onPress={showMenu} />
+          }>
+          <Menu.Item onPress={() => {}} title="Sort" />
+          <Menu.Item onPress={() => {}} title="Select tasks" />
+          <Divider />
+          <Menu.Item onPress={() => {}} title="Activity log" />
+          <Divider />
+          <Menu.Item
+            onPress={() => {
+              closeMenu();
+              router.push('/_feature-feedback');
+            }}
+            title="CalenTrack Feedback"
+          />
+        </Menu>
+
+        <Menu
+          anchorPosition="bottom"
+          visible={isTabMenuVisible}
+          onDismiss={closeTabMenu}
+          anchor={{x: dimensions.width / 2, y: dimensions.height / 5}}>
+          <Menu.Item
+            onPress={() => {
+              closeTabMenu();
+              showAddSectionModal();
+            }}
+            title="edit name"
+          />
+          <Menu.Item
+            onPress={() => {
+              closeTabMenu();
+              displayDeleteSectionAlert();
+            }}
+            title="delete section"
+          />
+        </Menu>
+      </Appbar.Header>
+      <Tab.Navigator
+        onLayout={e => console.log(e)}
+        screenOptions={{
+          tabBarScrollEnabled: true,
+          tabBarIndicatorContainerStyle: {backgroundColor: colors.background},
+          tabBarIndicatorStyle: {backgroundColor: colors.primary},
+          tabBarLabelStyle: {color: colors.onBackground},
+        }}
+        screenListeners={{
+          state: e => {
+            const isAddSectionTab = e.data.state.index === filteredSections.length;
+            setShowFAB(!isAddSectionTab);
+          },
+          tabLongPress: e => {
+            if (!e.target) return;
+            const sectionId = parseInt(e.target?.split('-')[0]);
+            if (!sectionId || sectionId === 1) return;
+
+            handleLongPress(sectionId);
+          },
+        }}
+        initialLayout={{
+          width: Dimensions.get('window').width,
+        }}
+        initialRouteName="Inbox">
+        {filteredSections.map(section => {
+          const sectionData =
+            groupedSections.find(sec => sec.key === section.id.toString())?.data || [];
+
+          return (
+            <Tab.Screen
+              key={section.id}
+              name={section.id.toString()}
+              options={{title: section.name}}>
+              {() => <SectionScreen sectionData={sectionData} name={section.name} />}
+            </Tab.Screen>
+          );
+        })}
+        <Tab.Screen name={'-1'} options={{title: '+ Add Section'}}>
+          {() => <AddSectionScreen onAddSection={showAddSectionModal} />}
+        </Tab.Screen>
+      </Tab.Navigator>
+      <Modal
+        isVisible={isSectionModalVisible}
+        onDismiss={hideAddSectionModal}
+        onBackdropPress={hideAddSectionModal}>
+        <View style={[styles.modalContent, {backgroundColor: colors.background}]}>
+          <TextInput
+            mode="flat"
+            style={styles.input}
+            placeholder="Enter section name"
+            value={newSectionName}
+            onChangeText={setNewSectionName}
+            autoFocus
+            maxLength={20}
+          />
+          <HelperText type="error" visible={isSectionNameInvalid}>
+            {newSectionName === ''
+              ? 'Section name cannot be empty.'
+              : /\s/.test(newSectionName)
+                ? 'Section name cannot contain spaces.'
+                : newSectionName.length > 20
+                  ? 'Section name must be 20 characters or fewer.'
+                  : ''}
+          </HelperText>
+          <View style={styles.buttonContainer}>
+            <Button mode="text" onPress={hideAddSectionModal} style={styles.cancelButton}>
+              Cancel
+            </Button>
+            {selectedSection ? (
+              <Button
+                mode="contained"
+                onPress={handleUpdateSection}
+                disabled={isSectionNameInvalid}>
+                Update
+              </Button>
+            ) : (
+              <Button mode="contained" onPress={handleAddSection} disabled={isSectionNameInvalid}>
+                Add Section
+              </Button>
+            )}
+          </View>
+        </View>
+      </Modal>
+      {showFAB && <AddTodoFAB />}
+    </View>
   );
 };
 
@@ -344,6 +357,10 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     marginRight: 10,
+  },
+  searchContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
   },
   searchbar: {
     width: '100%',

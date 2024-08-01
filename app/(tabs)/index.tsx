@@ -52,7 +52,6 @@ const HomeScreen = () => {
   const [isFABVisible, setIsFABVisible] = React.useState(true);
   const [isMenuVisible, setIsMenuVisible] = React.useState(false);
 
-  const snackbarRef = React.useRef(null);
   const [isSnackbarVisible, setIsSnackbarVisible] = React.useState(false);
   const [snackBarText, setSnackBarText] = React.useState('This is the default snack bar text');
 
@@ -302,10 +301,10 @@ const HomeScreen = () => {
                   onPress={() => {
                     /* Handle Date Sort By */
                   }}>
-                  Created Date
+                  Date
                 </Button>
                 <Button
-                  mode="contained"
+                  mode="outlined"
                   style={styles.button}
                   onPress={() => {
                     /* Handle Title Sort By */
@@ -313,7 +312,7 @@ const HomeScreen = () => {
                   Title
                 </Button>
                 <Button
-                  mode="contained"
+                  mode="outlined"
                   style={styles.button}
                   onPress={() => {
                     /* Handle Section Sort By */
@@ -321,7 +320,7 @@ const HomeScreen = () => {
                   Section
                 </Button>
                 <Button
-                  mode="contained"
+                  mode="outlined"
                   style={styles.button}
                   onPress={() => {
                     /* Handle Priority Sort By */
@@ -335,7 +334,6 @@ const HomeScreen = () => {
       </BottomSheetModalProvider>
       {isFABVisible && <AddTodoFAB />}
       <Snackbar
-        ref={snackbarRef}
         visible={isSnackbarVisible}
         onDismiss={onDismissSnackBar}
         action={{

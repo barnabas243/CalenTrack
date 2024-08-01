@@ -1,4 +1,4 @@
-# CalenTRACK
+# CalenTrack
 
 CalenTRACK is a mobile task management app that puts the calendar view at the center of your productivity journey. It's designed to help you stay organized, manage tasks efficiently, and keep track of your emotions effortlessly.
 
@@ -18,15 +18,8 @@ CalenTRACK is a mobile task management app that puts the calendar view at the ce
 
 ### Back-End
 
-- **Supabase with PowerSync**:
-  Leverage the robust capabilities of Supabase for your backend needs, including data storage, authentication, and real-time updates. PowerSync enhances your app with offline capabilities, ensuring seamless functionality even when connectivity is limited.
-
-  Database password: `wRluOO8eIwMp5FG6`
-
-## Tasks
-
-- [ ] Task 1
-- [x] Task 2
+- **Supabase **:
+  Leverage the robust capabilities of Supabase for your backend needs, including data storage, authentication, and real-time updates.
 
 ## Getting Started
 
@@ -36,12 +29,13 @@ To get started with CalenTRACK, follow these simple steps:
 
 ```
     git clone https://github.com/barnabas243/CalenTrack.git
+    cd CalenTRACK
 ```
 
 2. **Install Dependencies**:
 
 ```
-    cd CalenTRACK && npm install
+    npx expo install
 ```
 
 3. **Run the Application**:

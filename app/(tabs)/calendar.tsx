@@ -91,6 +91,7 @@ const CalendarPage = () => {
             events={timelineTodoEvents}
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
+            colors={colors}
           />
         );
     }
