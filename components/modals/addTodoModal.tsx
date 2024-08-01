@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import Modal from 'react-native-modal';
-import {AddTodoModalProps, HighlightedElementType} from './AddTodoModal.types';
+import {AddTodoModalProps, HighlightedElementType} from './addTodoModal.types';
 import {PriorityType, SectionItem} from '@/contexts/TodoContext.types';
 import * as chrono from 'chrono-node';
 import {Text, useTheme, Chip, Divider} from 'react-native-paper';

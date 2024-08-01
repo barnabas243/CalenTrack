@@ -18,11 +18,10 @@ export interface ToDoItemProps {
   drag: () => void;
   isActive: boolean;
   colors: MD3Colors;
+  enableSwipe?: boolean;
 }
 
-const ToDoItem = ({...props}: ToDoItemProps) => {
-  const {item, drag, isActive, colors} = props;
-
+const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemProps) => {
   const [toggleCheckBox, setToggleCheckBox] = useState(false);
   const {toggleCompleteTodo, openEditBottomSheet, deleteTodo, sections} = useTodo();
   const {title, priority, id, completed, summary, due_date, section_id} = item;
@@ -106,26 +105,70 @@ const ToDoItem = ({...props}: ToDoItemProps) => {
           borderColor: getBorderColor(priority),
           opacity: completed ? 0.5 : 1,
           marginVertical: 3,
+          marginHorizontal: 10,
         },
       ]}>
-      <SwipeableItem
-        key={id.toString()}
-        item={item}
-        ref={ref => {
-          if (ref && !itemRefs.current.get(id)) {
-            itemRefs.current.set(id, ref);
-          }
-        }}
-        onChange={({openDirection}) => {
-          if (openDirection !== OpenDirection.NONE) {
-            [...itemRefs.current.entries()].forEach(([key, ref]) => {
-              if (key !== id && ref) ref.close();
-            });
-          }
-        }}
-        overSwipe={OVERSWIPE_DIST}
-        renderUnderlayLeft={() => <UnderlayLeft />}
-        snapPointsLeft={[150]}>
+      {enableSwipe ? (
+        <SwipeableItem
+          key={id.toString()}
+          item={item}
+          ref={ref => {
+            if (ref && !itemRefs.current.get(id)) {
+              itemRefs.current.set(id, ref);
+            }
+          }}
+          onChange={({openDirection}) => {
+            if (openDirection !== OpenDirection.NONE) {
+              [...itemRefs.current.entries()].forEach(([key, ref]) => {
+                if (key !== id && ref) ref.close();
+              });
+            }
+          }}
+          overSwipe={OVERSWIPE_DIST}
+          renderUnderlayLeft={() => <UnderlayLeft />}
+          snapPointsLeft={[150]}>
+          <Animated.View
+            style={[
+              styles.contentContainer,
+              animatedStyle,
+              {backgroundColor: colors.inverseOnSurface},
+            ]}>
+            <CheckBox
+              disabled={false}
+              value={toggleCheckBox}
+              onValueChange={() => toggleComplete(id)}
+              style={{borderColor: getBorderColor(priority)}}
+              color={toggleCheckBox ? '#CCCCCC' : undefined}
+            />
+            <View style={styles.textContainer}>
+              <Text
+                variant="titleSmall"
+                style={{marginLeft: 10, textDecorationLine: completed ? 'line-through' : 'none'}}>
+                {title}
+              </Text>
+              {summary && (
+                <Text variant="bodySmall" style={{marginLeft: 10, marginVertical: 5}}>
+                  {summary}
+                </Text>
+              )}
+              <View style={styles.dueDateContainer}>
+                <MaterialCommunityIcons
+                  name="calendar"
+                  size={14}
+                  color={colors.tertiary}
+                  style={styles.icon}
+                />
+                <Text variant="bodySmall" style={[styles.dueDateText, {color: colors.tertiary}]}>
+                  {dayjs(due_date).format('DD MMMM')}
+                </Text>
+              </View>
+              <Text variant="bodySmall" style={styles.bottomRightText}>
+                {sections[section_id ?? 0]?.name}
+              </Text>
+            </View>
+          </Animated.View>
+        </SwipeableItem>
+      ) : (
         <Animated.View
           style={[
             styles.contentContainer,
@@ -166,7 +209,7 @@ const ToDoItem = ({...props}: ToDoItemProps) => {
             </Text>
           </View>
         </Animated.View>
-      </SwipeableItem>
+      )}
     </TouchableOpacity>
   );
 };

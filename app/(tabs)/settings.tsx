@@ -1,4 +1,4 @@
-import {StyleSheet, Alert, SectionList, View} from 'react-native';
+import {StyleSheet, Alert, SectionList, View, ColorSchemeName} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {supabase} from '@/utils/supabase';
 import {useUser} from '@/contexts/UserContext';
@@ -7,7 +7,7 @@ import {
   Avatar,
   Button,
   Card,
-  IconButton,
+  Divider,
   List,
   Modal,
   Portal,
@@ -16,24 +16,38 @@ import {
   useTheme,
 } from 'react-native-paper';
 import {useState} from 'react';
-import dayjs from 'dayjs';
 import React from 'react';
 import {StatusBar} from 'expo-status-bar';
+import {Appearance} from 'react-native';
 
-type ThemeProps = 'system' | 'dark' | 'light';
+export type Theme = 'system' | 'dark' | 'light';
+
+const iconMapping = {
+  theme: 'theme-light-dark',
+  changePassword: 'key',
+  manageAccounts: 'account-group',
+  about: 'information-outline',
+  help: 'help-circle-outline',
+  terms: 'file-document-outline',
+  logout: 'logout',
+};
+
 export default function SettingsPage() {
   const {user, isLoading} = useUser();
   const {colors} = useTheme();
 
-  const [theme, setTheme] = useState<ThemeProps>('system'); // 'system', 'dark', 'light'
+  const [theme, setTheme] = useState<Theme>('system');
   const [visible, setVisible] = useState(false);
 
   const showModal = () => setVisible(true);
   const hideModal = () => setVisible(false);
 
   const handleThemeChange = (value: string) => {
-    setTheme(value as ThemeProps);
-    // Handle theme change logic here
+    console.log('Theme changed to:', value);
+    setTheme(value as Theme);
+    if (value === 'system') Appearance.setColorScheme(null);
+    if (value === 'dark') Appearance.setColorScheme('dark');
+    if (value === 'light') Appearance.setColorScheme('light');
   };
 
   const handleLogout = async () => {
@@ -47,26 +61,32 @@ export default function SettingsPage() {
     {
       title: 'Preferences',
       data: [{key: 'theme', title: 'Theme', type: 'modal'}],
-      renderItem: ({item, index, section}) => {
-        if (item.type === 'modal') {
-          return (
-            <View
-              style={[
-                {backgroundColor: colors.surface},
-                index === 0 && styles.firstItem,
-                index === section.data.length - 1 && styles.lastItem,
-              ]}>
-              <List.Item
-                style={styles.horizontallySpaced}
-                title={item.title}
-                onPress={showModal}
-                left={() => <List.Icon icon="theme-light-dark" />}
-                right={() => <List.Icon icon="chevron-right" />}
-              />
-            </View>
-          );
-        }
-      },
+      renderItem: ({item, index, section}) => (
+        <View
+          style={[
+            {backgroundColor: colors.secondaryContainer},
+            index === 0 && styles.firstItem,
+            index === section.data.length - 1 && styles.lastItem,
+          ]}>
+          <List.Item
+            style={styles.horizontallySpaced}
+            title={item.title}
+            onPress={showModal}
+            left={() => <List.Icon icon={iconMapping[item.key]} />}
+            right={() => <List.Icon icon="chevron-right" />}
+          />
+          {index < section.data.length - 1 && (
+            <Divider
+              style={{
+                borderWidth: 0.1,
+                opacity: 0.2,
+                backgroundColor: colors.primary,
+              }}
+              horizontalInset
+            />
+          )}
+        </View>
+      ),
     },
     {
       title: 'Account Settings',
@@ -77,16 +97,27 @@ export default function SettingsPage() {
       renderItem: ({item, index, section}) => (
         <View
           style={[
-            {backgroundColor: colors.surface},
+            {backgroundColor: colors.secondaryContainer},
             index === 0 && styles.firstItem,
             index === section.data.length - 1 && styles.lastItem,
           ]}>
           <List.Item
             style={styles.horizontallySpaced}
             title={item.title}
+            left={() => <List.Icon icon={iconMapping[item.key]} />}
             right={() => <List.Icon icon="chevron-right" />}
             onPress={() => {}}
           />
+          {index < section.data.length - 1 && (
+            <Divider
+              style={{
+                borderWidth: 0.1,
+                opacity: 0.2,
+                backgroundColor: colors.primary,
+              }}
+              horizontalInset
+            />
+          )}
         </View>
       ),
     },
@@ -100,31 +131,43 @@ export default function SettingsPage() {
       renderItem: ({item, index, section}) => (
         <View
           style={[
-            {backgroundColor: colors.surface},
+            {backgroundColor: colors.secondaryContainer},
             index === 0 && styles.firstItem,
             index === section.data.length - 1 && styles.lastItem,
           ]}>
           <List.Item
             style={styles.horizontallySpaced}
             title={item.title}
+            left={() => <List.Icon icon={iconMapping[item.key]} />}
             right={() => <List.Icon icon="chevron-right" />}
             onPress={() => {}}
           />
+          {index < section.data.length - 1 && (
+            <Divider
+              style={{
+                borderWidth: 0.1,
+                opacity: 0.2,
+                backgroundColor: colors.primary,
+              }}
+              horizontalInset
+            />
+          )}
         </View>
       ),
     },
     {
       title: '',
       data: [{key: 'logout', title: 'Logout', type: 'button'}],
-      renderItem: ({item, index, section}) => (
+      renderItem: ({item}) => (
         <View>
-          <Button mode="contained" onPress={handleLogout}>
+          <Button mode="contained" onPress={handleLogout} icon={iconMapping[item.key]}>
             {item.title}
           </Button>
         </View>
       ),
     },
   ];
+
   const modalContainerStyle = {
     backgroundColor: colors.background,
     padding: 20,
@@ -135,43 +178,47 @@ export default function SettingsPage() {
   if (isLoading) {
     return <ActivityIndicator />;
   }
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
-      <SectionList
-        showsVerticalScrollIndicator={false}
-        sections={sections}
-        keyExtractor={item => item.key}
-        renderSectionHeader={({section: {title}}) => <List.Subheader>{title}</List.Subheader>}
-        renderItem={({item, index, section}) => {
-          return section.renderItem({item, index, section});
-        }}
-        ListHeaderComponent={() => (
-          <Card onPress={() => console.log('pressed Card')}>
-            <Card.Title
-              title={user?.user_metadata.full_name}
-              subtitle={user?.user_metadata.email}
-              left={props => (
-                <Avatar.Image {...props} source={{uri: user?.user_metadata.avatar_url}} />
-              )}
-            />
-          </Card>
-        )}
-        renderSectionFooter={() => <View style={{paddingBottom: 20}} />}
-      />
-      <Portal>
-        <Modal visible={visible} onDismiss={hideModal} contentContainerStyle={modalContainerStyle}>
-          <Text style={styles.modalTitle}>Select Theme</Text>
-          <RadioButton.Group onValueChange={handleThemeChange} value={theme}>
-            <RadioButton.Item label="System Default" value="system" />
-            <RadioButton.Item label="Dark" value="dark" />
-            <RadioButton.Item label="Light" value="light" />
-          </RadioButton.Group>
-          <Button onPress={hideModal} style={styles.modalButton}>
-            Close
-          </Button>
-        </Modal>
-      </Portal>
+    <SafeAreaView style={[styles.container, {backgroundColor: colors.background}]}>
+      <View style={styles.contentContainer}>
+        <StatusBar style="auto" />
+        <SectionList
+          showsVerticalScrollIndicator={false}
+          sections={sections}
+          keyExtractor={item => item.key}
+          renderSectionHeader={({section: {title}}) => <List.Subheader>{title}</List.Subheader>}
+          renderItem={({item, index, section}) => section.renderItem({item, index, section})}
+          ListHeaderComponent={() => (
+            <Card onPress={() => console.log('pressed Card')}>
+              <Card.Title
+                title={user?.user_metadata.full_name}
+                subtitle={user?.user_metadata.email}
+                left={props => (
+                  <Avatar.Image {...props} source={{uri: user?.user_metadata.avatar_url}} />
+                )}
+              />
+            </Card>
+          )}
+          renderSectionFooter={() => <View style={{paddingBottom: 20}} />}
+        />
+        <Portal>
+          <Modal
+            visible={visible}
+            onDismiss={hideModal}
+            contentContainerStyle={modalContainerStyle}>
+            <Text style={styles.modalTitle}>Select Theme</Text>
+            <RadioButton.Group onValueChange={handleThemeChange} value={theme}>
+              <RadioButton.Item label="System Default" value="system" />
+              <RadioButton.Item label="Dark" value="dark" />
+              <RadioButton.Item label="Light" value="light" />
+            </RadioButton.Group>
+            <Button onPress={hideModal} style={styles.modalButton}>
+              Close
+            </Button>
+          </Modal>
+        </Portal>
+      </View>
     </SafeAreaView>
   );
 }
@@ -179,43 +226,13 @@ export default function SettingsPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 12,
-    margin: 12,
   },
-
-  profileContainer: {
+  contentContainer: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 10,
-    marginBottom: 20,
-    paddingHorizontal: 10,
-  },
-  profileTextContainer: {
-    marginLeft: 15,
-    justifyContent: 'center',
-  },
-  profileName: {
-    marginTop: 10,
-    fontSize: 22,
-  },
-  modalContainer: {
-    backgroundColor: 'white',
     padding: 20,
-    margin: 20,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 18,
-    marginBottom: 20,
-  },
-  modalButton: {
-    marginTop: 20,
   },
   horizontallySpaced: {
-    // Add the horizontallySpaced style here
     paddingHorizontal: 10,
-    borderBottomWidth: 1,
   },
   firstItem: {
     borderTopLeftRadius: 10,
@@ -224,5 +241,12 @@ const styles = StyleSheet.create({
   lastItem: {
     borderBottomLeftRadius: 10,
     borderBottomRightRadius: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    marginBottom: 20,
+  },
+  modalButton: {
+    marginTop: 20,
   },
 });

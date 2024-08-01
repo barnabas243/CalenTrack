@@ -48,6 +48,8 @@ export default function Layout() {
         <MaterialBottomTabs
           safeAreaInsets={{bottom: 0}}
           activeColor={colors.primary}
+          barStyle={{backgroundColor: colors.background}}
+          activeIndicatorStyle={{backgroundColor: colors.primaryContainer}}
           initialRouteName="index">
           <MaterialBottomTabs.Screen
             name="index"

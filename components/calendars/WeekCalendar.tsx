@@ -33,7 +33,6 @@ const WeekCalendar = ({selectedDate, setSelectedDate}) => {
     [additionalEvents, events],
   );
 
-  console.log(filteredEvents.length);
   // Callback to add a new event
   const addEvent = useCallback((start: Date) => {
     const title = 'new Event';
@@ -62,9 +61,9 @@ const WeekCalendar = ({selectedDate, setSelectedDate}) => {
       sortedMonthView={false}
       mode={'week'}
       moreLabel="+{moreCount}"
-      onPressMoreLabel={useCallback(moreEvents => {
-        console.log(moreEvents);
-      }, [])}
+      // onPressMoreLabel={useCallback(moreEvents => {
+      //   console.log(moreEvents);
+      // }, [])}
       itemSeparatorComponent={itemSeparatorComponent}
     />
   );

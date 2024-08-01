@@ -12,6 +12,7 @@ import BottomSheet, {BottomSheetBackdrop} from '@gorhom/bottom-sheet';
 import groupBy from 'lodash/groupBy';
 import filter from 'lodash/filter';
 import find from 'lodash/find';
+import {MD3Colors} from 'react-native-paper/lib/typescript/types';
 // import dayjs from 'dayjs';
 
 // const EVENT_COLOR = '#e6add8';
@@ -146,6 +147,7 @@ interface DailyCalendarProps {
   events: TimelineEventProps[];
   selectedDate: string;
   setSelectedDate: (date: string) => void;
+  colors: MD3Colors;
 }
 
 export default class DailyCalendar extends PureComponent<DailyCalendarProps, DailyCalendarState> {
@@ -290,7 +292,6 @@ export default class DailyCalendar extends PureComponent<DailyCalendarProps, Dai
 
   render() {
     const {currentDate, eventsByDate} = this.state;
-
     return (
       <CalendarProvider
         date={currentDate}

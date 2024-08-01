@@ -23,10 +23,10 @@ const htmlContent = `
 const PrototypeFeedbackWebView = () => {
   return (
     <>
-      <Stack.Screen
-        options={{title: 'CalenTrack Prototype feedback', headerBackButtonMenuEnabled: true}}
-      />
-      <SafeAreaView></SafeAreaView>
+      <Stack.Screen options={{title: 'CalenTrack Prototype feedback'}} />
+      <SafeAreaView style={{flex: 1}}>
+        <WebView originWhitelist={['*']} source={{html: htmlContent}} style={{flex: 1}} />
+      </SafeAreaView>
     </>
   );
 };
