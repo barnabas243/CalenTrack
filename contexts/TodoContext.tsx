@@ -22,7 +22,7 @@ import {
 import bottomSheetModal from '@gorhom/bottom-sheet/lib/typescript/components/bottomSheetModal';
 import EditTodoModalContent from '@/components/bottomModalContents/EditTodoModalContent';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
-import AddTodoModal from '@/components/modals/AddTodoModal';
+import AddTodoModal from '@/components/modals/addTodoModal';
 import {useUser} from './UserContext';
 import {TimelineEventProps} from 'react-native-calendars';
 import {useTheme} from 'react-native-paper';

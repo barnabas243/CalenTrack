@@ -1,5 +1,5 @@
 import React from 'react';
-import {SectionList, StyleSheet, TouchableOpacity, View} from 'react-native';
+import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import {useTodo} from '@/contexts/TodoContext';
 import {TodoItem} from '@/contexts/TodoContext.types'; // Assuming TodoItem interface is imported
 import {

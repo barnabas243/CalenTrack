@@ -1,8 +1,8 @@
 import React, {createRef, PureComponent} from 'react';
-import {StyleSheet, View, FlatList, ListRenderItem, Dimensions} from 'react-native';
+import {StyleSheet, View, Dimensions} from 'react-native';
 import {ExpandableCalendar, CalendarProvider} from 'react-native-calendars';
 import {SwiperFlatList} from 'react-native-swiper-flatlist';
-import {Text, useTheme, MD3Theme, Divider} from 'react-native-paper';
+import {Text, Divider} from 'react-native-paper';
 import ToDoItem from '../ToDoItem';
 import {MonthlyTodo, TodoItem} from '@/contexts/TodoContext.types';
 import {MarkedDates} from 'react-native-calendars/src/types';

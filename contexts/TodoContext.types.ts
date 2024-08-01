@@ -56,7 +56,7 @@ export interface TodoContextType {
   todos: TodoItem[];
   sections: SectionItem[];
   groupedSections: Section[];
-  handleEndDrag: (results: TodoItem[], name: string) => void;
+  handleEndDrag: (results: TodoItem[], name: string | Date) => void;
   addTodo: (newTodo: TodoItem) => void;
   deleteTodo: (todoId: number) => void;
   batchDeleteTodos: (todoIds: number[]) => Promise<boolean>;
