@@ -1,7 +1,7 @@
-import {StyleSheet, Alert, SectionList, View, ColorSchemeName} from 'react-native';
+import React, {useCallback, useState} from 'react';
+import {Alert, SectionList, View, StyleSheet, ColorSchemeName} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {supabase} from '@/utils/supabase';
-import {useUser} from '@/contexts/UserContext';
 import {
   ActivityIndicator,
   Avatar,
@@ -15,10 +15,10 @@ import {
   Text,
   useTheme,
 } from 'react-native-paper';
-import {useState} from 'react';
-import React from 'react';
 import {StatusBar} from 'expo-status-bar';
 import {Appearance} from 'react-native';
+import {GoogleSignin} from '@react-native-google-signin/google-signin';
+import {useAuth} from '@/hooks/useAuth';
 
 export type Theme = 'system' | 'dark' | 'light';
 
@@ -31,62 +31,48 @@ const iconMapping = {
   terms: 'file-document-outline',
   logout: 'logout',
 };
-
+let count = 0;
 export default function SettingsPage() {
-  const {user, isLoading} = useUser();
+  console.log('SettingsPage rendered ', ++count);
+  const {user, isLoading} = useAuth();
   const {colors} = useTheme();
 
   const [theme, setTheme] = useState<Theme>('system');
   const [visible, setVisible] = useState(false);
 
-  const showModal = () => setVisible(true);
-  const hideModal = () => setVisible(false);
+  const showModal = useCallback(() => setVisible(true), []);
+  const hideModal = useCallback(() => setVisible(false), []);
 
-  const handleThemeChange = (value: string) => {
+  const handleThemeChange = useCallback((value: string) => {
     console.log('Theme changed to:', value);
     setTheme(value as Theme);
-    if (value === 'system') Appearance.setColorScheme(null);
-    if (value === 'dark') Appearance.setColorScheme('dark');
-    if (value === 'light') Appearance.setColorScheme('light');
-  };
+    Appearance.setColorScheme(value === 'system' ? null : (value as ColorSchemeName));
+  }, []);
 
-  const handleLogout = async () => {
-    const {error} = await supabase.auth.signOut();
-    if (error) {
-      Alert.alert('Error Signing Out User', error.message);
+  const handleLogout = useCallback(async () => {
+    try {
+      // Sign out of Google
+      if (user?.app_metadata.providers.includes('google')) {
+        await GoogleSignin.signOut();
+      }
+      // Sign out of Supabase
+      const {error} = await supabase.auth.signOut();
+      if (error) throw error;
+
+      // Optionally, redirect user or perform any additional logic after logout
+      console.log('Successfully signed out');
+
+      // For example, redirect to the login screen or update state
+      // router.replace('/login');
+    } catch (error) {
+      Alert.alert('Error Signing Out', error.message);
     }
-  };
+  }, [user]);
 
   const sections = [
     {
       title: 'Preferences',
       data: [{key: 'theme', title: 'Theme', type: 'modal'}],
-      renderItem: ({item, index, section}) => (
-        <View
-          style={[
-            {backgroundColor: colors.secondaryContainer},
-            index === 0 && styles.firstItem,
-            index === section.data.length - 1 && styles.lastItem,
-          ]}>
-          <List.Item
-            style={styles.horizontallySpaced}
-            title={item.title}
-            onPress={showModal}
-            left={() => <List.Icon icon={iconMapping[item.key]} />}
-            right={() => <List.Icon icon="chevron-right" />}
-          />
-          {index < section.data.length - 1 && (
-            <Divider
-              style={{
-                borderWidth: 0.1,
-                opacity: 0.2,
-                backgroundColor: colors.primary,
-              }}
-              horizontalInset
-            />
-          )}
-        </View>
-      ),
     },
     {
       title: 'Account Settings',
@@ -94,32 +80,6 @@ export default function SettingsPage() {
         {key: 'changePassword', title: 'Change Password', type: 'button'},
         {key: 'manageAccounts', title: 'Manage Connected Accounts', type: 'button'},
       ],
-      renderItem: ({item, index, section}) => (
-        <View
-          style={[
-            {backgroundColor: colors.secondaryContainer},
-            index === 0 && styles.firstItem,
-            index === section.data.length - 1 && styles.lastItem,
-          ]}>
-          <List.Item
-            style={styles.horizontallySpaced}
-            title={item.title}
-            left={() => <List.Icon icon={iconMapping[item.key]} />}
-            right={() => <List.Icon icon="chevron-right" />}
-            onPress={() => {}}
-          />
-          {index < section.data.length - 1 && (
-            <Divider
-              style={{
-                borderWidth: 0.1,
-                opacity: 0.2,
-                backgroundColor: colors.primary,
-              }}
-              horizontalInset
-            />
-          )}
-        </View>
-      ),
     },
     {
       title: 'App Information',
@@ -128,13 +88,44 @@ export default function SettingsPage() {
         {key: 'help', title: 'Help & Support', type: 'button'},
         {key: 'terms', title: 'Terms of Service & Privacy Policy', type: 'button'},
       ],
-      renderItem: ({item, index, section}) => (
-        <View
-          style={[
-            {backgroundColor: colors.secondaryContainer},
-            index === 0 && styles.firstItem,
-            index === section.data.length - 1 && styles.lastItem,
-          ]}>
+    },
+    {
+      title: '',
+      data: [{key: 'logout', title: 'Logout', type: 'button'}],
+    },
+  ];
+
+  const renderSectionHeader = ({section: {title}}: {section: {title: string}}) => (
+    <List.Subheader>{title}</List.Subheader>
+  );
+
+  const renderItem = ({item, index, section}: {item: any; index: number; section: any}) =>
+    item.key === 'logout' ? (
+      <View style={styles.logoutButtonContainer}>
+        <Button
+          mode="contained"
+          onPress={handleLogout}
+          icon={iconMapping[item.key]}
+          style={styles.logoutButton}>
+          {item.title}
+        </Button>
+      </View>
+    ) : (
+      <View
+        style={[
+          {backgroundColor: colors.secondaryContainer},
+          index === 0 && styles.firstItem,
+          index === section.data.length - 1 && styles.lastItem,
+        ]}>
+        {item.type === 'modal' ? (
+          <List.Item
+            style={styles.horizontallySpaced}
+            title={item.title}
+            onPress={showModal}
+            left={() => <List.Icon icon={iconMapping[item.key]} />}
+            right={() => <List.Icon icon="chevron-right" />}
+          />
+        ) : (
           <List.Item
             style={styles.horizontallySpaced}
             title={item.title}
@@ -142,38 +133,12 @@ export default function SettingsPage() {
             right={() => <List.Icon icon="chevron-right" />}
             onPress={() => {}}
           />
-          {index < section.data.length - 1 && (
-            <Divider
-              style={{
-                borderWidth: 0.1,
-                opacity: 0.2,
-                backgroundColor: colors.primary,
-              }}
-              horizontalInset
-            />
-          )}
-        </View>
-      ),
-    },
-    {
-      title: '',
-      data: [{key: 'logout', title: 'Logout', type: 'button'}],
-      renderItem: ({item}) => (
-        <View>
-          <Button mode="contained" onPress={handleLogout} icon={iconMapping[item.key]}>
-            {item.title}
-          </Button>
-        </View>
-      ),
-    },
-  ];
-
-  const modalContainerStyle = {
-    backgroundColor: colors.background,
-    padding: 20,
-    margin: 20,
-    borderRadius: 10,
-  };
+        )}
+        {index < section.data.length - 1 && (
+          <Divider style={[styles.divider, {backgroundColor: colors.primary}]} horizontalInset />
+        )}
+      </View>
+    );
 
   if (isLoading) {
     return <ActivityIndicator />;
@@ -181,15 +146,15 @@ export default function SettingsPage() {
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: colors.background}]}>
-      <View style={styles.contentContainer}>
-        <StatusBar style="auto" />
-        <SectionList
-          showsVerticalScrollIndicator={false}
-          sections={sections}
-          keyExtractor={item => item.key}
-          renderSectionHeader={({section: {title}}) => <List.Subheader>{title}</List.Subheader>}
-          renderItem={({item, index, section}) => section.renderItem({item, index, section})}
-          ListHeaderComponent={() => (
+      <StatusBar style="auto" />
+      <SectionList
+        showsVerticalScrollIndicator={false}
+        sections={sections}
+        keyExtractor={item => item.key}
+        renderSectionHeader={renderSectionHeader}
+        renderItem={renderItem}
+        ListHeaderComponent={() => (
+          <View style={styles.contentContainer}>
             <Card onPress={() => console.log('pressed Card')}>
               <Card.Title
                 title={user?.user_metadata.full_name}
@@ -199,26 +164,26 @@ export default function SettingsPage() {
                 )}
               />
             </Card>
-          )}
-          renderSectionFooter={() => <View style={{paddingBottom: 20}} />}
-        />
-        <Portal>
-          <Modal
-            visible={visible}
-            onDismiss={hideModal}
-            contentContainerStyle={modalContainerStyle}>
-            <Text style={styles.modalTitle}>Select Theme</Text>
-            <RadioButton.Group onValueChange={handleThemeChange} value={theme}>
-              <RadioButton.Item label="System Default" value="system" />
-              <RadioButton.Item label="Dark" value="dark" />
-              <RadioButton.Item label="Light" value="light" />
-            </RadioButton.Group>
-            <Button onPress={hideModal} style={styles.modalButton}>
-              Close
-            </Button>
-          </Modal>
-        </Portal>
-      </View>
+          </View>
+        )}
+        renderSectionFooter={() => <View style={styles.footer} />}
+      />
+      <Portal>
+        <Modal
+          visible={visible}
+          onDismiss={hideModal}
+          contentContainerStyle={[styles.modalContainer, {backgroundColor: colors.background}]}>
+          <Text style={styles.modalTitle}>Select Theme</Text>
+          <RadioButton.Group onValueChange={handleThemeChange} value={theme}>
+            <RadioButton.Item label="System Default" value="system" />
+            <RadioButton.Item label="Dark" value="dark" />
+            <RadioButton.Item label="Light" value="light" />
+          </RadioButton.Group>
+          <Button onPress={hideModal} style={styles.modalButton}>
+            Close
+          </Button>
+        </Modal>
+      </Portal>
     </SafeAreaView>
   );
 }
@@ -242,11 +207,30 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 10,
     borderBottomRightRadius: 10,
   },
+  divider: {
+    borderWidth: 0.1,
+    opacity: 0.2,
+  },
+  footer: {
+    paddingBottom: 20,
+  },
+  modalContainer: {
+    padding: 20,
+    margin: 20,
+    borderRadius: 10,
+  },
   modalTitle: {
     fontSize: 18,
     marginBottom: 20,
   },
   modalButton: {
     marginTop: 20,
+  },
+  logoutButtonContainer: {
+    marginTop: 20,
+    marginHorizontal: 20,
+  },
+  logoutButton: {
+    width: '100%',
   },
 });

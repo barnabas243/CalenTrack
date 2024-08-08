@@ -1,23 +1,12 @@
-import React from 'react';
-import {StyleSheet, TouchableOpacity, View} from 'react-native';
-import {useTodo} from '@/contexts/TodoContext';
-import {TodoItem} from '@/contexts/TodoContext.types'; // Assuming TodoItem interface is imported
-import {
-  Text,
-  ActivityIndicator,
-  useTheme,
-  Divider,
-  Appbar,
-  Menu,
-  Button,
-  Snackbar,
-} from 'react-native-paper';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import {Alert, StyleSheet, TouchableOpacity, View} from 'react-native';
+import {Text, ActivityIndicator, useTheme, Divider, Appbar, Menu, Button} from 'react-native-paper';
 import ToDoItem from '@/components/ToDoItem';
 import {StatusBar} from 'expo-status-bar';
-import {useUser} from '@/contexts/UserContext';
+import {useTodo} from '@/hooks/useTodo';
 import AddTodoFAB from '@/components/addTodoFAB';
 import dayjs from 'dayjs';
-import advancedFormat from 'dayjs/plugin/advancedFormat';
+
 import {MaterialCommunityIcons} from '@expo/vector-icons';
 import {router} from 'expo-router';
 import {
@@ -29,85 +18,229 @@ import {
   NestableScrollContainer,
   NestableDraggableFlatList,
   RenderItemParams,
+  ScaleDecorator,
 } from 'react-native-draggable-flatlist';
-import Animated, {ZoomInUp, ZoomOutUp} from 'react-native-reanimated';
+import Animated, {
+  FadeInUp,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import {TodoItem} from '@/store/todo/types';
+import EditTodoModal from '@/components/modals/EditTodoModal';
+import {BottomSheetDefaultBackdropProps} from '@gorhom/bottom-sheet/lib/typescript/components/bottomSheetBackdrop/types';
+import {isEqual} from 'lodash';
+import EditTodoModalContent from '@/components/modals/EditTodoModalContent';
+import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
+import AddTodoModal from '@/components/modals/addTodoModal';
+import {useAuth} from '@/hooks/useAuth';
 
-dayjs.extend(advancedFormat);
+export type sortByType = 'date' | 'title' | 'section' | 'priority';
+export type sortDirectionType = 'asc' | 'desc';
 
+export interface SortType {
+  sortBy: sortByType;
+  direction: sortDirectionType;
+}
+
+const filterTodos = (sortedTodos: TodoItem[], filterType: 'overdue' | 'today' | 'completed') => {
+  const todayDate = dayjs();
+  const yesterday = todayDate.subtract(1, 'day');
+
+  switch (filterType) {
+    case 'overdue':
+      return sortedTodos.filter(
+        todo =>
+          dayjs(todo.due_date).isValid() &&
+          !todo.completed &&
+          dayjs(todo.due_date).isBefore(yesterday, 'day'),
+      );
+    case 'today':
+      return sortedTodos.filter(
+        todo =>
+          dayjs(todo.due_date).isValid() &&
+          !todo.completed &&
+          dayjs(todo.due_date).isSame(todayDate, 'day'),
+      );
+    case 'completed':
+      return sortedTodos.filter(todo => todo.completed);
+    default:
+      return [];
+  }
+};
+
+const sortTodos = (todos: TodoItem[], sortBy: sortByType, direction: sortDirectionType = 'asc') => {
+  const sortedTodos = todos.slice(); // Make a copy of the array to avoid mutating the original
+
+  switch (sortBy) {
+    case 'date':
+      sortedTodos.sort((a, b) => dayjs(a.due_date).diff(dayjs(b.due_date)));
+      break;
+    case 'title':
+      sortedTodos.sort((a, b) => a.title.localeCompare(b.title));
+      break;
+    case 'section':
+      sortedTodos.sort((a, b) => (a.section_id ?? 0) - (b.section_id ?? 0));
+      break;
+    case 'priority':
+      sortedTodos.sort((a, b) => (Number(a.priority) ?? 0) - (Number(b.priority) ?? 0));
+      break;
+    default:
+      break;
+  }
+
+  if (direction === 'desc') {
+    sortedTodos.reverse();
+  }
+  return sortedTodos;
+};
+
+let count = 0;
 const HomeScreen = () => {
+  console.log('HomeScreen rendered', count++);
   const {colors} = useTheme();
-  const {isLoading} = useUser();
-  const {
-    overdueTodos,
-    todayTodos,
-    completedTodos,
-    handleEndDrag,
-    batchDeleteTodos,
-    batchCompleteTodos,
-  } = useTodo();
+  const {isLoading, user} = useAuth();
 
-  const [isOverdueVisible, setIsOverdueVisible] = React.useState(true);
-  const [isTodayVisible, setIsTodayVisible] = React.useState(true);
-  const [isCompletedVisible, setIsCompletedVisible] = React.useState(true);
-  const [isFABVisible, setIsFABVisible] = React.useState(true);
-  const [isMenuVisible, setIsMenuVisible] = React.useState(false);
+  const {todos, sections, deleteExistingTodos, updateExistingTodos, addNewSection, addNewTodo} =
+    useTodo();
 
-  const [isSnackbarVisible, setIsSnackbarVisible] = React.useState(false);
-  const [snackBarText, setSnackBarText] = React.useState('This is the default snack bar text');
+  const [overdueTodos, setOverdueTodos] = useState<TodoItem[]>([]);
+  const [todayTodos, setTodayTodos] = useState<TodoItem[]>([]);
+  const [completedTodos, setCompletedTodos] = useState<TodoItem[]>([]);
 
-  const showSnackBar = () => setIsSnackbarVisible(true);
+  const [sortBy, setSortBy] = useState<sortByType>('date');
+  const [sortDirection, setSortDirection] = useState<sortDirectionType>('asc');
 
-  const onDismissSnackBar = () => setIsSnackbarVisible(false);
+  const sortedTodos = useMemo(() => {
+    return sortTodos(todos, sortBy, sortDirection);
+  }, [sortBy, sortDirection, todos]);
 
-  // // multiple select items based on id
-  const [selectedItems, setSelectedItems] = React.useState<Map<number, {completed: boolean}>>(
-    new Map(),
-  );
+  // Update state based on sortedTodos
+  useEffect(() => {
+    setOverdueTodos(filterTodos(sortedTodos, 'overdue'));
+    setTodayTodos(filterTodos(sortedTodos, 'today'));
+    setCompletedTodos(filterTodos(sortedTodos, 'completed'));
+  }, [sortedTodos]);
+
+  const [isOverdueVisible, setIsOverdueVisible] = useState(true);
+  const [isTodayVisible, setIsTodayVisible] = useState(true);
+  const [isCompletedVisible, setIsCompletedVisible] = useState(true);
+  const [isFABVisible, setIsFABVisible] = useState(true);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+
+  const [isAddTodoModalVisible, setIsAddTodoModalVisible] = useState(false);
+
+  const showAddTodoModal = () => setIsAddTodoModalVisible(true);
+  const hideAddTodoModal = () => setIsAddTodoModalVisible(false);
+
+  // Swipeable item params
+  const itemRefs = React.useRef(new Map());
 
   // bottomsheets ref
   const sortBottomSheetRef = React.useRef<BottomSheetModal>(null);
-
+  const editBottomSheetRef = React.useRef<BottomSheetModal>(null);
   const snapPoints = React.useMemo(() => ['25%', '40%', '75%'], []);
 
-  // const handleSelect = (id: number, completed: boolean) => {
-  //   setSelectedItems(prevSelectedItems => {
-  //     const newSelectedItems = new Map(prevSelectedItems);
-  //     if (newSelectedItems.has(id)) {
-  //       newSelectedItems.delete(id);
-  //     } else {
-  //       newSelectedItems.set(id, {completed});
-  //     }
-  //     return newSelectedItems;
-  //   });
-  // };
+  // Shared values for the height animation
+  const overdueHeight = useSharedValue(0);
+  const todayHeight = useSharedValue(0);
+  const completedHeight = useSharedValue(0);
 
-  // const handleDeleteSelected = async () => {
-  //   const ids = Array.from(selectedItems.keys());
-  //   const isDeletedSuccessfully = await batchDeleteTodos(ids);
-  //   if (isDeletedSuccessfully) {
-  //     setSnackBarText(`Deleted ${ids.length} items`);
-  //     showSnackBar();
-  //     setSelectedItems(new Map());
-  //   } else {
-  //     // show error message
-  //   }
-  // };
+  // Animated values
+  const animatedOverdueHeight = useSharedValue(0);
+  const animatedTodayHeight = useSharedValue(0);
+  const animatedCompletedHeight = useSharedValue(0);
 
-  // const handleMarkSelectedAsComplete = async () => {
-  //   const ids = Array.from(selectedItems.keys());
-  //   const isUpdatedSuccessfully = await batchCompleteTodos(ids);
+  // Update the height values when the content size changes
+  const changeHeight = useCallback(
+    (height: number, type: string) => {
+      console.log('changeHeight', height, type);
+      switch (type) {
+        case 'overdue':
+          overdueHeight.value = height;
+          break;
+        case 'today':
+          todayHeight.value = height;
+          break;
+        case 'completed':
+          completedHeight.value = height;
+          break;
+      }
+    },
+    [overdueHeight, todayHeight, completedHeight],
+  );
 
-  //   let message = '';
-  //   if (isUpdatedSuccessfully) {
-  //     message = `Marked ${ids.length} items as completed`;
-  //   } else {
-  //     // show error message
-  //     message = 'Error marking items as completed';
-  //   }
-  //   setSnackBarText(message);
-  //   showSnackBar();
-  //   setSelectedItems(new Map());
-  // };
+  // useDerivedValue to animate the height
+  useDerivedValue(() => {
+    animatedOverdueHeight.value = withTiming(isOverdueVisible ? overdueHeight.value : 0, {
+      duration: 200,
+    });
+  }, [isOverdueVisible]);
+
+  useDerivedValue(() => {
+    animatedTodayHeight.value = withTiming(isTodayVisible ? todayHeight.value : 0, {
+      duration: 200,
+    });
+  }, [isTodayVisible]);
+
+  useDerivedValue(() => {
+    animatedCompletedHeight.value = withTiming(isCompletedVisible ? completedHeight.value : 0, {
+      duration: 200,
+    });
+  }, [isCompletedVisible]);
+
+  // Animated styles for height
+  const animatedOverdueStyle = useAnimatedStyle(
+    () => ({
+      height: animatedOverdueHeight.value,
+    }),
+    [animatedOverdueHeight],
+  );
+
+  const animatedTodayStyle = useAnimatedStyle(
+    () => ({
+      height: animatedTodayHeight.value,
+    }),
+    [animatedTodayHeight],
+  );
+
+  const animatedCompletedStyle = useAnimatedStyle(
+    () => ({
+      height: animatedCompletedHeight.value,
+    }),
+    [animatedCompletedHeight],
+  );
+
+  const backdropComponent = React.useCallback(
+    (props: React.JSX.IntrinsicAttributes & BottomSheetDefaultBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        opacity={0.5}
+        enableTouchThrough={false}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        style={[{backgroundColor: 'rgba(0, 0, 0, 1)'}, StyleSheet.absoluteFillObject]}
+      />
+    ),
+    [],
+  );
+
+  const handleEndDrag = (results: TodoItem[], name: string) => {
+    switch (name) {
+      case 'overdue':
+        setOverdueTodos(results);
+        break;
+      case 'today':
+        setTodayTodos(results);
+        break;
+      case 'completed':
+        setCompletedTodos(results);
+        break;
+      default:
+        break;
+    }
+  };
 
   const handleSectionHeaderPress = (title: string) => {
     switch (title) {
@@ -122,8 +255,43 @@ const HomeScreen = () => {
     }
   };
 
+  const toggleCompleteTodo = (id: string) => {
+    const todo = todos.find(todo => todo.id === id);
+    if (todo) {
+      updateExistingTodos([
+        {
+          ...todo,
+          completed: !todo.completed,
+          completed_at: todo.completed ? null : new Date().toString(),
+        },
+      ]);
+    }
+  };
+
+  const openEditBottomSheet = (item: TodoItem) => {
+    console.log('openEditBottomSheet', item);
+    if (editBottomSheetRef.current) {
+      editBottomSheetRef.current.present(item);
+    }
+  };
+
+  const deleteTodo = (id: string) => {
+    deleteExistingTodos([id]);
+  };
+
   const renderTodoItem = (params: RenderItemParams<TodoItem>) => (
-    <ToDoItem {...params} colors={colors} />
+    <ScaleDecorator>
+      <ToDoItem
+        {...params}
+        colors={colors}
+        itemRefs={itemRefs}
+        onToggleComplete={toggleCompleteTodo}
+        openEditBottomSheet={openEditBottomSheet}
+        deleteTodo={deleteTodo}
+        sections={sections}
+        enableSwipe={true}
+      />
+    </ScaleDecorator>
   );
 
   const handleSort = () => {
@@ -173,7 +341,7 @@ const HomeScreen = () => {
       <TouchableOpacity
         onPress={handleSectionHeaderPress(title)}
         disabled={length === 0}
-        style={[styles.sectionHeaderContainer, {backgroundColor: colors.background}]}>
+        style={[styles.sectionHeaderContainer, {backgroundColor: colors.background, zIndex: -1}]}>
         <Text style={styles.sectionHeader}>{title}</Text>
         <View style={styles.sectionHeaderContainer}>
           <Text>{length}</Text>
@@ -186,6 +354,50 @@ const HomeScreen = () => {
       </TouchableOpacity>
     );
   }
+
+  const handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+    // Check if the todo has been updated using deep comparison
+    if (!isEqual(updatedTodo, selectedTodo)) {
+      updateExistingTodos([updatedTodo]);
+    }
+  };
+
+  const handleSubmitEditing = async (newTodo: TodoItem, selectedSection = 'Inbox') => {
+    if (!newTodo) return;
+
+    try {
+      if (selectedSection !== 'Inbox' && !newTodo.section_id) {
+        // Create a new section if it doesn't exist
+        const newSection = {name: selectedSection, user_id: user!.id};
+
+        // Assuming addNewSection returns the created section or an identifier
+        const result = await addNewSection(newSection);
+        console.log('addNewSection result:', result);
+        if (!result || !result.id) {
+          Alert.alert('Error', 'Failed to create new section');
+          return;
+        }
+
+        // Add section ID to newTodo and then add the todo
+        const updatedTodo = {...newTodo, section_id: result.id};
+        const todoResult = await addNewTodo(updatedTodo);
+
+        if (!todoResult) {
+          Alert.alert('Error', 'Failed to add new todo');
+        }
+      } else {
+        // If section_id is present or selectedSection is 'Inbox', directly add the todo
+        const todoResult = await addNewTodo(newTodo);
+
+        if (!todoResult) {
+          Alert.alert('Error', 'Failed to add new todo');
+        }
+      }
+    } catch (error) {
+      console.error('An error occurred while handling submit editing:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
+    }
+  };
 
   return (
     <View style={[styles.container, {backgroundColor: colors.background}]}>
@@ -216,78 +428,74 @@ const HomeScreen = () => {
 
       <NestableScrollContainer stickyHeaderIndices={[0, 2, 4]} style={styles.scrollContainer}>
         <Header title={'Overdue'} />
-        <Animated.View entering={ZoomInUp} exiting={ZoomOutUp}>
+        <Animated.View style={animatedOverdueStyle} entering={FadeInUp}>
           <NestableDraggableFlatList
-            data={isOverdueVisible ? overdueTodos : []}
+            initialNumToRender={7}
+            onContentSizeChange={(w, h) => changeHeight(h, 'overdue')}
+            data={overdueTodos}
             renderItem={renderTodoItem}
             keyExtractor={keyExtractor}
             onDragEnd={({data}) => handleEndDrag(data, 'overdue')}
             activationDistance={20}
-            renderPlaceholder={() => (
-              <Divider
-                bold
-                style={{
-                  backgroundColor: colors.primary,
-                  borderWidth: 1,
-                  borderColor: colors.primary,
-                }}
-              />
-            )}
+            dragItemOverflow={true}
+            tabIndex={0}
+            renderPlaceholder={() => <DraggableItemPlaceholder />}
           />
         </Animated.View>
+
         <Header title={'Today'} />
-
-        <Animated.View entering={ZoomInUp} exiting={ZoomOutUp}>
+        <Animated.View style={animatedTodayStyle} entering={FadeInUp}>
           <NestableDraggableFlatList
-            data={isTodayVisible ? todayTodos : []}
+            data={todayTodos}
+            initialNumToRender={7}
+            onContentSizeChange={(w, h) => changeHeight(h, 'today')}
             renderItem={renderTodoItem}
             keyExtractor={keyExtractor}
-            onDragEnd={({data}) => handleEndDrag(data, 'today')}
+            onDragBegin={() => setIsFABVisible(false)}
+            onDragEnd={({data}) => {
+              setIsFABVisible(true);
+              handleEndDrag(data, 'today');
+            }}
             activationDistance={20}
-            renderPlaceholder={() => (
-              <Divider
-                bold
-                style={{
-                  backgroundColor: colors.primary,
-                  borderWidth: 1,
-                  borderColor: colors.primary,
-                }}
-              />
-            )}
-            // ListFooterComponent={() => <Divider bold />}
+            dragItemOverflow={true}
+            renderPlaceholder={() => <DraggableItemPlaceholder />}
           />
         </Animated.View>
-        <Header title={'Completed'} />
 
-        <Animated.View entering={ZoomInUp} exiting={ZoomOutUp}>
+        <Header title={'Completed'} />
+        <Animated.View style={animatedCompletedStyle} entering={FadeInUp}>
           <NestableDraggableFlatList
-            data={isCompletedVisible ? completedTodos : []}
+            data={completedTodos}
+            initialNumToRender={7}
+            onContentSizeChange={(w, h) => changeHeight(h, 'completed')}
             renderItem={renderTodoItem}
             keyExtractor={keyExtractor}
-            onDragEnd={({data}) => handleEndDrag(data, 'completed')}
+            onDragBegin={index => setIsFABVisible(false)}
+            onDragEnd={({data}) => {
+              setIsFABVisible(true);
+              handleEndDrag(data, 'completed');
+            }}
             activationDistance={20}
-            // ListFooterComponent={() => <Divider bold />}
+            dragItemOverflow={true}
+            renderPlaceholder={() => <DraggableItemPlaceholder />}
           />
         </Animated.View>
       </NestableScrollContainer>
+
       <BottomSheetModalProvider>
+        <AddTodoModal
+          isVisible={isAddTodoModalVisible}
+          setIsVisible={setIsAddTodoModalVisible}
+          onBackdropPress={hideAddTodoModal}
+          onSubmitEditing={handleSubmitEditing}
+          sections={sections}
+        />
         <BottomSheetModal
-          backdropComponent={(
-            props, // found from https://github.com/gorhom/react-native-bottom-sheet/issues/187
-          ) => (
-            <BottomSheetBackdrop
-              {...props}
-              opacity={0.5}
-              enableTouchThrough={false}
-              appearsOnIndex={0}
-              disappearsOnIndex={-1}
-              style={[{backgroundColor: 'rgba(0, 0, 0, 1)'}, StyleSheet.absoluteFillObject]}
-            />
-          )}
+          backdropComponent={backdropComponent}
           handleComponent={null}
           enableContentPanningGesture={false}
           ref={sortBottomSheetRef}
-          index={0}
+          index={1}
           snapPoints={snapPoints}
           stackBehavior={'push'}
           onDismiss={() => setIsFABVisible(true)}>
@@ -296,54 +504,112 @@ const HomeScreen = () => {
               <Text style={{fontSize: 14, color: colors.onSurfaceVariant}}>Sort By</Text>
               <View style={styles.buttonGrid}>
                 <Button
-                  mode="contained"
-                  style={[styles.button, {backgroundColor: colors.primary}]}
+                  mode={sortBy === 'date' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortBy === 'date' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
                   onPress={() => {
-                    /* Handle Date Sort By */
+                    setSortBy('date');
                   }}>
                   Date
                 </Button>
                 <Button
-                  mode="outlined"
-                  style={styles.button}
+                  mode={sortBy === 'title' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortBy === 'title' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
                   onPress={() => {
-                    /* Handle Title Sort By */
+                    setSortBy('title');
                   }}>
                   Title
                 </Button>
                 <Button
-                  mode="outlined"
-                  style={styles.button}
+                  mode={sortBy === 'section' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortBy === 'section' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
                   onPress={() => {
-                    /* Handle Section Sort By */
+                    setSortBy('section');
                   }}>
                   Section
                 </Button>
                 <Button
-                  mode="outlined"
-                  style={styles.button}
+                  mode={sortBy === 'priority' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortBy === 'priority' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
                   onPress={() => {
-                    /* Handle Priority Sort By */
+                    setSortBy('priority');
                   }}>
                   Priority
                 </Button>
               </View>
             </View>
+            <Divider />
+            <View style={styles.section}>
+              <Text style={{fontSize: 14, color: colors.onSurfaceVariant}}>Sort Direction</Text>
+              <View style={styles.buttonGrid}>
+                <Button
+                  mode={sortDirection === 'asc' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortDirection === 'asc' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSortDirection('asc');
+                  }}>
+                  Ascending
+                </Button>
+                <Button
+                  mode={sortDirection === 'desc' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortDirection === 'desc' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
+                  onPress={() => {
+                    setSortDirection('desc');
+                  }}>
+                  Descending
+                </Button>
+              </View>
+            </View>
           </View>
         </BottomSheetModal>
+
+        <EditTodoModal ref={editBottomSheetRef} onDismiss={() => console.log('dismissed modal')}>
+          {data => (
+            <EditTodoModalContent
+              todo={data.data}
+              onDismiss={handleEditModalDismiss}
+              sections={sections}
+              colors={colors}
+            />
+          )}
+        </EditTodoModal>
       </BottomSheetModalProvider>
-      {isFABVisible && <AddTodoFAB />}
-      <Snackbar
-        visible={isSnackbarVisible}
-        onDismiss={onDismissSnackBar}
-        action={{
-          label: 'Undo',
-          onPress: () => {
-            // Do something
-          },
-        }}>
-        {snackBarText}
-      </Snackbar>
+      {isFABVisible && <AddTodoFAB onPress={showAddTodoModal} />}
     </View>
   );
 };

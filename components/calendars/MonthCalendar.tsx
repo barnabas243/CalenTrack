@@ -1,14 +1,23 @@
-import React, {createRef, PureComponent} from 'react';
+import React, {createRef, MutableRefObject, PureComponent} from 'react';
 import {StyleSheet, View, Dimensions} from 'react-native';
 import {ExpandableCalendar, CalendarProvider} from 'react-native-calendars';
 import {SwiperFlatList} from 'react-native-swiper-flatlist';
-import {Text, Divider} from 'react-native-paper';
+import {Text} from 'react-native-paper';
 import ToDoItem from '../ToDoItem';
-import {MonthlyTodo, TodoItem} from '@/contexts/TodoContext.types';
+import {MonthlyTodo, TodoItem} from '@/store/todo/types';
 import {MarkedDates} from 'react-native-calendars/src/types';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
-import DraggableFlatList, {RenderItemParams} from 'react-native-draggable-flatlist';
+import DraggableFlatList, {RenderItemParams, ScaleDecorator} from 'react-native-draggable-flatlist';
 import dayjs from 'dayjs';
+import {SwipeableItemImperativeRef} from 'react-native-swipeable-item';
+import EditTodoModal from '../modals/EditTodoModal';
+import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
+import EditTodoModalContent from '../modals/EditTodoModalContent';
+import {SectionItem} from '@/store/section/types';
+import {isEqual} from 'lodash';
+import AddTodoModal from '../modals/addTodoModal';
+import AddTodoFAB from '../addTodoFAB';
+import DraggableItemPlaceholder from '../DraggableItemPlaceholder';
 
 interface MonthCalendarProps {
   monthlyTodoArray: MonthlyTodo[];
@@ -16,24 +25,41 @@ interface MonthCalendarProps {
   setSelectedDate: (date: string) => void;
   colors: MD3Colors;
   handleEndDrag: (results: TodoItem[], name: string | Date) => void;
+  updateExistingTodos: (todos: TodoItem[]) => void;
+  deleteTodo: (id: string) => void;
+  toggleCompleteTodo: (id: string) => void;
+  sections: SectionItem[];
+  onDismiss: (selectedTodo: TodoItem, updatedTodo: TodoItem) => void;
+  onSubmitEditing: (todo: TodoItem) => void;
 }
 
 interface MonthCalendarState {
   markedDates: MarkedDates;
   currentDate: string;
+  isAddTodoModalVisible: boolean;
 }
-
-let count = 0;
 
 class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState> {
   private swiperRef = createRef<SwiperFlatList>();
+  private todoItemRefs: MutableRefObject<Map<string, SwipeableItemImperativeRef>>;
+  private editBottomSheetRef = createRef<BottomSheetModal>();
 
   constructor(props: MonthCalendarProps) {
     super(props);
     this.state = {
       markedDates: this.calculateMarkedDates(props.monthlyTodoArray),
       currentDate: props.selectedDate,
+      isAddTodoModalVisible: false,
     };
+    this.todoItemRefs = {
+      current: new Map<string, SwipeableItemImperativeRef>(),
+    } as MutableRefObject<Map<string, SwipeableItemImperativeRef>>;
+  }
+
+  componentDidMount() {
+    // Log refs after the component has mounted
+    console.log('swiperRef current:', this.swiperRef.current);
+    console.log('editBottomSheetRef current:', this.editBottomSheetRef.current);
   }
 
   componentDidUpdate(prevProps: MonthCalendarProps) {
@@ -45,14 +71,12 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
   }
 
   calculateMarkedDates = (monthlyTodoArray: MonthlyTodo[]): MarkedDates => {
-    const markedDates: MarkedDates = {};
-    monthlyTodoArray.forEach(item => {
-      const {dueDate} = item;
+    return monthlyTodoArray.reduce((acc, item) => {
       if (item.data.length > 0) {
-        markedDates[dueDate] = {marked: true};
+        acc[item.dueDate] = {marked: true};
       }
-    });
-    return markedDates;
+      return acc;
+    }, {} as MarkedDates);
   };
 
   findIndexByDate = (date: string): number => {
@@ -89,88 +113,127 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
     }
   };
 
+  openEditBottomSheet = (item: TodoItem) => {
+    console.log('openEditBottomSheet', item);
+    if (this.editBottomSheetRef.current) {
+      this.editBottomSheetRef.current.present(item);
+    } else {
+      console.warn('editBottomSheetRef is null');
+    }
+  };
+
+  handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+    // Check if the todo has been updated using deep comparison
+    if (!isEqual(updatedTodo, selectedTodo)) {
+      this.props.updateExistingTodos([updatedTodo]);
+    }
+  };
+
   renderTodoItem = (params: RenderItemParams<TodoItem>) => (
-    <ToDoItem {...params} colors={this.props.colors} />
+    <ScaleDecorator>
+      <ToDoItem
+        {...params}
+        onToggleComplete={this.props.toggleCompleteTodo}
+        openEditBottomSheet={this.openEditBottomSheet}
+        deleteTodo={this.props.deleteTodo}
+        sections={this.props.sections}
+        colors={this.props.colors}
+        itemRefs={this.todoItemRefs}
+      />
+    </ScaleDecorator>
   );
 
+  showAddTodoModal = () => {
+    this.setState({isAddTodoModalVisible: true});
+  };
+  hideAddTodoModal = () => {
+    this.setState({isAddTodoModalVisible: false});
+  };
+
+  setIsAddTodoModalVisible = (isVisible: boolean) => {
+    this.setState({isAddTodoModalVisible: isVisible});
+  };
+
   render() {
-    console.log('MonthCalendar rendered:', ++count);
-    const {monthlyTodoArray} = this.props;
-    const {markedDates} = this.state;
-    const initialIndex = this.findIndexByDate(this.props.selectedDate);
+    const {monthlyTodoArray, selectedDate, colors} = this.props;
+    const {markedDates, isAddTodoModalVisible} = this.state;
+    const initialIndex = this.findIndexByDate(selectedDate);
 
     return (
-      <CalendarProvider
-        date={this.props.selectedDate}
-        style={styles.container}
-        showTodayButton
-        onDateChanged={this.onDateChanged}>
-        <ExpandableCalendar
-          initialPosition={ExpandableCalendar.positions.OPEN}
-          theme={{
-            calendarBackground: this.props.colors.background,
-            dayTextColor: this.props.colors.secondary,
-            textDisabledColor: this.props.colors.surfaceVariant,
-            arrowColor: this.props.colors.error,
-            textSectionTitleColor: this.props.colors.secondary,
-            monthTextColor: this.props.colors.secondary,
-            todayDotColor: this.props.colors.error,
-            todayTextColor: this.props.colors.error,
-            selectedDayBackgroundColor: this.props.colors.onErrorContainer,
-            selectedDayTextColor: this.props.colors.onError,
-          }}
-          firstDay={1}
-          markedDates={markedDates}
-          onDayPress={this.onDayPress}
-        />
-        <SwiperFlatList
-          ref={this.swiperRef}
-          data={monthlyTodoArray}
-          initialNumToRender={3}
-          index={initialIndex}
-          onChangeIndex={this.onChangeIndex}
-          renderItem={({item}) => (
-            <DraggableFlatList
-              data={item.data}
-              renderItem={this.renderTodoItem}
-              keyExtractor={item => item.id.toString()}
-              initialNumToRender={5}
-              onDragEnd={({data}) => this.props.handleEndDrag(data, dayjs(item.dueDate).toDate())}
-              activationDistance={20}
-              containerStyle={[styles.todoList, {backgroundColor: this.props.colors.background}]}
-              ListEmptyComponent={
-                <View style={styles.centerContainer}>
-                  <Text>No tasks for this date</Text>
-                </View>
-              }
-              renderPlaceholder={() => (
-                <Divider
-                  bold
-                  style={{
-                    backgroundColor: this.props.colors.primary,
-                    borderWidth: 1,
-                    borderColor: this.props.colors.primary,
-                  }}
-                />
-              )}
-            />
-            // <FlatList
-            //   showsVerticalScrollIndicator={false}
-            //   data={item.data}
-            //   renderItem={this.renderTodoItem}
-            //   disableScrollViewPanResponder
-            //   initialNumToRender={5}
-            //   keyExtractor={item => item.id.toString()}
-            //   contentContainerStyle={styles.todoList}
-            //   ListEmptyComponent={
-            //     <View style={styles.centerContainer}>
-            //       <Text>No tasks for this date</Text>
-            //     </View>
-            //   }
-            // />
-          )}
-        />
-      </CalendarProvider>
+      <>
+        <CalendarProvider
+          date={selectedDate}
+          style={styles.container}
+          showTodayButton
+          onDateChanged={this.onDateChanged}>
+          <ExpandableCalendar
+            initialPosition={ExpandableCalendar.positions.OPEN}
+            theme={{
+              calendarBackground: colors.background,
+              dayTextColor: colors.secondary,
+              textDisabledColor: colors.surfaceVariant,
+              arrowColor: colors.error,
+              textSectionTitleColor: colors.secondary,
+              monthTextColor: colors.secondary,
+              todayDotColor: colors.error,
+              todayTextColor: colors.error,
+              selectedDayBackgroundColor: colors.onErrorContainer,
+              selectedDayTextColor: colors.onError,
+            }}
+            firstDay={1}
+            markedDates={markedDates}
+            onDayPress={this.onDayPress}
+          />
+          <SwiperFlatList
+            ref={this.swiperRef}
+            data={monthlyTodoArray}
+            initialNumToRender={1}
+            index={initialIndex}
+            onChangeIndex={this.onChangeIndex}
+            renderItem={({item}) => (
+              <DraggableFlatList
+                data={item.data}
+                showsVerticalScrollIndicator={false}
+                renderItem={this.renderTodoItem}
+                keyExtractor={item => item.id.toString()}
+                initialNumToRender={4}
+                onDragEnd={({data}) => this.props.handleEndDrag(data, dayjs(item.dueDate).toDate())}
+                activationDistance={20}
+                containerStyle={[styles.todoList, {backgroundColor: colors.background}]}
+                ListEmptyComponent={
+                  <View style={styles.centerContainer}>
+                    <Text>No tasks for this date</Text>
+                  </View>
+                }
+                renderPlaceholder={() => <DraggableItemPlaceholder />}
+              />
+            )}
+          />
+        </CalendarProvider>
+
+        <BottomSheetModalProvider>
+          <AddTodoModal
+            isVisible={isAddTodoModalVisible}
+            setIsVisible={this.setIsAddTodoModalVisible}
+            onBackdropPress={this.hideAddTodoModal}
+            onSubmitEditing={this.props.onSubmitEditing}
+            sections={this.props.sections}
+          />
+          <EditTodoModal
+            ref={this.editBottomSheetRef}
+            onDismiss={() => console.log('dismissed modal')}>
+            {data => (
+              <EditTodoModalContent
+                todo={data.data}
+                onDismiss={this.props.onDismiss}
+                sections={this.props.sections}
+                colors={colors}
+              />
+            )}
+          </EditTodoModal>
+        </BottomSheetModalProvider>
+        <AddTodoFAB onPress={this.showAddTodoModal} />
+      </>
     );
   }
 }
