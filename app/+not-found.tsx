@@ -2,10 +2,10 @@ import React from 'react';
 import {Link, Stack} from 'expo-router';
 import {StyleSheet, View} from 'react-native';
 import {ActivityIndicator, Text} from 'react-native-paper';
-import {useUser} from '@/contexts/UserContext';
+import {useAuth} from '@/hooks/useAuth';
 
 export default function NotFoundScreen() {
-  const {user, isLoading} = useUser();
+  const {user, isLoading} = useAuth();
 
   if (isLoading) return <ActivityIndicator />;
 
@@ -14,7 +14,7 @@ export default function NotFoundScreen() {
       <Stack.Screen options={{title: 'Oops!'}} />
       <View style={styles.container}>
         <Text>This screen doesn't exist.</Text>
-        <Link href={user ? '/(tabs)' : '/(auth)/login'} style={styles.link}>
+        <Link href={user ? '/(tabs)' : '/(auth)'} style={styles.link}>
           <Text>Go to home screen!</Text>
         </Link>
       </View>

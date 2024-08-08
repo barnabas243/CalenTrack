@@ -1,12 +1,12 @@
 // app/(tabs)/_layout.tsx
 
 import React, {useEffect, useState} from 'react';
-import {TodoProvider} from '@/contexts/TodoContext';
 import {AuthProvider} from '@/contexts/UserContext';
 import {useTheme} from 'react-native-paper';
 import {MaterialBottomTabs} from '@/layouts/material-bottom-tabs';
 import {MaterialCommunityIcons} from '@expo/vector-icons';
 import dayjs from 'dayjs';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 
 export default function Layout() {
   const {colors} = useTheme();
@@ -44,7 +44,7 @@ export default function Layout() {
   const clockIcon = `clock-time-${currentHourText}` as 'clock'; // Example icons: clock-time-one, clock-time-two, ..., clock-time-twelve
   return (
     <AuthProvider>
-      <TodoProvider>
+      <GestureHandlerRootView>
         <MaterialBottomTabs
           safeAreaInsets={{bottom: 0}}
           activeColor={colors.primary}
@@ -105,7 +105,7 @@ export default function Layout() {
             }}
           />
         </MaterialBottomTabs>
-      </TodoProvider>
+      </GestureHandlerRootView>
     </AuthProvider>
   );
 }

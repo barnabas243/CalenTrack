@@ -10,37 +10,49 @@ import {
 } from 'react-native';
 import Modal from 'react-native-modal';
 import {AddTodoModalProps, HighlightedElementType} from './addTodoModal.types';
-import {PriorityType, SectionItem} from '@/contexts/TodoContext.types';
 import * as chrono from 'chrono-node';
-import {Text, useTheme, Chip, Divider} from 'react-native-paper';
+import {Text, useTheme, Chip, Divider, Icon} from 'react-native-paper';
 import BottomSheet, {BottomSheetBackdrop, BottomSheetView} from '@gorhom/bottom-sheet';
 import DateTimePicker, {DateType} from 'react-native-ui-datepicker';
 import dayjs from 'dayjs';
 import calendar from 'dayjs/plugin/calendar';
 import isBetween from 'dayjs/plugin/isBetween';
 import {MaterialCommunityIcons} from '@expo/vector-icons';
+import {RRule} from 'rrule';
+import {getBorderColor} from '../ToDoItem';
+import {PriorityType} from '@/store/todo/types';
+import {useAuth} from '@/hooks/useAuth';
 
 dayjs.extend(isBetween);
 dayjs.extend(calendar);
 
+// const test = RRule.fromText('every 2 hours on monday,tuesday,thursday');
+// test.options.until = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365);
+
+let count = 0;
 const AddTodoModal = ({
   isVisible,
   setIsVisible,
   onBackdropPress,
   onSubmitEditing,
   sections,
-  userId,
+  propSelectedSectionName = '',
+  propSelectedDueDate = undefined,
 }: AddTodoModalProps) => {
+  console.log('AddTodoModal renderedq ', ++count);
   const {colors} = useTheme();
+  const {user} = useAuth();
 
   const [todoName, setTodoName] = useState('');
-  const [summary, setSummary] = useState('');
-
   const [startDate, setStartDate] = useState<Date>();
-  const [dueDate, setDueDate] = useState<Date>();
-  const [dueDateTitle, setDueDateTitle] = useState('Due Date');
+  const [dueDate, setDueDate] = useState<Date | undefined>(propSelectedDueDate || dayjs().toDate());
+  const [dueDateTitle, setDueDateTitle] = useState(
+    dayjs(new Date()).endOf('day').format('[Today] h:mm A'),
+  );
+  const [recurrenceRule, setRecurrenceRule] = useState<RRule | null>(null);
 
   const [todoPriority, setTodoPriority] = useState<PriorityType>('4');
+  const [todoPriorityTitle, setTodoPriorityTitle] = useState('P4');
 
   const [highlightedText, setHighlightedText] = useState<HighlightedElementType[]>([]);
   const [textLength, setTextLength] = useState(0);
@@ -54,7 +66,8 @@ const AddTodoModal = ({
 
   const [shortcut, setShortcut] = useState('');
 
-  const [selectedSection, setSelectedSection] = useState('Inbox');
+  console.log('propSelectedSectionName ', propSelectedSectionName);
+  const [selectedSection, setSelectedSection] = useState(propSelectedSectionName ?? 'Inbox');
   const [sectionId, setSectionId] = useState<number | undefined>();
 
   const dueDateBottomSheetRef = useRef<BottomSheet>(null);
@@ -64,6 +77,7 @@ const AddTodoModal = ({
       title: dueDateTitle,
       icon: 'calendar',
       color: colors.primaryContainer,
+      iconColor: colors.primary,
       onPress: () => {
         if (dueDateBottomSheetRef.current) {
           dueDateBottomSheetRef.current.expand();
@@ -72,29 +86,23 @@ const AddTodoModal = ({
       },
     },
     {
-      title: 'Priority',
+      title: todoPriorityTitle,
       icon: 'flag',
-      color: colors.errorContainer,
+      color: colors.secondaryContainer,
+      iconColor: getBorderColor(todoPriority),
       onPress: () => {
         setShortcut('priority');
         insertShortcutText('!');
       },
     },
     {
-      title: 'Section',
+      title: selectedSection || 'Inbox',
       icon: 'label',
       color: colors.secondaryContainer,
+      iconColor: colors.primary,
       onPress: () => {
         setShortcut('label');
         insertShortcutText('@');
-      },
-    },
-    {
-      title: 'Reminder',
-      icon: 'bell',
-      color: colors.tertiaryContainer,
-      onPress: () => {
-        alert('Clicked on Reminder badge');
       },
     },
   ];
@@ -103,134 +111,172 @@ const AddTodoModal = ({
     setHighlightedText([]);
     setTodoName('');
     setTodoPriority('4');
-    setSummary('');
-    setDueDate(undefined);
-    setDueDateTitle('Today');
+    setDueDate(dayjs().toDate());
+    setDueDateTitle(dayjs(new Date()).endOf('day').format('[Today] h:mm A'));
     setStartDate(undefined);
     setShortcut('');
-    setSelectedSection('Inbox');
+    setSelectedSection('');
+    setRecurrenceRule(null);
   };
 
   const handleTextChange = (text: string) => {
-    let highlightedElements: HighlightedElementType[] = Array.from(text); // Initialize with each character
+    const highlightedElements = parseText(text);
+    setHighlightedText(highlightedElements);
     setTextLength(text.length);
+  };
+
+  const parseText = (text: string) => {
+    let highlightedElements: HighlightedElementType[] = Array.from(text);
 
     if (text.trim()) {
       try {
         const parsedResult = chrono.parse(text);
+
         if (parsedResult.length === 0 && dueDateTitle === 'Due Date') {
           setDueDate(chrono.parseDate('today') || new Date());
           setDueDateTitle('Today');
         }
 
-        setTooltipVisible(false);
-        parsedResult.forEach(data => {
-          const interpretedDate = data.start.date();
-          setDueDate(interpretedDate);
-          setDueDateTitle(
-            `${interpretedDate.toLocaleDateString()} ${interpretedDate.toLocaleTimeString()}`,
-          );
-
-          const parsedText = data.text;
-          const startIndex = text.indexOf(parsedText);
-          const endIndex = startIndex + parsedText.length;
-
-          // Replace characters with highlighted text
-          for (let i = startIndex; i < endIndex; i++) {
-            highlightedElements[i] = null; // Clear current characters to replace
-          }
-          highlightedElements[startIndex] = (
-            <Text key={`date-${startIndex}`} style={styles.highlight}>
-              {parsedText}
-            </Text>
-          );
-        });
-
-        let wordStartIndex = 0;
-        setTooltipVisible(false);
-
-        text.split(' ').forEach((word: string) => {
-          if (word.startsWith('@')) {
-            const startIndex = text.indexOf(word, wordStartIndex);
-            const endIndex = startIndex + word.length;
-
-            // Replace characters with mention text
-            for (let i = startIndex; i < endIndex; i++) {
-              highlightedElements[i] = null; // Clear current characters to replace
-            }
-            highlightedElements[startIndex] = (
-              <Text key={`mention-${startIndex}`} style={styles.mention}>
-                {word}
-              </Text>
-            );
-
-            setSelectedSection(word.slice(1));
-            setTooltipVisible(true);
-            setShortcut('label');
-
-            wordStartIndex = endIndex; // Update start index for next word search
-          } else if (word.startsWith('!')) {
-            const startIndex = text.indexOf(word, wordStartIndex);
-            const endIndex = startIndex + word.length;
-
-            let todoPriority;
-            if (word.length > 1) {
-              todoPriority = word.slice(1) as PriorityType;
-
-              if (!todoPriority) return null;
-              else {
-                setTodoPriority(todoPriority);
-              }
-            }
-            // Replace characters with @ text
-            for (let i = startIndex; i < endIndex; i++) {
-              highlightedElements[i] = null; // Clear current characters to replace
-            }
-            highlightedElements[startIndex] = (
-              <Text key={`mention-${startIndex}`} style={styles.mention}>
-                {word}
-              </Text>
-            );
-
-            setTooltipVisible(true);
-            setShortcut('priority');
-
-            wordStartIndex = endIndex; // Update start index for next word search
-          } else {
-            const wordBeforeSpace: string | '' =
-              text.substring(wordStartIndex, text.indexOf(text, wordStartIndex)).split(' ').pop() ||
-              '';
-
-            // console.log("wordBeforeSpace: ", wordBeforeSpace);
-            if (wordBeforeSpace.startsWith('@') || wordBeforeSpace.startsWith('!')) {
-              setTooltipVisible(false);
-            }
-
-            wordStartIndex = text.indexOf(word, wordStartIndex) + word.length; // Update start index to next word (including space)
-          }
-        });
-        setHighlightedText(highlightedElements.filter(el => el !== null)); // remove null elements
-
+        highlightedElements = highlightDatesAndMentions(parsedResult, text, highlightedElements);
         const stringElements = highlightedElements.filter(el => typeof el === 'string');
         const todoName = stringElements.join('').replace(/ +/g, ' '); // remove consecutive spaces
 
         setTodoName(todoName);
       } catch (error) {
         console.error('Error parsing date:', error);
-        setHighlightedText(Array.from(text));
         setTooltipVisible(false);
       }
     } else {
-      setHighlightedText(Array.from(text));
       setTooltipVisible(false);
     }
+
+    return highlightedElements;
   };
-  const handleSummaryChange = (text: string) => {
-    setSummary(text.trim());
+
+  const highlightDatesAndMentions = (
+    parsedResult: any,
+    text: string,
+    highlightedElements: HighlightedElementType[],
+  ) => {
+    parsedResult.forEach((data: any) => {
+      const interpretedDate = data.start.date();
+      const formattedDate = getCustomFormattedDate(dayjs(interpretedDate));
+
+      setDueDate(interpretedDate);
+      setDueDateTitle(formattedDate);
+
+      const parsedText = data.text;
+      const startIndex = text.indexOf(parsedText);
+      const endIndex = startIndex + parsedText.length;
+
+      for (let i = startIndex; i < endIndex; i++) {
+        highlightedElements[i] = null;
+      }
+      highlightedElements[startIndex] = (
+        <Text key={`date-${startIndex}`} style={styles.highlight}>
+          {parsedText}
+        </Text>
+      );
+    });
+
+    highlightMentions(text, highlightedElements);
+    highlightRecurrence(text);
+
+    return highlightedElements.filter(el => el !== null);
+  };
+
+  const highlightMentions = (text: string, highlightedElements: HighlightedElementType[]) => {
+    let wordStartIndex = 0;
+
+    if (text.trim() === '') {
+      setTooltipVisible(false);
+    }
+
+    text.split(' ').forEach((word: string) => {
+      if ((word.startsWith('@') || word.startsWith('!')) && word.length === 1) {
+        const symbol = word === '@' ? 'label' : 'priority';
+        setSelectedSection('');
+        setTodoPriority('4');
+        setTodoPriorityTitle('P4');
+        setShortcut(symbol);
+        setTooltipVisible(true);
+      } else if (word.startsWith('@')) {
+        setTooltipVisible(true);
+        highlightWord(word, text, highlightedElements, wordStartIndex, 'label');
+        console.log('word:', word.slice(1));
+        setSelectedSection(word.slice(1));
+      } else if (word.startsWith('!') && isValidPriorityType(word.slice(1))) {
+        highlightWord(word, text, highlightedElements, wordStartIndex, 'priority');
+        setTodoPriority(word.slice(1) as PriorityType);
+        setTodoPriorityTitle(`P${word.slice(1)}`);
+        setTooltipVisible(false);
+      } else {
+        setTooltipVisible(false);
+      }
+      wordStartIndex = text.indexOf(word, wordStartIndex) + word.length;
+    });
+  };
+
+  const highlightRecurrence = (text: string) => {
+    // Check if the text contains "every"
+    // Define the pattern to match "every" and everything that follows
+    const everyPattern = /\bevery\s+.*/i;
+
+    // Use the pattern to find the match
+    const match = text.match(everyPattern);
+
+    if (match) {
+      try {
+        // Extract the substring starting from "every"
+        const result = match[0].trim();
+        // Parse the recurrence rule from the text
+        const rule = RRule.fromText(result);
+        if (rule) {
+          setRecurrenceRule(rule);
+          setTooltipVisible(false);
+          console.log('Recurrence rule:', rule.toString());
+        }
+      } catch (error) {
+        console.error('Error parsing recurrence rule:', error);
+        setRecurrenceRule(null);
+      }
+    } else {
+      // Handle cases where text does not contain "every"
+      setRecurrenceRule(null);
+    }
+  };
+
+  const highlightWord = (
+    word: string,
+    text: string,
+    highlightedElements: HighlightedElementType[],
+    wordStartIndex: number,
+    shortcutType: string,
+  ) => {
+    const startIndex = text.indexOf(word, wordStartIndex);
+    const endIndex = startIndex + word.length;
+
+    for (let i = startIndex; i < endIndex; i++) {
+      highlightedElements[i] = null;
+    }
+    highlightedElements[startIndex] = (
+      <Text key={`${shortcutType}-${startIndex}`} style={styles.mention}>
+        {word}
+      </Text>
+    );
+  };
+
+  if (propSelectedSectionName) {
+    highlightMentions(propSelectedSectionName, highlightedText);
+  }
+
+  const isValidPriorityType = (value: string): value is PriorityType => {
+    return ['1', '2', '3', '4'].includes(value);
   };
 
   const handlePriorityPress = (priority: PriorityType) => {
     setTodoPriority(priority as PriorityType);
+    setTodoPriorityTitle(`P${priority}`);
     updateTextIfSymbolIsLastChar('!', priority.toString());
   };
 
@@ -241,15 +287,15 @@ const AddTodoModal = ({
     onSubmitEditing(
       {
         title: todoName.trim(),
-        summary: summary.trim(), // Fill in the summary property
+        summary: '',
         completed: false,
         completed_at: undefined,
-        due_date: dueDate,
-        start_date: startDate,
-        recurrence: undefined,
+        due_date: dueDate || undefined,
+        start_date: startDate || dayjs(dueDate).startOf('day').toDate(),
+        recurrence: recurrenceRule?.toString() || undefined,
         priority: todoPriority,
         section_id: sectionId,
-        created_by: userId,
+        created_by: user!.id,
         parent_id: undefined,
       },
       selectedSection,
@@ -257,64 +303,55 @@ const AddTodoModal = ({
 
     resetUserToDoInput();
   };
+
   // render tooltip items from shortcut char
   const renderTooltipRows = (shortcut: string) => {
     let tooltipRows: JSX.Element[] = [];
 
     if (shortcut === 'priority') {
-      tooltipRows.push(
-        <TouchableOpacity key={'priority 1'} onPress={() => handlePriorityPress('1')}>
-          <Text>Priority 1</Text>
-        </TouchableOpacity>,
-      );
-      tooltipRows.push(
-        <TouchableOpacity key={'priority 2'} onPress={() => handlePriorityPress('2')}>
-          <Text>Priority 2</Text>
-        </TouchableOpacity>,
-      );
-      tooltipRows.push(
-        <TouchableOpacity key={'priority 3'} onPress={() => handlePriorityPress('3')}>
-          <Text>Priority 3</Text>
-        </TouchableOpacity>,
-      );
-      tooltipRows.push(
-        <TouchableOpacity key={'priority 4'} onPress={() => handlePriorityPress('4')}>
-          <Text>Priority 4</Text>
-        </TouchableOpacity>,
-      );
+      tooltipRows = Array.from({length: 4}, (_, i) => (
+        <TouchableOpacity
+          key={`priority-${i + 1}`}
+          onPress={() => handlePriorityPress((i + 1).toString() as PriorityType)}>
+          <Text>Priority {i + 1}</Text>
+        </TouchableOpacity>
+      ));
     } else if (shortcut === 'label') {
-      // get all the existing labels
+      tooltipRows = renderLabelTooltipRows();
+    }
 
-      Object.entries(sections)
-        .filter(([labelKey, labelValue]) => {
-          return labelValue.name.toLowerCase().includes(selectedSection.toLowerCase());
-        })
-        .map(([labelKey, labelValue]) => {
-          tooltipRows.push(
-            <TouchableOpacity key={labelValue.id} onPress={() => handleLabelPress(labelValue)}>
-              <Text>{labelValue.name}</Text>
-            </TouchableOpacity>,
-          );
-          return null; // Ensure you return something in map
-        });
+    return tooltipRows.length > 0 ? <>{tooltipRows}</> : null;
+  };
 
-      if (
-        selectedSection.trim() &&
-        !sections
-          .map(label => label.name.toLowerCase()) // Access the name property
-          .includes(selectedSection.toLowerCase())
-      ) {
+  const renderLabelTooltipRows = () => {
+    const tooltipRows: JSX.Element[] = [];
+
+    Object.entries(sections)
+      .filter(([, labelValue]) =>
+        labelValue.name.toLowerCase().includes(selectedSection.toLowerCase()),
+      )
+      .forEach(([, labelValue]) => {
         tooltipRows.push(
-          <TouchableOpacity
-            key="create-new-label"
-            onPress={() => handleLabelPress(selectedSection)}>
-            <Text>+ create Label {selectedSection}</Text>
+          <TouchableOpacity key={labelValue.id} onPress={() => handleLabelPress(labelValue)}>
+            <Text>{labelValue.name}</Text>
           </TouchableOpacity>,
         );
-      }
+      });
+
+    if (
+      selectedSection.trim() &&
+      !sections.some(label => label.name.toLowerCase() === selectedSection.toLowerCase())
+    ) {
+      tooltipRows.push(
+        <TouchableOpacity key="create-new-label" onPress={() => handleLabelPress(selectedSection)}>
+          <Text>+ create Label {selectedSection}</Text>
+        </TouchableOpacity>,
+      );
     }
-    if (tooltipRows.length > 0) return <>{tooltipRows}</>;
+
+    return tooltipRows;
   };
+
   const updateTextIfSymbolIsLastChar = (symbol: string, label: SectionItem | PriorityType) => {
     // console.log("highlightedText: ", highlightedText);
     // console.log("option: ", option);
@@ -378,8 +415,11 @@ const AddTodoModal = ({
 
       if (symbol === '@') {
         setSectionId(undefined);
-        setSelectedSection('Inbox');
-      } else if (symbol === '!') setTodoPriority('4');
+        setSelectedSection('');
+      } else if (symbol === '!') {
+        setTodoPriority('4');
+        setTodoPriorityTitle('P4');
+      }
 
       setHighlightedText(newHighlightedText);
       setTooltipVisible(false);
@@ -434,7 +474,7 @@ const AddTodoModal = ({
     }
 
     // For all other dates exceeding the range of +/- 7days
-    return dateObj.format('DD/MM/YYYY');
+    return dateObj.format('DD/MM/YYYY h:mm A');
   }
 
   const handleDateChange = (newDate: DateType) => {
@@ -486,14 +526,6 @@ const AddTodoModal = ({
             blurOnSubmit={false}>
             <Text style={[styles.highlightContainer]}>{highlightedText}</Text>
           </TextInput>
-          <TextInput
-            placeholder="Summary"
-            value={summary}
-            onChangeText={handleSummaryChange}
-            blurOnSubmit={false}
-            style={[styles.textInput, {color: colors.onSurface}]}
-            onSubmitEditing={handleSubmitEditing}
-          />
 
           {tooltipVisible && (
             <View
@@ -521,10 +553,11 @@ const AddTodoModal = ({
               <View style={styles.buttonContainer}>
                 <Chip
                   mode="flat"
-                  icon={item.icon}
+                  selectedColor={item.iconColor}
+                  icon={() => <Icon source={item.icon} size={16} color={item.iconColor} />}
                   onPress={item.onPress}
                   style={{backgroundColor: item.color}}>
-                  {item.title}
+                  {item.title.toString()}
                 </Chip>
               </View>
             )}
@@ -555,12 +588,7 @@ const AddTodoModal = ({
           <KeyboardAvoidingView style={{flex: 1}} behavior="padding">
             <View style={{flexDirection: 'row', marginVertical: 20}}>
               <MaterialCommunityIcons name="pen" size={24} color={colors.onSurface} />
-              <TextInput
-                placeholder="due date"
-                value={dayjs(dueDate).format('DD MMM')}
-                style={[styles.textInput, {color: colors.onSurface}]}
-                editable={false}
-              />
+              <Text style={{color: colors.onSurface, marginLeft: 10}}>{dueDateTitle}</Text>
             </View>
             <Divider style={{backgroundColor: colors.secondary}} />
             <View style={{marginVertical: 20}}>
@@ -584,6 +612,7 @@ const AddTodoModal = ({
                 />
               </View>
             </View>
+            {/* Add the recurrence options here */}
           </KeyboardAvoidingView>
         </BottomSheetView>
       </BottomSheet>

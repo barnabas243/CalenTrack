@@ -43,24 +43,24 @@ export type Database = {
           created_at: string;
           id: number;
           name: string;
-          owner_id: string | null;
+          user_id: string | null;
         };
         Insert: {
           created_at?: string;
-          id?: number;
+          id?: never;
           name: string;
-          owner_id?: string | null;
+          user_id?: string | null;
         };
         Update: {
           created_at?: string;
-          id?: number;
+          id?: never;
           name?: string;
-          owner_id?: string | null;
+          user_id?: string | null;
         };
         Relationships: [
           {
-            foreignKeyName: 'sections_owner_id_fkey';
-            columns: ['owner_id'];
+            foreignKeyName: 'sections_user_id_fkey';
+            columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'users';
             referencedColumns: ['id'];
@@ -78,7 +78,7 @@ export type Database = {
           parent_id: string | null;
           priority: Database['public']['Enums']['priority_enum'];
           recurrence: string | null;
-          section_id: string | null;
+          section_id: number | null;
           start_date: string | null;
           summary: string;
           title: string;
@@ -93,7 +93,7 @@ export type Database = {
           parent_id?: string | null;
           priority?: Database['public']['Enums']['priority_enum'];
           recurrence?: string | null;
-          section_id?: string | null;
+          section_id?: number | null;
           start_date?: string | null;
           summary: string;
           title: string;
@@ -108,7 +108,7 @@ export type Database = {
           parent_id?: string | null;
           priority?: Database['public']['Enums']['priority_enum'];
           recurrence?: string | null;
-          section_id?: string | null;
+          section_id?: number | null;
           start_date?: string | null;
           summary?: string;
           title?: string;
@@ -119,6 +119,13 @@ export type Database = {
             columns: ['created_by'];
             isOneToOne: false;
             referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'todos_section_id_fkey';
+            columns: ['section_id'];
+            isOneToOne: false;
+            referencedRelation: 'sections';
             referencedColumns: ['id'];
           },
         ];

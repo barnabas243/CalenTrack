@@ -1,5 +1,4 @@
-import React, {createContext, useContext, useEffect, useState} from 'react';
-import {Alert} from 'react-native';
+import React, {createContext, useEffect, useState} from 'react';
 import {supabase} from '@/utils/supabase'; // Adjust path as per your project structure
 import {UserContextType, UserProviderProps} from './UserContext.types';
 import {Session, User} from '@supabase/supabase-js';
@@ -8,17 +7,17 @@ import {router} from 'expo-router';
 
 // Create a context to hold user-related state
 
-const UserContext = createContext<UserContextType>({
+export const UserContext = createContext<UserContextType>({
   user: null,
   session: null,
   setSession: () => {},
   isLoading: true,
 });
-// Custom hook to consume the UserContext
-export const useUser = () => useContext(UserContext);
 
 // Context provider component
+let count = 0;
 export const AuthProvider = ({children}: UserProviderProps) => {
+  console.log('UserProvider rendered ', ++count);
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,17 +29,15 @@ export const AuthProvider = ({children}: UserProviderProps) => {
       try {
         const {data, error} = await supabase.auth.getSession();
         if (error) throw error;
-        if (!data.session) throw new AuthError('No session found');
+        if (!data.session) router.replace('/(auth)');
       } catch (error: any) {
         if (error instanceof AuthError) {
-          Alert.alert('Authentication Error', 'You are not authenticated.');
           console.error('Authentication Error:', error.message);
         } else {
-          Alert.alert('Unexpected Error', 'Please try again later.');
           console.error('Unexpected Error:', error);
         }
         // Redirect to login on error to handle potential issues
-        router.replace('/(auth)/login');
+        router.replace('/(auth)');
       } finally {
         setIsLoading(false); // Ensure loading state is always set to false
       }
@@ -62,7 +59,7 @@ export const AuthProvider = ({children}: UserProviderProps) => {
           break;
         case 'SIGNED_OUT':
           setTimeout(() => {
-            router.replace('/(auth)/login');
+            router.replace('/(auth)');
           }, 100);
           break;
         case 'PASSWORD_RECOVERY':

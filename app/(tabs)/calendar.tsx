@@ -1,35 +1,139 @@
-import React, {useState, useRef, useCallback} from 'react';
-import {StyleSheet, View, TouchableOpacity} from 'react-native';
+import React, {useState, useRef, useCallback, useMemo, useEffect} from 'react';
+import {StyleSheet, View, TouchableOpacity, Alert} from 'react-native';
 import {Appbar, Text, useTheme} from 'react-native-paper';
 import dayjs from 'dayjs';
-import {useTodo} from '@/contexts/TodoContext';
 import MonthCalendar from '@/components/calendars/MonthCalendar';
 import DailyCalendar from '@/components/calendars/DailyCalendar';
 import AgendaCalendar from '@/components/calendars/AgendaCalendar';
 import WeekCalendar from '@/components/calendars/WeekCalendar';
-import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {MaterialCommunityIcons} from '@expo/vector-icons';
 import Animated, {useAnimatedStyle, useSharedValue, withSpring} from 'react-native-reanimated';
+import {useTodo} from '@/hooks/useTodo';
+import {MonthlyTodo, TodoItem} from '@/store/todo/types';
+import {TimelineEventProps} from 'react-native-calendars';
+import {isEqual} from 'lodash';
+import {useAuth} from '@/hooks/useAuth';
 
 export type Mode = 'month' | 'day' | 'week' | 'agenda';
 
 let count = 0;
 const CalendarPage = () => {
-  console.log('CalendarPage rendered', count++);
+  console.log('CalendarPage rendered ', ++count);
   const {colors} = useTheme();
-  const {timelineTodoEvents, monthlyTodoArray, monthlyTodoRecord, handleEndDrag} = useTodo();
+
+  const {todos, sections, deleteExistingTodos, updateExistingTodos, addNewSection, addNewTodo} =
+    useTodo();
+
+  const {user} = useAuth();
   const [mode, setMode] = useState<Mode>('month');
   const [selectedDate, setSelectedDate] = useState(dayjs(new Date()).format('YYYY-MM-DD'));
   const [expanded, setExpanded] = useState(false);
 
+  const [monthlyTodoArray, setMonthlyTodoArray] = useState<MonthlyTodo[]>([]);
+
+  const newMonthlyTodoArray = useMemo(() => {
+    const categorizeTodos = (todos: TodoItem[]): MonthlyTodo[] => {
+      // Helper function to generate an array of dates
+      const generateDateRange = (startDate: dayjs.Dayjs, days: number): string[] => {
+        return Array.from({length: days}, (_, i) => startDate.add(i, 'day').format('YYYY-MM-DD'));
+      };
+
+      // Get today's date and generate a range of 465 days (100 before, today, 365 after)
+      const todayDate = dayjs();
+      const dateRange = generateDateRange(todayDate.subtract(100, 'day'), 465);
+
+      // Initialize the sorted object with the date range and empty arrays
+      const todoSortedByDate: Record<string, TodoItem[]> = {};
+      dateRange.forEach(date => {
+        todoSortedByDate[date] = [];
+      });
+
+      // Populate the object with the grouped todos
+      todos.forEach(todo => {
+        const dueDate = dayjs(todo.due_date);
+        const key = dueDate.isValid() ? dueDate.format('YYYY-MM-DD') : 'No Due Date';
+        // Only add to the object if the date is within the expected range
+        if (key in todoSortedByDate) {
+          todoSortedByDate[key].push(todo);
+        }
+      });
+
+      // Convert the object to a nested array format
+      const newMonthlyTodoArray: MonthlyTodo[] = dateRange.map(date => ({
+        dueDate: date,
+        data: todoSortedByDate[date],
+      }));
+
+      return newMonthlyTodoArray;
+    };
+
+    return categorizeTodos(todos);
+  }, [todos]); // Recompute when todos or sections change
+
+  useEffect(() => {
+    console.log('Updating monthlyTodoArray:');
+    setMonthlyTodoArray(newMonthlyTodoArray);
+  }, [newMonthlyTodoArray]);
+
+  const {monthlyTodoRecord, timelineTodoEvents} = useMemo(() => {
+    // Helper function to generate an array of dates
+    const generateDateRange = (startDate: dayjs.Dayjs, days: number): string[] => {
+      return Array.from({length: days}, (_, i) => startDate.add(i, 'day').format('YYYY-MM-DD'));
+    };
+
+    // Get today's date and generate a range of 101 days (50 before, today, 50 after)
+    const todayDate = dayjs();
+    const dateRange = generateDateRange(todayDate.subtract(50, 'day'), 101);
+
+    // Initialize the sorted object with the date range and empty arrays
+    const todoSortedByDate: Record<string, TodoItem[]> = {};
+    dateRange.forEach(date => {
+      todoSortedByDate[date] = [];
+    });
+
+    // Populate the object with the grouped todos
+    todos.forEach(todo => {
+      const dueDate = dayjs(todo.due_date);
+      const key = dueDate.isValid() ? dueDate.format('YYYY-MM-DD') : 'No Due Date';
+      // Only add to the object if the date is within the expected range
+      if (key in todoSortedByDate) {
+        todoSortedByDate[key].push(todo);
+      }
+    });
+
+    // Convert the array to a Record<string, TodoItem[]>
+    const monthlyTodoRecord: Record<string, TodoItem[]> = monthlyTodoArray.reduce(
+      (acc: Record<string, TodoItem[]>, item: MonthlyTodo) => {
+        acc[item.dueDate] = item.data;
+        return acc;
+      },
+      {} as Record<string, TodoItem[]>, // Type the initial value to match the result type
+    );
+
+    const timelineTodoEvents: TimelineEventProps[] = todos
+      .filter(todo => todo.start_date && todo.due_date) // Filter todos with both start_date and due_date
+      .map(todo => ({
+        start: dayjs(todo.start_date!).format('YYYY-MM-DD HH:mm:ss'),
+        end: dayjs(todo.due_date!).format('YYYY-MM-DD HH:mm:ss'),
+        title: todo.title,
+        summary: todo.summary,
+        color: colors.onPrimaryContainer,
+      }));
+
+    return {
+      monthlyTodoArray: monthlyTodoArray,
+      monthlyTodoRecord: monthlyTodoRecord,
+      timelineTodoEvents: timelineTodoEvents,
+    };
+  }, [colors, monthlyTodoArray, todos]); // Only re-compute when todos change
+
   const previousExpanded = useRef(expanded);
   const heightAnim = useSharedValue(expanded ? 80 : 0);
 
-  // useCallback to memoize the effect and prevent unnecessary updates
   const updateAnimation = useCallback(() => {
     heightAnim.value = withSpring(expanded ? 80 : 0, {
-      damping: 20, // dont set below 19 because it will bounce to the max height 80
-      stiffness: 100, // do not adjust stiffness too much because it will make the animation bounce to the max height 80
+      damping: 19,
+      stiffness: 80,
     });
     previousExpanded.current = expanded;
   }, [expanded, heightAnim]);
@@ -40,38 +144,93 @@ const CalendarPage = () => {
     }
   }, [expanded, updateAnimation]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      height: heightAnim.value,
-      overflow: 'hidden',
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    height: heightAnim.value,
+    overflow: 'hidden',
+  }));
 
-  const changeMode = (m: Mode) => {
+  const changeMode = useCallback((m: Mode) => {
     setExpanded(prev => !prev);
-    setTimeout(() => {
-      setMode(m);
-    }, 300); // adjust the timeout to match the animation duration
-  };
+    setTimeout(() => setMode(m), 700); // adjust to preference. set higher so that animation completes before changing mode
+  }, []);
 
-  const renderCalendarComponent = () => {
+  const handleEndDrag = useCallback((results: TodoItem[], name: string | Date) => {
+    console.log('handleEndDrag', results, name);
+  }, []);
+
+  // Memoize the handleSubmitEditing function
+  const handleSubmitEditing = useCallback(
+    async (newTodo: TodoItem, selectedSection = 'Inbox') => {
+      if (!newTodo) return;
+
+      try {
+        if (selectedSection !== 'Inbox' && !newTodo.section_id) {
+          // Create a new section if it doesn't exist
+          const newSection = {name: selectedSection, user_id: user!.id};
+
+          // Assuming addNewSection returns the created section or an identifier
+          const result = await addNewSection(newSection);
+          console.log('addNewSection result:', result);
+          if (!result || !result.id) {
+            Alert.alert('Error', 'Failed to create new section');
+            return;
+          }
+
+          // Add section ID to newTodo and then add the todo
+          const updatedTodo = {...newTodo, section_id: result.id};
+          const todoResult = await addNewTodo(updatedTodo);
+
+          if (!todoResult) {
+            Alert.alert('Error', 'Failed to add new todo');
+          }
+        } else {
+          // If section_id is present or selectedSection is 'Inbox', directly add the todo
+          const todoResult = await addNewTodo(newTodo);
+
+          if (!todoResult) {
+            Alert.alert('Error', 'Failed to add new todo');
+          }
+        }
+      } catch (error) {
+        console.error('An error occurred while handling submit editing:', error);
+        Alert.alert('Error', 'An unexpected error occurred');
+      }
+    },
+    [addNewSection, addNewTodo, user],
+  ); // Dependencies
+
+  const renderCalendarComponent = useMemo(() => {
+    const deleteTodo = (id: string) => {
+      deleteExistingTodos([id]);
+    };
+
+    const toggleCompleteTodo = (id: string) => {
+      const todo = todos.find(todo => todo.id === id);
+      if (todo) {
+        updateExistingTodos([
+          {
+            ...todo,
+            completed: !todo.completed,
+            completed_at: todo.completed ? null : new Date().toString(),
+          },
+        ]);
+      }
+    };
+    const handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+      // Check if the todo has been updated using deep comparison
+      console.log('handleEditModalDismiss');
+      if (!isEqual(updatedTodo, selectedTodo)) {
+        updateExistingTodos([updatedTodo]);
+      }
+    };
     switch (mode) {
-      case 'month':
-        return (
-          <MonthCalendar
-            monthlyTodoArray={monthlyTodoArray}
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            colors={colors}
-            handleEndDrag={handleEndDrag}
-          />
-        );
       case 'day':
         return (
           <DailyCalendar
             events={timelineTodoEvents}
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
+            colors={colors}
           />
         );
       case 'week':
@@ -83,136 +242,101 @@ const CalendarPage = () => {
             setSelectedDate={setSelectedDate}
             colors={colors}
             monthlyTodoRecord={monthlyTodoRecord}
+            toggleCompleteTodo={toggleCompleteTodo}
+            updateExistingTodos={updateExistingTodos}
+            deleteTodo={deleteTodo}
+            sections={sections}
+            onDismiss={handleEditModalDismiss}
           />
         );
+      case 'month':
       default:
         return (
-          <DailyCalendar
-            events={timelineTodoEvents}
+          <MonthCalendar
+            monthlyTodoArray={monthlyTodoArray}
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
             colors={colors}
+            handleEndDrag={handleEndDrag}
+            toggleCompleteTodo={toggleCompleteTodo}
+            updateExistingTodos={updateExistingTodos}
+            deleteTodo={deleteTodo}
+            sections={sections}
+            onDismiss={handleEditModalDismiss}
+            onSubmitEditing={handleSubmitEditing}
           />
         );
     }
-  };
+  }, [
+    mode,
+    deleteExistingTodos,
+    todos,
+    updateExistingTodos,
+    timelineTodoEvents,
+    selectedDate,
+    colors,
+    monthlyTodoRecord,
+    sections,
+    monthlyTodoArray,
+    handleEndDrag,
+    handleSubmitEditing,
+  ]);
 
-  const onMenuPress = () => {
-    setExpanded(prev => !prev);
-  };
+  const onMenuPress = useCallback(() => setExpanded(prev => !prev), []);
+
+  const renderButton = (label: string, icon: string, modeCheck: Mode) => (
+    <TouchableOpacity
+      key={modeCheck}
+      onPress={() => changeMode(modeCheck)}
+      style={[
+        styles.buttonContainer,
+        mode === modeCheck && {
+          borderBottomColor: colors.tertiary,
+          borderBottomWidth: 2,
+        },
+      ]}>
+      <View style={styles.iconContainer}>
+        <MaterialCommunityIcons
+          name={mode === modeCheck ? icon : `${icon}-outline`}
+          size={30}
+          color={mode === modeCheck ? colors.tertiary : colors.onBackground}
+        />
+        <Text style={{color: mode === modeCheck ? colors.tertiary : colors.onBackground}}>
+          {label}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={[styles.container, {backgroundColor: colors.background}]}>
-      <GestureHandlerRootView style={{flex: 1}}>
-        <Appbar.Header>
-          <Appbar.Content title={dayjs(selectedDate).format('MMM YYYY')} />
-          <Appbar.Action
-            icon={
-              mode === 'month'
-                ? 'calendar-month'
-                : mode === 'day'
-                  ? 'view-day'
-                  : mode === 'week'
-                    ? 'view-week'
-                    : mode === 'agenda'
-                      ? 'view-agenda'
-                      : 'calendar-month-outline' // default icon
-            }
-            onPress={onMenuPress}
-          />
-
-          <Appbar.Action icon="dots-vertical" onPress={() => {}} />
-        </Appbar.Header>
-        <Animated.View style={[animatedStyle]}>
-          <View style={styles.buttonRow} collapsable>
-            <TouchableOpacity
-              key="month"
-              onPress={() => changeMode('month' as Mode)}
-              style={[
-                styles.buttonContainer,
-                mode === 'month' && {
-                  borderBottomColor: colors.tertiary,
-                  borderBottomWidth: 2,
-                },
-              ]}>
-              <View style={styles.iconContainer}>
-                <MaterialCommunityIcons
-                  name={mode === 'month' ? 'calendar-month' : 'calendar-month-outline'}
-                  size={30}
-                  color={mode === 'month' ? colors.tertiary : colors.onBackground}
-                />
-                <Text style={{color: mode === 'month' ? colors.tertiary : colors.onBackground}}>
-                  Month
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              key="day"
-              onPress={() => changeMode('day' as Mode)}
-              style={[
-                styles.buttonContainer,
-                mode === 'day' && {
-                  borderBottomColor: colors.tertiary,
-                  borderBottomWidth: 2,
-                },
-              ]}>
-              <View style={styles.iconContainer}>
-                <MaterialCommunityIcons
-                  name={mode === 'day' ? 'view-day' : 'view-day-outline'}
-                  size={30}
-                  color={mode === 'day' ? colors.tertiary : colors.onBackground}
-                />
-                <Text style={{color: mode === 'day' ? colors.tertiary : colors.onBackground}}>
-                  Day
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              key="week"
-              onPress={() => changeMode('week' as Mode)}
-              style={[
-                styles.buttonContainer,
-                mode === 'week' && {
-                  borderBottomColor: colors.tertiary,
-                  borderBottomWidth: 2,
-                },
-              ]}>
-              <View style={styles.iconContainer}>
-                <MaterialCommunityIcons
-                  name={mode === 'week' ? 'view-week' : 'view-week-outline'}
-                  size={30}
-                  color={mode === 'week' ? colors.tertiary : colors.onBackground}
-                />
-                <Text style={{color: mode === 'week' ? colors.tertiary : colors.onBackground}}>
-                  Week
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              key="agenda"
-              onPress={() => changeMode('agenda' as Mode)}
-              style={[
-                styles.buttonContainer,
-                mode === 'agenda' && {
-                  borderBottomColor: colors.tertiary,
-                  borderBottomWidth: 2,
-                },
-              ]}>
-              <View style={styles.iconContainer}>
-                <MaterialCommunityIcons
-                  name={mode === 'agenda' ? 'view-agenda' : 'view-agenda-outline'}
-                  size={30}
-                  color={mode === 'agenda' ? colors.tertiary : colors.onBackground}
-                />
-                <Text style={{color: mode === 'agenda' ? colors.tertiary : colors.onBackground}}>
-                  Agenda
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-        {renderCalendarComponent()}
-      </GestureHandlerRootView>
+      <Appbar.Header>
+        <Appbar.Content title={dayjs(selectedDate).format('MMM YYYY')} />
+        <Appbar.Action
+          icon={
+            mode === 'month'
+              ? 'calendar-month'
+              : mode === 'day'
+                ? 'view-day'
+                : mode === 'week'
+                  ? 'view-week'
+                  : mode === 'agenda'
+                    ? 'view-agenda'
+                    : 'calendar-month-outline'
+          }
+          onPress={onMenuPress}
+        />
+        <Appbar.Action icon="dots-vertical" onPress={() => {}} />
+      </Appbar.Header>
+      <Animated.View style={[animatedStyle]}>
+        <View style={styles.buttonRow}>
+          {renderButton('Month', 'calendar-month', 'month')}
+          {renderButton('Day', 'view-day', 'day')}
+          {renderButton('Week', 'view-week', 'week')}
+          {renderButton('Agenda', 'view-agenda', 'agenda')}
+        </View>
+      </Animated.View>
+      {renderCalendarComponent}
     </View>
   );
 };

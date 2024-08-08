@@ -1,14 +1,18 @@
-import React, {useEffect, useState, useRef} from 'react';
+import React, {useEffect, useState} from 'react';
 import {TouchableOpacity, StyleSheet, View, LayoutAnimation} from 'react-native';
 import CheckBox from 'expo-checkbox';
-import {useTodo} from '@/contexts/TodoContext';
-import {PriorityType, TodoItem} from '@/contexts/TodoContext.types';
 import Animated, {useAnimatedStyle, useSharedValue, withSpring} from 'react-native-reanimated';
-import {Text} from 'react-native-paper';
+import {Icon, Text} from 'react-native-paper';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
-import SwipeableItem, {useSwipeableItemParams, OpenDirection} from 'react-native-swipeable-item';
+import SwipeableItem, {
+  useSwipeableItemParams,
+  OpenDirection,
+  SwipeableItemImperativeRef,
+} from 'react-native-swipeable-item';
 import dayjs from 'dayjs';
 import {MaterialCommunityIcons} from '@expo/vector-icons';
+import {PriorityType, TodoItem} from '@/store/todo/types';
+import {SectionItem} from '@/store/section/types';
 
 const OVERSWIPE_DIST = 20;
 
@@ -19,11 +23,41 @@ export interface ToDoItemProps {
   isActive: boolean;
   colors: MD3Colors;
   enableSwipe?: boolean;
+  itemRefs: React.MutableRefObject<Map<string, SwipeableItemImperativeRef>>;
+  onToggleComplete: (id: string) => void;
+  openEditBottomSheet: (item: TodoItem) => void;
+  deleteTodo: (id: string) => void;
+  sections: SectionItem[];
 }
 
-const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemProps) => {
+export const getBorderColor = (priority: PriorityType) => {
+  switch (priority) {
+    case '1':
+      return 'red';
+    case '2':
+      return 'orange';
+    case '3':
+      return 'green';
+    default:
+      return '#CCCCCC';
+  }
+};
+const ToDoItem = ({...props}: ToDoItemProps) => {
   const [toggleCheckBox, setToggleCheckBox] = useState(false);
-  const {toggleCompleteTodo, openEditBottomSheet, deleteTodo, sections} = useTodo();
+
+  const {
+    item,
+    isActive,
+    drag,
+    colors,
+    enableSwipe = false,
+    itemRefs,
+    onToggleComplete,
+    openEditBottomSheet,
+    deleteTodo,
+    sections,
+  } = props;
+
   const {title, priority, id, completed, summary, due_date, section_id} = item;
 
   // Shared values for translation
@@ -40,7 +74,6 @@ const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemPr
     translateX.value = withSpring(isActive ? 40 : 0, {damping: 20});
     translateY.value = withSpring(isActive ? -20 : 0, {damping: 20});
   }, [isActive, translateX, translateY]);
-
   const animatedStyle = useAnimatedStyle(
     () => ({
       transform: [{translateX: translateX.value}, {translateY: translateY.value}],
@@ -48,29 +81,9 @@ const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemPr
     [translateX.value, translateY.value],
   );
 
-  const toggleComplete = (id: number) => {
-    toggleCompleteTodo(id);
-  };
-
-  const getBorderColor = (priority: PriorityType) => {
-    switch (priority) {
-      case '1':
-        return 'red';
-      case '2':
-        return 'orange';
-      case '3':
-        return 'green';
-      default:
-        return '#CCCCCC';
-    }
-  };
-
   const openEditTodoModal = (item: TodoItem) => {
     openEditBottomSheet(item);
   };
-
-  // Swipeable item params
-  const itemRefs = useRef(new Map());
 
   const UnderlayLeft = () => {
     const {percentOpen} = useSwipeableItemParams();
@@ -83,16 +96,23 @@ const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemPr
 
     const handleDelete = async () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-      await deleteTodo(id);
+      deleteTodo(id);
     };
+
     return (
       <Animated.View style={[styles.row, styles.underlayLeft, animStyle]}>
-        <TouchableOpacity onPress={handleDelete}>
-          <Text style={styles.text}>{`[delete]`}</Text>
+        <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
+          <Icon source={'delete'} size={24} color="white" />
+          <Text style={styles.text}>delete</Text>
         </TouchableOpacity>
       </Animated.View>
     );
   };
+
+  function getSectionNameById(section_id: number) {
+    const section = sections.find(sec => sec.id === section_id);
+    return section ? section.name : '[invalid section id] ';
+  }
 
   return (
     <TouchableOpacity
@@ -106,19 +126,21 @@ const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemPr
           opacity: completed ? 0.5 : 1,
           marginVertical: 3,
           marginHorizontal: 10,
+          zIndex: isActive ? 99 : 0,
         },
       ]}>
       {enableSwipe ? (
         <SwipeableItem
-          key={id.toString()}
+          key={id!}
           item={item}
           ref={ref => {
-            if (ref && !itemRefs.current.get(id)) {
+            if (ref && !itemRefs.current.has(id)) {
               itemRefs.current.set(id, ref);
             }
           }}
           onChange={({openDirection}) => {
             if (openDirection !== OpenDirection.NONE) {
+              // Close all other open items
               [...itemRefs.current.entries()].forEach(([key, ref]) => {
                 if (key !== id && ref) ref.close();
               });
@@ -126,7 +148,7 @@ const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemPr
           }}
           overSwipe={OVERSWIPE_DIST}
           renderUnderlayLeft={() => <UnderlayLeft />}
-          snapPointsLeft={[150]}>
+          snapPointsLeft={[100]}>
           <Animated.View
             style={[
               styles.contentContainer,
@@ -136,7 +158,7 @@ const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemPr
             <CheckBox
               disabled={false}
               value={toggleCheckBox}
-              onValueChange={() => toggleComplete(id)}
+              onValueChange={() => onToggleComplete(id)}
               style={{borderColor: getBorderColor(priority)}}
               color={toggleCheckBox ? '#CCCCCC' : undefined}
             />
@@ -163,7 +185,7 @@ const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemPr
                 </Text>
               </View>
               <Text variant="bodySmall" style={styles.bottomRightText}>
-                {sections[section_id ?? 0]?.name}
+                {getSectionNameById(section_id || 1)}
               </Text>
             </View>
           </Animated.View>
@@ -178,7 +200,7 @@ const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemPr
           <CheckBox
             disabled={false}
             value={toggleCheckBox}
-            onValueChange={() => toggleComplete(id)}
+            onValueChange={() => onToggleComplete(id)}
             style={{borderColor: getBorderColor(priority)}}
             color={toggleCheckBox ? '#CCCCCC' : undefined}
           />
@@ -205,7 +227,7 @@ const ToDoItem = ({item, drag, isActive, colors, enableSwipe = true}: ToDoItemPr
               </Text>
             </View>
             <Text variant="bodySmall" style={styles.bottomRightText}>
-              {sections[section_id ?? 0]?.name}
+              {getSectionNameById(section_id || 1)}
             </Text>
           </View>
         </Animated.View>
@@ -274,6 +296,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 

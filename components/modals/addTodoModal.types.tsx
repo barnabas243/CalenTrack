@@ -1,5 +1,5 @@
-import {SectionItem, TodoItem} from '@/contexts/TodoContext.types';
-import {User} from '@supabase/supabase-js';
+import {SectionItem} from '@/store/section/types';
+import {TodoItem} from '@/store/todo/types';
 
 export interface AddTodoModalProps {
   isVisible: boolean;
@@ -7,7 +7,8 @@ export interface AddTodoModalProps {
   onBackdropPress: () => void;
   onSubmitEditing: (newTodo: TodoItem, selectedSection: string) => void;
   sections: SectionItem[];
-  userId: User['id'];
+  propSelectedSectionName?: string;
+  propSelectedDueDate?: Date | undefined;
 }
 
 export type HighlightedElementType =
