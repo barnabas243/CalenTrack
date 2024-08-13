@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   View,
   FlatList,
@@ -7,13 +7,16 @@ import {
   Dimensions,
   TextInput,
   KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import Modal from 'react-native-modal';
 import {AddTodoModalProps, HighlightedElementType} from './addTodoModal.types';
 import * as chrono from 'chrono-node';
-import {Text, useTheme, Chip, Divider, Icon} from 'react-native-paper';
-import BottomSheet, {BottomSheetBackdrop, BottomSheetView} from '@gorhom/bottom-sheet';
-import DateTimePicker, {DateType} from 'react-native-ui-datepicker';
+import {Text, useTheme, Chip, Divider, Icon, IconButton, Button} from 'react-native-paper';
+import BottomSheet, {BottomSheetBackdrop, BottomSheetScrollView} from '@gorhom/bottom-sheet';
+import DateTimePickerCommunity from '@react-native-community/datetimepicker';
+import DateTimePickerUI, {DateType} from 'react-native-ui-datepicker';
 import dayjs from 'dayjs';
 import calendar from 'dayjs/plugin/calendar';
 import isBetween from 'dayjs/plugin/isBetween';
@@ -22,6 +25,7 @@ import {RRule} from 'rrule';
 import {getBorderColor} from '../ToDoItem';
 import {PriorityType} from '@/store/todo/types';
 import {useAuth} from '@/hooks/useAuth';
+import {SectionItem} from '@/store/section/types';
 
 dayjs.extend(isBetween);
 dayjs.extend(calendar);
@@ -29,7 +33,6 @@ dayjs.extend(calendar);
 // const test = RRule.fromText('every 2 hours on monday,tuesday,thursday');
 // test.options.until = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365);
 
-let count = 0;
 const AddTodoModal = ({
   isVisible,
   setIsVisible,
@@ -37,18 +40,52 @@ const AddTodoModal = ({
   onSubmitEditing,
   sections,
   propSelectedSectionName = '',
+  propSelectedStartDate = undefined,
   propSelectedDueDate = undefined,
 }: AddTodoModalProps) => {
-  console.log('AddTodoModal renderedq ', ++count);
   const {colors} = useTheme();
   const {user} = useAuth();
 
   const [todoName, setTodoName] = useState('');
-  const [startDate, setStartDate] = useState<Date>();
-  const [dueDate, setDueDate] = useState<Date | undefined>(propSelectedDueDate || dayjs().toDate());
+
+  const [range, setRange] = useState<{startDate: DateType; endDate: DateType}>({
+    startDate: propSelectedStartDate,
+    endDate: propSelectedDueDate,
+  });
   const [dueDateTitle, setDueDateTitle] = useState(
     dayjs(new Date()).endOf('day').format('[Today] h:mm A'),
   );
+
+  const [startDateTitle, setStartDateTitle] = useState(
+    dayjs(new Date()).startOf('day').format('[Today] h:mm A'),
+  );
+
+  // Initialize state only once
+  useEffect(() => {
+    const initialStartDate = propSelectedStartDate ?? dayjs().startOf('day').toDate();
+    const initialEndDate = propSelectedDueDate ?? dayjs().toDate();
+
+    setRange({
+      startDate: initialStartDate,
+      endDate: initialEndDate,
+    });
+
+    setStartDateTitle(
+      dayjs(initialStartDate).isSame(dayjs(), 'day')
+        ? dayjs(initialStartDate).format('[Today] h:mm A')
+        : dayjs(initialStartDate).format('ddd, MMM D, h:mm A'),
+    );
+
+    setDueDateTitle(
+      dayjs(initialEndDate).isSame(dayjs(), 'day')
+        ? dayjs(initialEndDate).format('[Today] h:mm A')
+        : dayjs(initialEndDate).format('ddd, MMM D, h:mm A'),
+    );
+  }, [propSelectedDueDate, propSelectedStartDate]); // Empty dependency array
+
+  const [showDueDatePicker, setShowDueDatePicker] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+
   const [recurrenceRule, setRecurrenceRule] = useState<RRule | null>(null);
 
   const [todoPriority, setTodoPriority] = useState<PriorityType>('4');
@@ -66,11 +103,20 @@ const AddTodoModal = ({
 
   const [shortcut, setShortcut] = useState('');
 
-  console.log('propSelectedSectionName ', propSelectedSectionName);
   const [selectedSection, setSelectedSection] = useState(propSelectedSectionName ?? 'Inbox');
-  const [sectionId, setSectionId] = useState<number | undefined>();
+  const [sectionId, setSectionId] = useState<number | undefined>(1); // Default to Inbox
 
   const dueDateBottomSheetRef = useRef<BottomSheet>(null);
+
+  useEffect(() => {
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      onBackdropPress();
+    });
+
+    return () => {
+      keyboardDidHideListener.remove();
+    };
+  }, [onBackdropPress]);
 
   const shortcutsBtns = [
     {
@@ -111,11 +157,11 @@ const AddTodoModal = ({
     setHighlightedText([]);
     setTodoName('');
     setTodoPriority('4');
-    setDueDate(dayjs().toDate());
+    setRange({startDate: undefined, endDate: undefined});
     setDueDateTitle(dayjs(new Date()).endOf('day').format('[Today] h:mm A'));
-    setStartDate(undefined);
     setShortcut('');
     setSelectedSection('');
+    setSectionId(1);
     setRecurrenceRule(null);
   };
 
@@ -126,6 +172,7 @@ const AddTodoModal = ({
   };
 
   const parseText = (text: string) => {
+    console.log('Parsing text:', text);
     let highlightedElements: HighlightedElementType[] = Array.from(text);
 
     if (text.trim()) {
@@ -133,7 +180,11 @@ const AddTodoModal = ({
         const parsedResult = chrono.parse(text);
 
         if (parsedResult.length === 0 && dueDateTitle === 'Due Date') {
-          setDueDate(chrono.parseDate('today') || new Date());
+          setRange(prevRange => ({
+            ...prevRange,
+            endDate: chrono.parseDate('today') || new Date(),
+          }));
+
           setDueDateTitle('Today');
         }
 
@@ -147,6 +198,7 @@ const AddTodoModal = ({
         setTooltipVisible(false);
       }
     } else {
+      resetUserToDoInput();
       setTooltipVisible(false);
     }
 
@@ -161,8 +213,11 @@ const AddTodoModal = ({
     parsedResult.forEach((data: any) => {
       const interpretedDate = data.start.date();
       const formattedDate = getCustomFormattedDate(dayjs(interpretedDate));
+      setRange(prevRange => ({
+        ...prevRange,
+        endDate: interpretedDate,
+      }));
 
-      setDueDate(interpretedDate);
       setDueDateTitle(formattedDate);
 
       const parsedText = data.text;
@@ -203,7 +258,6 @@ const AddTodoModal = ({
       } else if (word.startsWith('@')) {
         setTooltipVisible(true);
         highlightWord(word, text, highlightedElements, wordStartIndex, 'label');
-        console.log('word:', word.slice(1));
         setSelectedSection(word.slice(1));
       } else if (word.startsWith('!') && isValidPriorityType(word.slice(1))) {
         highlightWord(word, text, highlightedElements, wordStartIndex, 'priority');
@@ -277,7 +331,7 @@ const AddTodoModal = ({
   const handlePriorityPress = (priority: PriorityType) => {
     setTodoPriority(priority as PriorityType);
     setTodoPriorityTitle(`P${priority}`);
-    updateTextIfSymbolIsLastChar('!', priority.toString());
+    updateTextIfSymbolIsLastChar('!', priority.toString() as PriorityType);
   };
 
   function handleLabelPress(label: SectionItem): void {
@@ -290,15 +344,18 @@ const AddTodoModal = ({
         summary: '',
         completed: false,
         completed_at: undefined,
-        due_date: dueDate || undefined,
-        start_date: startDate || dayjs(dueDate).startOf('day').toDate(),
+        due_date: range?.endDate?.toLocaleString() || undefined,
+        start_date:
+          range?.startDate?.toLocaleString() ||
+          dayjs(range?.endDate).startOf('day').toISOString() ||
+          undefined,
         recurrence: recurrenceRule?.toString() || undefined,
         priority: todoPriority,
         section_id: sectionId,
         created_by: user!.id,
         parent_id: undefined,
       },
-      selectedSection,
+      selectedSection || 'Inbox',
     );
 
     resetUserToDoInput();
@@ -353,10 +410,6 @@ const AddTodoModal = ({
   };
 
   const updateTextIfSymbolIsLastChar = (symbol: string, label: SectionItem | PriorityType) => {
-    // console.log("highlightedText: ", highlightedText);
-    // console.log("option: ", option);
-    // console.log("cursorPos: ", cursorPosition);
-
     // Check if the symbol is present within any JSX element in the highlightedText array
     const symbolPresent = highlightedText.some(element => {
       if (typeof element === 'string') {
@@ -414,7 +467,7 @@ const AddTodoModal = ({
       newHighlightedText.splice(existingIndex, 2); // Remove the existing symbol
 
       if (symbol === '@') {
-        setSectionId(undefined);
+        setSectionId(1);
         setSelectedSection('');
       } else if (symbol === '!') {
         setTodoPriority('4');
@@ -477,19 +530,30 @@ const AddTodoModal = ({
     return dateObj.format('DD/MM/YYYY h:mm A');
   }
 
-  const handleDateChange = (newDate: DateType) => {
-    // Use setDueDate to update the state with the new date
-    const date = getCustomFormattedDate(dayjs(newDate));
+  const handleDateChange = ({
+    newStartDate,
+    newEndDate,
+  }: {
+    newStartDate?: DateType; // Allowing these to be optional
+    newEndDate?: DateType;
+  }) => {
+    // Check if newStartDate is defined, otherwise set the title to an empty string
+    const formattedStartDate = newStartDate ? getCustomFormattedDate(dayjs(newStartDate)) : '';
+    setStartDateTitle(formattedStartDate);
 
-    console.log(date);
+    // Check if newEndDate is defined, otherwise set the title to an empty string
+    const formattedEndDate = newEndDate ? getCustomFormattedDate(dayjs(newEndDate)) : '';
+    setDueDateTitle(formattedEndDate);
 
-    setDueDate(dayjs(newDate).toDate());
-    // Use setDueDateTitle to update the title based on the new due date
-    setDueDateTitle(date);
+    console.log('formattedStartDate:', formattedStartDate);
+    console.log('formattedEndDate:', formattedEndDate);
+
+    // Update the range state
+    setRange(prev => ({startDate: newStartDate, endDate: newEndDate}));
   };
+
   const handleSheetChanges = useCallback(
     (index: number) => {
-      console.log('handleSheetChanges', index);
       if (index === -1) {
         setIsVisible(true);
       }
@@ -502,67 +566,85 @@ const AddTodoModal = ({
       <Modal
         isVisible={isVisible}
         onBackdropPress={onBackdropPress}
-        style={{
-          width: '100%',
-          padding: 0,
-          margin: 0,
-          zIndex: 0,
-        }}
+        onBackButtonPress={onBackdropPress}
+        style={{margin: 0}}
         animationIn="fadeInUp">
-        <View style={[styles.inputModal, {backgroundColor: colors.inverseOnSurface}]}>
-          <TextInput
-            ref={inputRef}
-            placeholder="Task Name"
-            onChangeText={handleTextChange}
-            onSelectionChange={e => {
-              const selection = e.nativeEvent.selection;
-              let start = 20 + selection.start * 5.6;
-              if (screenWidth < start + tooltipWidth + 20) start = screenWidth - tooltipWidth;
-              setTooltipX(start);
-            }}
-            autoFocus
-            onSubmitEditing={handleSubmitEditing}
-            style={[styles.textInput, {color: colors.onSurface}]}
-            blurOnSubmit={false}>
-            <Text style={[styles.highlightContainer]}>{highlightedText}</Text>
-          </TextInput>
-
-          {tooltipVisible && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+          }}>
+          <View style={[styles.inputModal, {backgroundColor: colors.inverseOnSurface}]}>
             <View
-              style={[
-                styles.tooltip,
-                {
-                  left: tooltipX,
-                  top: -tooltipY,
-                  backgroundColor: colors.surface,
-                },
-              ]}
-              onLayout={event => {
-                const {height, width} = event.nativeEvent.layout;
-                setTooltipY(height);
-                setTooltipWidth(width);
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginRight: 30,
+                alignContent: 'center',
               }}>
-              {renderTooltipRows(shortcut)}
+              <TextInput
+                ref={inputRef}
+                placeholder="Task Name"
+                placeholderTextColor={colors.secondary}
+                onChangeText={handleTextChange}
+                onSelectionChange={e => {
+                  const selection = e.nativeEvent.selection;
+                  let start = 20 + selection.start * 5.6;
+                  if (screenWidth < start + tooltipWidth + 20) start = screenWidth - tooltipWidth;
+                  setTooltipX(start);
+                }}
+                autoFocus
+                onSubmitEditing={handleSubmitEditing}
+                style={[styles.textInput, {color: colors.onSurface}]}
+                blurOnSubmit={false}>
+                <Text style={[styles.highlightContainer]}>{highlightedText}</Text>
+              </TextInput>
+              <IconButton
+                icon="send"
+                size={24}
+                iconColor={todoName.trim() ? colors.primary : colors.surfaceDisabled}
+                disabled={!todoName.trim()}
+                onPress={handleSubmitEditing}
+              />
             </View>
-          )}
-          <FlatList
-            horizontal
-            keyboardShouldPersistTaps="always"
-            data={shortcutsBtns}
-            renderItem={({item}) => (
-              <View style={styles.buttonContainer}>
-                <Chip
-                  mode="flat"
-                  selectedColor={item.iconColor}
-                  icon={() => <Icon source={item.icon} size={16} color={item.iconColor} />}
-                  onPress={item.onPress}
-                  style={{backgroundColor: item.color}}>
-                  {item.title.toString()}
-                </Chip>
+            {tooltipVisible && (
+              <View
+                style={[
+                  styles.tooltip,
+                  {
+                    left: tooltipX,
+                    top: -tooltipY,
+                    backgroundColor: colors.surface,
+                  },
+                ]}
+                onLayout={event => {
+                  const {height, width} = event.nativeEvent.layout;
+                  setTooltipY(height);
+                  setTooltipWidth(width);
+                }}>
+                {renderTooltipRows(shortcut)}
               </View>
             )}
-          />
-        </View>
+            <FlatList
+              horizontal
+              keyboardShouldPersistTaps="always"
+              data={shortcutsBtns}
+              renderItem={({item}) => (
+                <View style={styles.buttonContainer}>
+                  <Chip
+                    mode="flat"
+                    selectedColor={item.iconColor}
+                    icon={() => <Icon source={item.icon} size={16} color={item.iconColor} />}
+                    onPress={item.onPress}
+                    style={{backgroundColor: item.color}}>
+                    {item.title.toString()}
+                  </Chip>
+                </View>
+              )}
+            />
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
       <BottomSheet
         ref={dueDateBottomSheetRef}
@@ -572,9 +654,7 @@ const AddTodoModal = ({
         enableContentPanningGesture={false}
         enablePanDownToClose={true}
         backgroundStyle={{backgroundColor: colors.inverseOnSurface, flex: 1}}
-        backdropComponent={(
-          props, // found from https://github.com/gorhom/react-native-bottom-sheet/issues/187
-        ) => (
+        backdropComponent={props => (
           <BottomSheetBackdrop
             {...props}
             opacity={0.5}
@@ -584,37 +664,88 @@ const AddTodoModal = ({
             style={[{backgroundColor: 'rgba(0, 0, 0, 1)'}, StyleSheet.absoluteFillObject]}
           />
         )}>
-        <BottomSheetView style={[styles.container, {backgroundColor: colors.inverseOnSurface}]}>
-          <KeyboardAvoidingView style={{flex: 1}} behavior="padding">
-            <View style={{flexDirection: 'row', marginVertical: 20}}>
-              <MaterialCommunityIcons name="pen" size={24} color={colors.onSurface} />
-              <Text style={{color: colors.onSurface, marginLeft: 10}}>{dueDateTitle}</Text>
-            </View>
-            <Divider style={{backgroundColor: colors.secondary}} />
+        <BottomSheetScrollView
+          style={[styles.container, {backgroundColor: colors.inverseOnSurface}]}>
+          <View style={{flexDirection: 'row', marginVertical: 20}}>
+            <MaterialCommunityIcons name="pen" size={24} color={colors.onSurface} />
+            <Text style={{color: colors.onSurface, marginLeft: 10}}>
+              {startDateTitle} - {dueDateTitle}
+            </Text>
+          </View>
+          <Divider style={{backgroundColor: colors.secondary}} />
+          <View style={{marginVertical: 20}}>
             <View style={{marginVertical: 20}}>
-              <View style={{marginVertical: 20}}>
-                <DateTimePicker
-                  mode="single"
-                  date={dueDate}
-                  minDate={dayjs().toDate()}
-                  weekDaysTextStyle={{color: colors.onSurface}}
-                  headerTextStyle={{color: colors.onSurface}}
-                  timePickerTextStyle={{color: colors.onSurface}}
-                  calendarTextStyle={{color: colors.onSurface}}
-                  yearContainerStyle={{backgroundColor: colors.inverseOnSurface}}
-                  dayContainerStyle={{backgroundColor: colors.inverseOnSurface}}
-                  monthContainerStyle={{backgroundColor: colors.inverseOnSurface}}
-                  timePickerIndicatorStyle={{backgroundColor: colors.inverseOnSurface}}
-                  onChange={params => {
-                    handleDateChange(params.date);
-                  }}
-                  timePicker
-                />
-              </View>
+              <DateTimePickerUI
+                mode="range"
+                //minDate={dayjs().toDate()}
+                startDate={range.startDate}
+                endDate={range.endDate}
+                displayFullDays
+                weekDaysTextStyle={{color: colors.onSurface}}
+                headerTextStyle={{color: colors.onSurface}}
+                calendarTextStyle={{color: colors.onSurface}}
+                yearContainerStyle={{backgroundColor: colors.inverseOnSurface}}
+                // dayContainerStyle={{backgroundColor: colors.inverseOnSurface}}
+                monthContainerStyle={{backgroundColor: colors.inverseOnSurface}}
+                onChange={params => {
+                  handleDateChange({
+                    newStartDate: params.startDate,
+                    newEndDate: params.endDate,
+                  });
+                }}
+              />
             </View>
-            {/* Add the recurrence options here */}
-          </KeyboardAvoidingView>
-        </BottomSheetView>
+          </View>
+          <View style={{flex: 1, flexDirection: 'column'}}>
+            <Button mode="contained" onPress={() => setShowStartDatePicker(true)}>
+              Start Time: {dayjs(range.startDate).format('HH:mm:ss')}
+            </Button>
+            <Button mode="contained" onPress={() => setShowDueDatePicker(true)}>
+              End Time: {dayjs(range.endDate).format('HH:mm:ss')}
+            </Button>
+          </View>
+          {showStartDatePicker && (
+            <DateTimePickerCommunity
+              value={
+                range.startDate
+                  ? dayjs(range.startDate).toDate()
+                  : dayjs(range.endDate).startOf('day').toDate()
+              }
+              mode={'time'}
+              is24Hour={true}
+              display="default"
+              onChange={(event, selectedDate) => {
+                console.log(event);
+
+                setShowStartDatePicker(false);
+                if (selectedDate) {
+                  handleDateChange({
+                    newStartDate: dayjs(selectedDate).toDate(),
+                    newEndDate: range.endDate,
+                  });
+                }
+              }}
+            />
+          )}
+          {showDueDatePicker && (
+            <DateTimePickerCommunity
+              value={dayjs(range.endDate).toDate() ?? new Date()}
+              mode={'time'}
+              is24Hour={true}
+              display="default"
+              onChange={(event, selectedDate) => {
+                setShowDueDatePicker(false);
+                if (selectedDate) {
+                  handleDateChange({
+                    newStartDate: range.startDate,
+                    newEndDate: dayjs(selectedDate).toDate(),
+                  });
+                }
+              }}
+            />
+          )}
+          {/* Add the recurrence options here */}
+        </BottomSheetScrollView>
       </BottomSheet>
     </>
   );
@@ -623,7 +754,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 8,
-    justifyContent: 'center',
   },
   contentContainer: {
     flex: 1,
@@ -642,7 +772,7 @@ const styles = StyleSheet.create({
   inputModal: {
     padding: 20,
     width: '100%',
-    top: 155,
+    marginBottom: 40,
   },
   textInput: {
     marginBottom: 10,

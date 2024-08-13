@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {TouchableOpacity, StyleSheet, View, LayoutAnimation} from 'react-native';
 import CheckBox from 'expo-checkbox';
 import Animated, {useAnimatedStyle, useSharedValue, withSpring} from 'react-native-reanimated';
@@ -42,21 +42,44 @@ export const getBorderColor = (priority: PriorityType) => {
       return '#CCCCCC';
   }
 };
-const ToDoItem = ({...props}: ToDoItemProps) => {
-  const [toggleCheckBox, setToggleCheckBox] = useState(false);
 
-  const {
-    item,
-    isActive,
-    drag,
-    colors,
-    enableSwipe = false,
-    itemRefs,
-    onToggleComplete,
-    openEditBottomSheet,
-    deleteTodo,
-    sections,
-  } = props;
+const UnderlayLeft = deleteTodo => {
+  const {percentOpen} = useSwipeableItemParams();
+  const animStyle = useAnimatedStyle(
+    () => ({
+      opacity: percentOpen.value,
+    }),
+    [percentOpen],
+  );
+
+  const handleDelete = async () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+    deleteTodo(id);
+  };
+
+  return (
+    <Animated.View style={[styles.row, styles.underlayLeft, animStyle]}>
+      <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
+        <Icon source={'delete'} size={24} color="white" />
+        <Text style={styles.text}>delete</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+const ToDoItem = ({
+  item,
+  isActive,
+  drag,
+  colors,
+  enableSwipe = false,
+  itemRefs,
+  onToggleComplete,
+  openEditBottomSheet,
+  deleteTodo,
+  sections,
+}: ToDoItemProps) => {
+  const [toggleCheckBox, setToggleCheckBox] = useState(false);
 
   const {title, priority, id, completed, summary, due_date, section_id} = item;
 
@@ -85,53 +108,33 @@ const ToDoItem = ({...props}: ToDoItemProps) => {
     openEditBottomSheet(item);
   };
 
-  const UnderlayLeft = () => {
-    const {percentOpen} = useSwipeableItemParams();
-    const animStyle = useAnimatedStyle(
-      () => ({
-        opacity: percentOpen.value,
-      }),
-      [percentOpen],
-    );
+  const getSectionNameById = useCallback(
+    (section_id: number) => {
+      const section = sections.find(sec => sec.id === section_id);
+      return section ? section.name : '[invalid section id] ';
+    },
+    [sections],
+  );
 
-    const handleDelete = async () => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-      deleteTodo(id);
-    };
-
-    return (
-      <Animated.View style={[styles.row, styles.underlayLeft, animStyle]}>
-        <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
-          <Icon source={'delete'} size={24} color="white" />
-          <Text style={styles.text}>delete</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-
-  function getSectionNameById(section_id: number) {
-    const section = sections.find(sec => sec.id === section_id);
-    return section ? section.name : '[invalid section id] ';
-  }
+  const contentStyle = useMemo(
+    () => ({
+      borderColor: getBorderColor(priority),
+      opacity: completed ? 0.5 : 1,
+      marginVertical: 3,
+      marginHorizontal: 10,
+    }),
+    [priority, completed],
+  );
 
   return (
     <TouchableOpacity
       activeOpacity={1}
       onLongPress={drag}
       onPress={() => openEditTodoModal(item)}
-      style={[
-        {
-          flex: 1,
-          borderColor: getBorderColor(priority),
-          opacity: completed ? 0.5 : 1,
-          marginVertical: 3,
-          marginHorizontal: 10,
-          zIndex: isActive ? 99 : 0,
-        },
-      ]}>
+      style={contentStyle}>
       {enableSwipe ? (
         <SwipeableItem
-          key={id!}
+          key={id}
           item={item}
           ref={ref => {
             if (ref && !itemRefs.current.has(id)) {
@@ -140,14 +143,13 @@ const ToDoItem = ({...props}: ToDoItemProps) => {
           }}
           onChange={({openDirection}) => {
             if (openDirection !== OpenDirection.NONE) {
-              // Close all other open items
               [...itemRefs.current.entries()].forEach(([key, ref]) => {
                 if (key !== id && ref) ref.close();
               });
             }
           }}
           overSwipe={OVERSWIPE_DIST}
-          renderUnderlayLeft={() => <UnderlayLeft />}
+          renderUnderlayLeft={() => <UnderlayLeft deleteTodo={deleteTodo} />}
           snapPointsLeft={[100]}>
           <Animated.View
             style={[
@@ -235,7 +237,6 @@ const ToDoItem = ({...props}: ToDoItemProps) => {
     </TouchableOpacity>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',

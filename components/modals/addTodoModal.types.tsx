@@ -8,6 +8,7 @@ export interface AddTodoModalProps {
   onSubmitEditing: (newTodo: TodoItem, selectedSection: string) => void;
   sections: SectionItem[];
   propSelectedSectionName?: string;
+  propSelectedStartDate?: Date | undefined;
   propSelectedDueDate?: Date | undefined;
 }
 

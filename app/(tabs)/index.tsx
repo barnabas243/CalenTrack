@@ -35,6 +35,7 @@ import EditTodoModalContent from '@/components/modals/EditTodoModalContent';
 import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
 import AddTodoModal from '@/components/modals/addTodoModal';
 import {useAuth} from '@/hooks/useAuth';
+import PageLoadingActivityIndicator from '@/components/PageLoadingActivityIndicator';
 
 export type sortByType = 'date' | 'title' | 'section' | 'priority';
 export type sortDirectionType = 'asc' | 'desc';
@@ -96,9 +97,7 @@ const sortTodos = (todos: TodoItem[], sortBy: sortByType, direction: sortDirecti
   return sortedTodos;
 };
 
-let count = 0;
 const HomeScreen = () => {
-  console.log('HomeScreen rendered', count++);
   const {colors} = useTheme();
   const {isLoading, user} = useAuth();
 
@@ -155,7 +154,6 @@ const HomeScreen = () => {
   // Update the height values when the content size changes
   const changeHeight = useCallback(
     (height: number, type: string) => {
-      console.log('changeHeight', height, type);
       switch (type) {
         case 'overdue':
           overdueHeight.value = height;
@@ -269,7 +267,6 @@ const HomeScreen = () => {
   };
 
   const openEditBottomSheet = (item: TodoItem) => {
-    console.log('openEditBottomSheet', item);
     if (editBottomSheetRef.current) {
       editBottomSheetRef.current.present(item);
     }
@@ -302,11 +299,7 @@ const HomeScreen = () => {
   };
 
   if (isLoading) {
-    return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <ActivityIndicator />
-      </View>
-    );
+    return <PageLoadingActivityIndicator />;
   }
 
   const showMenu = () => {
@@ -366,13 +359,12 @@ const HomeScreen = () => {
     if (!newTodo) return;
 
     try {
-      if (selectedSection !== 'Inbox' && !newTodo.section_id) {
+      if (selectedSection.trim() !== 'Inbox' && !newTodo.section_id) {
         // Create a new section if it doesn't exist
-        const newSection = {name: selectedSection, user_id: user!.id};
+        const newSection = {name: selectedSection.trim(), user_id: user!.id};
 
         // Assuming addNewSection returns the created section or an identifier
         const result = await addNewSection(newSection);
-        console.log('addNewSection result:', result);
         if (!result || !result.id) {
           Alert.alert('Error', 'Failed to create new section');
           return;
@@ -399,10 +391,16 @@ const HomeScreen = () => {
     }
   };
 
+  const onDismiss = () => {
+    console.log('dismissed');
+  };
+
+  const buttonMode = sortDirection === 'desc' ? 'contained' : 'outlined';
+
   return (
     <View style={[styles.container, {backgroundColor: colors.background}]}>
       <StatusBar style="auto" />
-      <Appbar.Header>
+      <Appbar.Header elevated>
         <Appbar.Content title="Today" />
         <Menu
           anchorPosition="bottom"
@@ -451,9 +449,7 @@ const HomeScreen = () => {
             onContentSizeChange={(w, h) => changeHeight(h, 'today')}
             renderItem={renderTodoItem}
             keyExtractor={keyExtractor}
-            onDragBegin={() => setIsFABVisible(false)}
             onDragEnd={({data}) => {
-              setIsFABVisible(true);
               handleEndDrag(data, 'today');
             }}
             activationDistance={20}
@@ -470,9 +466,7 @@ const HomeScreen = () => {
             onContentSizeChange={(w, h) => changeHeight(h, 'completed')}
             renderItem={renderTodoItem}
             keyExtractor={keyExtractor}
-            onDragBegin={index => setIsFABVisible(false)}
             onDragEnd={({data}) => {
-              setIsFABVisible(true);
               handleEndDrag(data, 'completed');
             }}
             activationDistance={20}
@@ -566,7 +560,7 @@ const HomeScreen = () => {
               <Text style={{fontSize: 14, color: colors.onSurfaceVariant}}>Sort Direction</Text>
               <View style={styles.buttonGrid}>
                 <Button
-                  mode={sortDirection === 'asc' ? 'contained' : 'outlined'}
+                  mode={buttonMode}
                   style={[
                     styles.button,
                     {
@@ -580,7 +574,7 @@ const HomeScreen = () => {
                   Ascending
                 </Button>
                 <Button
-                  mode={sortDirection === 'desc' ? 'contained' : 'outlined'}
+                  mode={buttonMode}
                   style={[
                     styles.button,
                     {
@@ -598,7 +592,7 @@ const HomeScreen = () => {
           </View>
         </BottomSheetModal>
 
-        <EditTodoModal ref={editBottomSheetRef} onDismiss={() => console.log('dismissed modal')}>
+        <EditTodoModal ref={editBottomSheetRef} onDismiss={onDismiss}>
           {data => (
             <EditTodoModalContent
               todo={data.data}

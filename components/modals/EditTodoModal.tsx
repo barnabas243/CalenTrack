@@ -11,14 +11,11 @@ export interface EditTodoModalProps {
   onDismiss: () => void;
 }
 
-let count = 0;
-
 const EditTodoModal = forwardRef<BottomSheetModalMethods, EditTodoModalProps>(
   ({children, ...props}, ref) => {
-    console.log('EditTodoModal rendered ', ++count);
     const {colors} = useTheme();
 
-    const snapPoints = useMemo(() => ['90%'], []);
+    const snapPoints = useMemo(() => ['80%'], []);
 
     const handleBackPress = useCallback(() => {
       if (ref) {
@@ -56,7 +53,7 @@ const EditTodoModal = forwardRef<BottomSheetModalMethods, EditTodoModalProps>(
         index={0}
         snapPoints={snapPoints}
         backgroundStyle={{backgroundColor: colors.background}}
-        handleIndicatorStyle={{backgroundColor: colors.onSurface}}
+        // handleIndicatorStyle={{backgroundColor: colors.onSurface}}
         onDismiss={props.onDismiss}
         stackBehavior="replace">
         {(data: TodoItem) => (
