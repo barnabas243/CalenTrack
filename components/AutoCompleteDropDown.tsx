@@ -1,4 +1,4 @@
-import React, {memo, useState} from 'react';
+import React, {memo} from 'react';
 import {Dimensions, Text, View} from 'react-native';
 import type {AutocompleteDropdownItem} from 'react-native-autocomplete-dropdown';
 import {AutocompleteDropdown} from 'react-native-autocomplete-dropdown';

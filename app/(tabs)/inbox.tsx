@@ -18,28 +18,21 @@ import {
   Appbar,
   Menu,
   Divider,
-  Searchbar,
-  Chip,
   Text,
 } from 'react-native-paper';
 import ToDoItem from '@/components/ToDoItem';
 import AddTodoFAB from '@/components/addTodoFAB';
-import DraggableFlatList, {
-  DraggableFlatListProps,
-  RenderItemParams,
-  ScaleDecorator,
-} from 'react-native-draggable-flatlist';
+import DraggableFlatList, {RenderItemParams, ScaleDecorator} from 'react-native-draggable-flatlist';
 import {router, useLocalSearchParams} from 'expo-router';
 import SwiperFlatList from 'react-native-swiper-flatlist';
 import {SwipeableItemImperativeRef} from 'react-native-swipeable-item';
-import {MaterialCommunityIcons} from '@expo/vector-icons';
 import {useTodo} from '@/hooks/useTodo';
 import {Section, SectionItem} from '@/store/section/types';
 import {TodoItem} from '@/store/todo/types';
 import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import EditTodoModal from '@/components/modals/EditTodoModal';
 import EditTodoModalContent from '@/components/modals/EditTodoModalContent';
-import {debounce, isEqual} from 'lodash';
+import {isEqual} from 'lodash';
 import {useAuth} from '@/hooks/useAuth';
 import AddTodoModal from '@/components/modals/addTodoModal';
 import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
@@ -372,17 +365,15 @@ const InboxScreen = () => {
   //   swiperRef.current?.scrollToIndex({index, animated: true});
   // }, []);
 
-  const findSectionIndexByName = (name: string) => {
-    return sections.findIndex(section => section.name.toLowerCase().includes(name.toLowerCase()));
-  };
+  // const findSectionIndexByName = (name: string) => {
+  //   return sections.findIndex(section => section.name.toLowerCase().includes(name.toLowerCase()));
+  // };
 
   const findSectionIndexById = (id: number) => {
     return sections.findIndex(section => section.id === id);
   };
   // Callback function to handle text changes
   const handleSelectItem = (item: AutocompleteDropdownItem | null) => {
-    console.log('Item:', item);
-
     if (!item) {
       return;
     }
@@ -397,20 +388,15 @@ const InboxScreen = () => {
 
     if (isTodoItem) {
       const itemId = idParts[1];
-      console.log('Todo ID:', idParts[1]);
       const flatListRef = draggableListRefs.current.get(sectionId.toString());
-      console.log('FlatListRef:', flatListRef?.props.data);
 
       if (flatListRef && flatListRef.props.data) {
         const index = flatListRef.props.data.findIndex((item: TodoItem) => item.id === itemId) ?? 0;
-        console.log('Index:', index);
         if (index !== -1) {
           flatListRef.scrollToIndex({index, animated: true, viewPosition: 0.1});
         }
       }
     }
-
-    console.log('ID:', id);
   };
 
   return (

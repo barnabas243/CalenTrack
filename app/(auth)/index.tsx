@@ -5,8 +5,8 @@ import {
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 import {supabase} from '@/utils/supabase';
-import React, {useState, useEffect, useCallback} from 'react';
-import {Alert, StyleSheet, View, AppState, AppStateStatus} from 'react-native';
+import React, {useState} from 'react';
+import {Alert, StyleSheet, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {router} from 'expo-router';
 import {Button, Text, TextInput, useTheme} from 'react-native-paper';
