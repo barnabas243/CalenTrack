@@ -1,5 +1,5 @@
 import React, {createRef, PureComponent} from 'react';
-import {Alert, View, Text, StyleSheet} from 'react-native';
+import {View, Text, StyleSheet} from 'react-native';
 import {
   ExpandableCalendar,
   TimelineEventProps,
@@ -10,23 +10,35 @@ import {
 } from 'react-native-calendars';
 import BottomSheet, {BottomSheetBackdrop} from '@gorhom/bottom-sheet';
 import groupBy from 'lodash/groupBy';
-import filter from 'lodash/filter';
-import find from 'lodash/find';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
 import Animated from 'react-native-reanimated';
-// import dayjs from 'dayjs';
+import AddTodoModal from '../modals/addTodoModal';
+import {SectionItem} from '@/store/section/types';
+import {TodoItem} from '@/store/todo/types';
+
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface DailyCalendarState {
   currentDate: string;
   events: TimelineEventProps[];
   eventsByDate: {[key: string]: TimelineEventProps[]};
   selectedEvent: TimelineEventProps | null;
+  isAddTodoModalVisible: boolean; // Add isAddTodoModalVisible to the state
+  selectedRange: {start: Date | undefined; end: Date | undefined} | null;
 }
+
 interface DailyCalendarProps {
   events: TimelineEventProps[];
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   colors: MD3Colors;
+  sections: SectionItem[];
+  onSubmitEditing: (todo: TodoItem) => void;
 }
 
 export default class DailyCalendar extends PureComponent<DailyCalendarProps, DailyCalendarState> {
@@ -40,6 +52,8 @@ export default class DailyCalendar extends PureComponent<DailyCalendarProps, Dai
       events: props.events,
       eventsByDate: this.groupEventsByDate(props.events),
       selectedEvent: null,
+      isAddTodoModalVisible: false, // Initialize isAddTodoModalVisible in state
+      selectedRange: null,
     };
   }
 
@@ -56,6 +70,14 @@ export default class DailyCalendar extends PureComponent<DailyCalendarProps, Dai
     return marked;
   })();
 
+  componentDidUpdate(prevProps: DailyCalendarProps) {
+    if (prevProps.events !== this.props.events) {
+      this.setState({
+        eventsByDate: this.groupEventsByDate(this.props.events),
+      });
+    }
+  }
+
   onDateChanged = (date: string, source: string) => {
     console.log('DailyCalendar onDateChanged: ', date, source);
     this.props.setSelectedDate(date);
@@ -66,72 +88,52 @@ export default class DailyCalendar extends PureComponent<DailyCalendarProps, Dai
   };
 
   createNewEvent: TimelineProps['onBackgroundLongPressOut'] = (timeString, timeObject) => {
+    // Use dayjs to parse and manipulate the start and end times
     const {eventsByDate} = this.state;
-    const hourString = `${(timeObject.hour + 1).toString().padStart(2, '0')}`;
-    const minutesString = `${timeObject.minutes.toString().padStart(2, '0')}`;
+
+    const start = dayjs(timeString);
+    const end = start.add(1, 'hour'); // Adds 1 hour to the start time
+
+    // Create a new copy of the eventsByDate object
+    const updatedEventsByDate = {...eventsByDate};
 
     const newEvent = {
       id: 'draft',
-      start: `${timeString}`,
-      end: `${timeObject.date} ${hourString}:${minutesString}:00`,
+      start: start.toDate().toISOString(),
+      end: end.toDate().toISOString(),
       title: 'New Event',
       color: 'white',
     };
 
+    // Check if the date already exists in the updated object
     if (timeObject.date) {
-      if (eventsByDate[timeObject.date]) {
-        eventsByDate[timeObject.date] = [...eventsByDate[timeObject.date], newEvent];
-        this.setState({eventsByDate});
+      if (updatedEventsByDate[timeObject.date]) {
+        // Append the new event to the existing array
+        updatedEventsByDate[timeObject.date] = [...updatedEventsByDate[timeObject.date], newEvent];
       } else {
-        eventsByDate[timeObject.date] = [newEvent];
-        this.setState({eventsByDate: {...eventsByDate}});
+        // Create a new array with the new event
+        updatedEventsByDate[timeObject.date] = [newEvent];
       }
+
+      // Update the state with the new object reference
+      this.setState({
+        eventsByDate: updatedEventsByDate,
+        selectedRange: {
+          start: start.toDate(), // Format the start time
+          end: end.toDate(), // Format the end time
+        },
+      });
     }
   };
 
-  approveNewEvent: TimelineProps['onBackgroundLongPress'] = (_timeString, timeObject) => {
-    const {eventsByDate} = this.state;
-
-    Alert.alert('New Event', 'Enter event title', [
-      {
-        text: 'Cancel',
-        onPress: () => {
-          if (timeObject.date) {
-            eventsByDate[timeObject.date] = filter(
-              eventsByDate[timeObject.date],
-              e => e.id !== 'draft',
-            );
-
-            this.setState({
-              eventsByDate,
-            });
-          }
-        },
-      },
-      {
-        text: 'Create',
-        onPress: eventTitle => {
-          if (timeObject.date) {
-            const draftEvent = find(eventsByDate[timeObject.date], {
-              id: 'draft',
-            });
-            if (draftEvent) {
-              draftEvent.id = undefined;
-              draftEvent.title = eventTitle ?? 'New Event';
-              draftEvent.color = 'lightgreen';
-              eventsByDate[timeObject.date] = [...eventsByDate[timeObject.date]];
-
-              this.setState({
-                eventsByDate,
-              });
-            }
-          }
-        },
-      },
-    ]);
+  displayAddModal: TimelineProps['onBackgroundLongPressOut'] = (timeString, timeObject) => {
+    this.toggleAddTodoModal(true);
   };
 
   viewEvent: TimelineProps['onEventPress'] = event => {
+    console.log('Event pressed:', event);
+
+    if (!event) return;
     this.setState({selectedEvent: event}, () => {
       if (this.bottomSheetRef.current) {
         this.bottomSheetRef.current.expand();
@@ -139,10 +141,14 @@ export default class DailyCalendar extends PureComponent<DailyCalendarProps, Dai
     });
   };
 
+  toggleAddTodoModal = (isVisible: boolean) => {
+    this.setState({isAddTodoModalVisible: isVisible});
+  };
+
   private timelineProps: Partial<TimelineProps> = {
     format24h: true,
     onBackgroundLongPress: this.createNewEvent,
-    onBackgroundLongPressOut: this.approveNewEvent,
+    onBackgroundLongPressOut: this.displayAddModal,
     onEventPress: this.viewEvent,
     overlapEventsSpacing: 8,
     rightEdgeSpacing: 24,
@@ -150,7 +156,7 @@ export default class DailyCalendar extends PureComponent<DailyCalendarProps, Dai
 
   renderEventDetails = () => {
     const {selectedEvent}: {selectedEvent: TimelineEventProps | null} = this.state;
-
+    console.log('selectedEvent: ', selectedEvent);
     if (!selectedEvent) return null;
 
     return (
@@ -170,43 +176,54 @@ export default class DailyCalendar extends PureComponent<DailyCalendarProps, Dai
   };
 
   render() {
-    const {currentDate, eventsByDate} = this.state;
+    const {currentDate, eventsByDate, isAddTodoModalVisible} = this.state;
     return (
-      <CalendarProvider
-        date={currentDate}
-        onDateChanged={this.onDateChanged}
-        onMonthChange={this.onMonthChange}
-        showTodayButton
-        disabledOpacity={0.6}>
-        <ExpandableCalendar firstDay={1} markedDates={this.marked} />
-        <Animated.View style={{flex: 1}}>
-          <TimelineList
-            events={eventsByDate}
-            timelineProps={this.timelineProps}
-            showNowIndicator
-            scrollToNow
-          />
-        </Animated.View>
-        <BottomSheet
-          backdropComponent={(
-            props, // found from https://github.com/gorhom/react-native-bottom-sheet/issues/187
-          ) => (
-            <BottomSheetBackdrop
-              {...props}
-              opacity={0.5}
-              enableTouchThrough={false}
-              appearsOnIndex={0}
-              disappearsOnIndex={-1}
-              style={[{backgroundColor: 'rgba(0, 0, 0, 1)'}, StyleSheet.absoluteFillObject]}
+      <>
+        <CalendarProvider
+          date={currentDate}
+          onDateChanged={this.onDateChanged}
+          onMonthChange={this.onMonthChange}
+          showTodayButton
+          disabledOpacity={0.6}>
+          <ExpandableCalendar firstDay={1} markedDates={this.marked} />
+          <Animated.View style={{flex: 1}}>
+            <TimelineList
+              events={eventsByDate}
+              timelineProps={this.timelineProps}
+              showNowIndicator
+              scrollToNow
             />
-          )}
-          ref={this.bottomSheetRef}
-          index={-1}
-          enablePanDownToClose
-          snapPoints={['50%', '75%']}>
-          {this.renderEventDetails()}
-        </BottomSheet>
-      </CalendarProvider>
+          </Animated.View>
+          <BottomSheet
+            backdropComponent={(
+              props, // found from https://github.com/gorhom/react-native-bottom-sheet/issues/187
+            ) => (
+              <BottomSheetBackdrop
+                {...props}
+                opacity={0.5}
+                enableTouchThrough={false}
+                appearsOnIndex={0}
+                disappearsOnIndex={-1}
+                style={[{backgroundColor: 'rgba(0, 0, 0, 1)'}, StyleSheet.absoluteFillObject]}
+              />
+            )}
+            ref={this.bottomSheetRef}
+            index={-1}
+            enablePanDownToClose
+            snapPoints={['50%', '75%']}>
+            {this.renderEventDetails()}
+          </BottomSheet>
+        </CalendarProvider>
+        <AddTodoModal
+          isVisible={isAddTodoModalVisible}
+          setIsVisible={this.toggleAddTodoModal} // Use the toggle method for visibility
+          onBackdropPress={() => this.toggleAddTodoModal(false)}
+          onSubmitEditing={this.props.onSubmitEditing}
+          sections={this.props.sections}
+          propSelectedStartDate={this.state.selectedRange?.start}
+          propSelectedDueDate={this.state.selectedRange?.end}
+        />
+      </>
     );
   }
 }

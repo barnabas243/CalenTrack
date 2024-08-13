@@ -1,5 +1,14 @@
 import React, {useState, useMemo, useCallback, useRef, useEffect} from 'react';
-import {View, StyleSheet, Dimensions, Alert, TouchableOpacity} from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Dimensions,
+  Alert,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  FlatList,
+} from 'react-native';
 import Modal from 'react-native-modal';
 import {
   useTheme,
@@ -9,8 +18,6 @@ import {
   Appbar,
   Menu,
   Divider,
-  Searchbar,
-  Chip,
   Text,
 } from 'react-native-paper';
 import ToDoItem from '@/components/ToDoItem';
@@ -19,7 +26,6 @@ import DraggableFlatList, {RenderItemParams, ScaleDecorator} from 'react-native-
 import {router, useLocalSearchParams} from 'expo-router';
 import SwiperFlatList from 'react-native-swiper-flatlist';
 import {SwipeableItemImperativeRef} from 'react-native-swipeable-item';
-import {MaterialCommunityIcons} from '@expo/vector-icons';
 import {useTodo} from '@/hooks/useTodo';
 import {Section, SectionItem} from '@/store/section/types';
 import {TodoItem} from '@/store/todo/types';
@@ -30,8 +36,8 @@ import {isEqual} from 'lodash';
 import {useAuth} from '@/hooks/useAuth';
 import AddTodoModal from '@/components/modals/addTodoModal';
 import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
-
-let count = 0;
+import {AutoCompleteDropDown} from '@/components/AutoCompleteDropDown';
+import {AutocompleteDropdownItem} from 'react-native-autocomplete-dropdown';
 
 const InboxScreen = () => {
   const {colors} = useTheme();
@@ -46,31 +52,40 @@ const InboxScreen = () => {
     deleteExistingTodos,
   } = useTodo();
 
-  console.log('InboxScreen rendered ', ++count);
-
   const [isLayoutReady, setLayoutReady] = useState(false);
+
   const {id} = useLocalSearchParams();
 
   const {user} = useAuth();
 
+  const [groupedSections, setGroupedSections] = useState<Section[]>([]);
+
   const [newSectionName, setNewSectionName] = useState('');
   const [selectedSection, setSelectedSection] = useState<SectionItem | null>(null);
+
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const [isSearchVisible, setIsSearchVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isTabMenuVisible, setIsTabMenuVisible] = useState(false);
-  const [groupedSections, setGroupedSections] = useState<Section[]>([]);
 
   const [isSectionModalVisible, setSectionModalVisible] = useState(false);
   const [isAddTodoModalVisible, setIsAddTodoModalVisible] = useState(false);
+
   const [showFAB, setShowFAB] = useState(true);
 
   const editBottomSheetRef = useRef<BottomSheetModal>(null);
+
+  const swiperRef = useRef<SwiperFlatList>(null);
+  const draggableListRefs = useRef(new Map<string, FlatList<TodoItem>>());
+  const itemRefs = useRef(new Map<string, SwipeableItemImperativeRef>());
 
   const sectionNameMap = useMemo(
     () => new Map(sections.map(sec => [sec.id, sec.name])),
     [sections],
   );
+
+  const autoCompleteItems: AutocompleteDropdownItem[] = useMemo(() => {
+    const sectionItems = sections.map(sec => ({id: sec.id.toString(), title: sec.name}));
+    const todoItems = todos.map(todo => ({id: `${todo.section_id} ${todo.id}`, title: todo.title}));
+    return [...sectionItems, ...todoItems];
+  }, [sections, todos]);
 
   const showAddTodoModal = useCallback(() => setIsAddTodoModalVisible(true), []);
   const hideAddTodoModal = useCallback(() => setIsAddTodoModalVisible(false), []);
@@ -110,9 +125,6 @@ const InboxScreen = () => {
     setGroupedSections(memoizedGroupedSections);
   }, [memoizedGroupedSections]);
 
-  const swiperRef = useRef<SwiperFlatList>(null);
-  const itemRefs = useRef(new Map<string, SwipeableItemImperativeRef>());
-
   useEffect(() => {
     if (id && swiperRef.current && isLayoutReady) {
       swiperRef.current.scrollToIndex({index: parseInt(id, 10), animated: true});
@@ -140,7 +152,7 @@ const InboxScreen = () => {
 
       setSelectedSection(section);
       setNewSectionName(section.name);
-      setIsTabMenuVisible(true);
+      setSectionModalVisible(true);
     },
     [sections],
   );
@@ -155,7 +167,10 @@ const InboxScreen = () => {
     }
 
     try {
-      await deleteExistingSection(selectedSection.id);
+      const isDeleted = await deleteExistingSection(selectedSection.id);
+      if (!isDeleted) {
+        return Alert.alert('Error', 'Failed to delete section');
+      }
       setNewSectionName('');
       setSectionModalVisible(false);
     } catch {
@@ -177,12 +192,14 @@ const InboxScreen = () => {
 
     try {
       const updatedSection = {...selectedSection, name: newSectionName};
-      await updateExistingSection(updatedSection).catch(() =>
-        console.log('Error updating section'),
+      const data = await updateExistingSection(updatedSection).catch(() =>
+        console.error('Error updating section'),
       );
-      setNewSectionName('');
-      setSelectedSection(null);
-      setSectionModalVisible(false);
+      if (data) {
+        setNewSectionName('');
+        setSelectedSection(null);
+        setSectionModalVisible(false);
+      }
     } catch {
       Alert.alert('Error', 'Failed to update section');
     }
@@ -225,7 +242,7 @@ const InboxScreen = () => {
 
         // Assuming addNewSection returns the created section or an identifier
         const result = await addNewSection(newSection);
-        console.log('addNewSection result:', result);
+
         if (!result || !result.id) {
           Alert.alert('Error', 'Failed to create new section');
           return;
@@ -250,17 +267,18 @@ const InboxScreen = () => {
       }
     } catch (error) {
       console.error('An error occurred while handling submit editing:', error);
-      Alert.alert('Error', 'An unexpected error occurred');
     }
   };
 
   const onChangeIndex = (item: {index: number; prevIndex: number}) => {
     const {index, prevIndex} = item;
+
     if (index !== prevIndex) {
-      console.log('index', index); // Debug log
+      const currentSection = sections[index];
+      setSelectedSection(currentSection);
       if (index === groupedSections.length - 1) {
         setShowFAB(false);
-      } else {
+      } else if (!showFAB) {
         setShowFAB(true);
       }
     }
@@ -280,7 +298,6 @@ const InboxScreen = () => {
   };
 
   const openEditBottomSheet = (item: TodoItem) => {
-    console.log('openEditBottomSheet', item);
     if (editBottomSheetRef.current) {
       editBottomSheetRef.current.present(item);
     }
@@ -315,28 +332,80 @@ const InboxScreen = () => {
     }
   };
 
+  const onDismiss = () => {
+    console.log('EditTodoModal dismissed');
+  };
+
+  const renderPlaceholder = () => <DraggableItemPlaceholder />;
+  const renderEmptyComponent = (item: Section) =>
+    item.key === 'new_section' ? (
+      <View style={styles.centerContainer}>
+        <Button mode="contained-tonal" icon={'plus'} onPress={showAddSectionModal}>
+          Create New Section
+        </Button>
+      </View>
+    ) : (
+      <View style={styles.centerContainer}>
+        <Text variant="labelMedium">You have not added any task to the section</Text>
+      </View>
+    );
+  const renderHeaderComponent = (item: Section) => (
+    <>
+      <View style={[styles.headerContainer, {backgroundColor: colors.background}]}>
+        <TouchableOpacity onPress={() => handlePress(Number(item.key))}>
+          <Text variant="titleMedium" style={{color: colors.primary}}>
+            {item.name}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+
+  // const goToSwiperPage = useCallback(index => {
+  //   swiperRef.current?.scrollToIndex({index, animated: true});
+  // }, []);
+
+  // const findSectionIndexByName = (name: string) => {
+  //   return sections.findIndex(section => section.name.toLowerCase().includes(name.toLowerCase()));
+  // };
+
+  const findSectionIndexById = (id: number) => {
+    return sections.findIndex(section => section.id === id);
+  };
+  // Callback function to handle text changes
+  const handleSelectItem = (item: AutocompleteDropdownItem | null) => {
+    if (!item) {
+      return;
+    }
+    // Split the id by space
+    const idParts = item.id.split(' ');
+    const isTodoItem = idParts.length > 1;
+    // If the idParts has more than one element, the item id is the last element
+    const sectionId = Number(idParts[0]);
+    const sectionIndex = findSectionIndexById(sectionId);
+
+    swiperRef.current?.scrollToIndex({index: sectionIndex, animated: true});
+
+    if (isTodoItem) {
+      const itemId = idParts[1];
+      const flatListRef = draggableListRefs.current.get(sectionId.toString());
+
+      if (flatListRef && flatListRef.props.data) {
+        const index = flatListRef.props.data.findIndex((item: TodoItem) => item.id === itemId) ?? 0;
+        if (index !== -1) {
+          flatListRef.scrollToIndex({index, animated: true, viewPosition: 0.1});
+        }
+      }
+    }
+  };
+
   return (
     <View style={[styles.container, {backgroundColor: colors.background}]} onLayout={handleLayout}>
-      <Appbar.Header>
-        <Appbar.Content title="Inbox" />
-        {isSearchVisible ? (
-          <Searchbar
-            placeholder="Search"
-            onChangeText={setSearchQuery}
-            value={searchQuery}
-            onIconPress={() => setIsSearchVisible(false)}
-            style={styles.searchbar}
-            onBlur={() => setIsSearchVisible(false)}
-            blurOnSubmit
-            autoFocus
-          />
-        ) : (
-          <View style={styles.searchContainer}>
-            <Chip icon="magnify" onPress={() => setIsSearchVisible(true)}>
-              {searchQuery}
-            </Chip>
-          </View>
-        )}
+      <Appbar.Header mode="small" elevated>
+        <Appbar.Content title="Inbox" style={{flex: 1}} titleStyle={{margin: 0, padding: 0}} />
+        <View style={styles.searchContainer}>
+          <AutoCompleteDropDown data={autoCompleteItems} onSelectItem={handleSelectItem} />
+        </View>
         <Menu
           anchorPosition="bottom"
           visible={isMenuVisible}
@@ -364,110 +433,86 @@ const InboxScreen = () => {
       </Appbar.Header>
       <SwiperFlatList
         ref={swiperRef}
+        keyExtractor={item => item.key}
         data={groupedSections}
-        initialNumToRender={1}
+        initialNumToRender={3}
         onChangeIndex={onChangeIndex}
         showsVerticalScrollIndicator={false}
-        centerContent
         renderItem={({item}) => (
           <DraggableFlatList
+            ref={ref => {
+              if (ref) {
+                draggableListRefs.current.set(item.key, ref); // Set the ref for the whole list, not individual items
+              }
+            }}
             data={item.data}
             showsVerticalScrollIndicator={false}
             renderItem={renderTodoItem}
-            keyExtractor={task => task.id!.toString()}
+            keyExtractor={item => item.id!}
             onDragEnd={({data}) => handleEndDrag(data, item.name)}
             initialNumToRender={8}
             activationDistance={20}
             stickyHeaderIndices={[0]}
             containerStyle={[styles.todoList, {backgroundColor: colors.background}]}
-            renderPlaceholder={() => <DraggableItemPlaceholder />}
-            ListEmptyComponent={() =>
-              item.key === 'new_section' ? (
-                <View style={styles.centerContainer}>
-                  <Button mode="contained-tonal" icon={'plus'} onPress={showAddSectionModal}>
-                    Create New Section
-                  </Button>
-                </View>
-              ) : (
-                <View style={styles.centerContainer}>
-                  <Text variant="labelMedium">You have not added any task to the section</Text>
-                </View>
-              )
-            }
-            ListHeaderComponent={() => (
-              <>
-                <View style={[styles.headerContainer, {backgroundColor: colors.background}]}>
-                  <TouchableOpacity onPress={() => handlePress(Number(item.key))}>
-                    <Text variant="titleMedium" style={{color: colors.primary}}>
-                      {item.name}
-                    </Text>
-                  </TouchableOpacity>
-                  <Menu
-                    visible={isTabMenuVisible}
-                    onDismiss={() => setIsTabMenuVisible(false)}
-                    anchorPosition="top"
-                    anchor={
-                      <MaterialCommunityIcons
-                        name="dots-vertical"
-                        color={colors.onSurface}
-                        size={16}
-                        onPress={() => {
-                          handlePress(Number(item.key));
-                        }}
-                      />
-                    }>
-                    <Menu.Item onPress={displayDeleteSectionAlert} title="Delete" />
-                    <Menu.Item onPress={handleUpdateSection} title="Rename" />
-                  </Menu>
-                </View>
-              </>
-            )}
+            renderPlaceholder={renderPlaceholder}
+            ListEmptyComponent={renderEmptyComponent(item)}
+            ListHeaderComponent={renderHeaderComponent(item)}
           />
         )}
       />
 
-      <Modal
-        isVisible={isSectionModalVisible}
-        onBackdropPress={hideAddSectionModal}
-        onBackButtonPress={hideAddSectionModal}
-        useNativeDriver>
-        <View style={[styles.modalContent, {backgroundColor: colors.surface}]}>
-          <TextInput
-            style={styles.textInput}
-            label="Section Name"
-            value={newSectionName}
-            onChangeText={setNewSectionName}
-            error={isSectionNameInvalid}
-          />
-          {isSectionNameInvalid && (
-            <HelperText type="error">
-              {newSectionName === ''
-                ? 'Section name must be 1-20 characters long without spaces'
-                : /\s/.test(newSectionName)
-                  ? 'Section name cannot contain spaces.'
-                  : newSectionName.length > 20
-                    ? 'Section name must be 20 characters or fewer.'
-                    : ''}
-            </HelperText>
-          )}
-          <View style={{flexDirection: 'row', justifyContent: 'flex-end'}}>
-            <Button onPress={hideAddSectionModal}>Cancel</Button>
-            <Button onPress={handleAddSection} disabled={isSectionNameInvalid}>
-              Add Section
-            </Button>
-          </View>
-        </View>
-      </Modal>
-
       <BottomSheetModalProvider>
+        <Modal
+          isVisible={isSectionModalVisible}
+          onBackdropPress={hideAddSectionModal}
+          onBackButtonPress={hideAddSectionModal}
+          useNativeDriver>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{
+              flex: 1,
+              justifyContent: 'flex-end',
+            }}>
+            <View style={[styles.modalContent, {backgroundColor: colors.surface}]}>
+              <TextInput
+                style={styles.textInput}
+                label="Section Name"
+                value={newSectionName}
+                onChangeText={setNewSectionName}
+                error={isSectionNameInvalid}
+                autoFocus
+                right={
+                  <TextInput.Icon
+                    icon={isSectionNameInvalid ? 'arrow-right-bold' : 'arrow-right-bold-circle'}
+                    color={isSectionNameInvalid ? colors.error : colors.primary}
+                    disabled={isSectionNameInvalid}
+                    onPress={selectedSection ? handleUpdateSection : handleAddSection}
+                  />
+                }
+              />
+              {isSectionNameInvalid && (
+                <HelperText type="error">
+                  {newSectionName === ''
+                    ? 'Section name must be 1-20 characters long without spaces'
+                    : /\s/.test(newSectionName)
+                      ? 'Section name cannot contain spaces.'
+                      : newSectionName.length > 20
+                        ? 'Section name must be 20 characters or fewer.'
+                        : ''}
+                </HelperText>
+              )}
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
         <AddTodoModal
           isVisible={isAddTodoModalVisible}
           setIsVisible={setIsAddTodoModalVisible}
           onBackdropPress={hideAddTodoModal}
           onSubmitEditing={handleSubmitEditing}
           sections={sections}
+          propSelectedSectionName=""
         />
-        <EditTodoModal ref={editBottomSheetRef} onDismiss={() => console.log('dismissed modal')}>
+        <EditTodoModal ref={editBottomSheetRef} onDismiss={onDismiss}>
           {data => (
             <EditTodoModalContent
               todo={data.data}
@@ -500,7 +545,8 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     flex: 1,
-    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+    width: '100%',
   },
   todoList: {
     padding: 16,
@@ -522,6 +568,10 @@ const styles = StyleSheet.create({
   textInput: {
     width: '100%',
     marginBottom: 16,
+  },
+  paginationStyleItem: {
+    width: 10,
+    height: 10,
   },
 });
 

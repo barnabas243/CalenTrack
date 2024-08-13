@@ -51,11 +51,14 @@ export const updateSectionName = createAsyncThunk(
 );
 
 // Thunk to delete a section
-export const deleteSectionByID = createAsyncThunk('sections/deleteSection', async (id: number) => {
-  const {error} = await supabase.from('sections').delete().eq('id', id);
-  if (error) throw error;
-  return id; // Return the deleted ID
-});
+export const deleteSectionById = createAsyncThunk(
+  'sections/deleteSectionById',
+  async (id: number) => {
+    const {error} = await supabase.from('sections').delete().eq('id', id);
+    if (error) throw error;
+    return id; // Return the deleted ID
+  },
+);
 
 const sectionSlice = createSlice({
   name: 'sections',
@@ -110,14 +113,14 @@ const sectionSlice = createSlice({
         state.loading = false;
         state.error = action.error.message || 'Failed to update section';
       })
-      .addCase(deleteSectionByID.pending, state => {
+      .addCase(deleteSectionById.pending, state => {
         state.loading = true;
       })
-      .addCase(deleteSectionByID.fulfilled, (state, action) => {
+      .addCase(deleteSectionById.fulfilled, (state, action) => {
         state.loading = false;
         state.sections = state.sections.filter(section => section.id !== action.payload);
       })
-      .addCase(deleteSectionByID.rejected, (state, action) => {
+      .addCase(deleteSectionById.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to delete section';
       });

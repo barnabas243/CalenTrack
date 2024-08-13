@@ -10,8 +10,11 @@ import EditTodoModal from '../modals/EditTodoModal';
 import EditTodoModalContent from '../modals/EditTodoModalContent';
 import {SectionItem} from '@/store/section/types';
 import {TodoItem} from '@/store/todo/types';
+import AddTodoFAB from '../addTodoFAB';
+import AddTodoModal from '../modals/addTodoModal';
 interface State {
   items?: Record<string, TodoItem[]>;
+  isAddTodoModalVisible: boolean;
 }
 
 interface Props {
@@ -24,6 +27,7 @@ interface Props {
   sections: SectionItem[];
   toggleCompleteTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
+  onSubmitEditing: (todo: TodoItem) => void;
 }
 export default class AgendaCalendar extends PureComponent<Props, State> {
   private agendaRef = createRef<Agenda>();
@@ -31,11 +35,19 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
 
   state: State = {
     items: {},
+    isAddTodoModalVisible: false,
+  };
+
+  toggleAddTodoModal = (isVisible: boolean) => {
+    this.setState({isAddTodoModalVisible: isVisible});
+  };
+
+  showAddTodoModal = () => {
+    this.setState({isAddTodoModalVisible: true});
   };
 
   componentDidUpdate(prevProps: Props) {
     if (!isEqual(prevProps.monthlyTodoRecord, this.props.monthlyTodoRecord)) {
-      console.log('monthlyTodoRecord updated');
       const selectedDate = dayjs(this.props.selectedDate);
       const dateData: DateData = {
         dateString: selectedDate.format('YYYY-MM-DD'),
@@ -83,6 +95,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
     }
   };
   render() {
+    const {isAddTodoModalVisible} = this.state;
     return (
       <>
         <Agenda
@@ -114,6 +127,15 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
           onDayPress={this.onDayPress}
         />
         <BottomSheetModalProvider>
+          <AddTodoModal
+            isVisible={isAddTodoModalVisible}
+            setIsVisible={this.toggleAddTodoModal} // Use the toggle method for visibility
+            onBackdropPress={() => this.toggleAddTodoModal(false)}
+            onSubmitEditing={this.props.onSubmitEditing}
+            sections={this.props.sections}
+            propSelectedStartDate={dayjs(this.props.selectedDate).startOf('day').toDate()}
+            propSelectedDueDate={dayjs(this.props.selectedDate).endOf('day').toDate()}
+          />
           <EditTodoModal
             ref={this.editBottomSheetRef}
             onDismiss={() => console.log('dismissed modal')}>
@@ -127,12 +149,12 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
             )}
           </EditTodoModal>
         </BottomSheetModalProvider>
+
+        <AddTodoFAB onPress={this.showAddTodoModal} />
       </>
     );
   }
   loadItemsForMonth = (day: DateData) => {
-    console.log('loadItemsForMonth', day);
-
     // Calculate the range from 12 months before to 12 months after
     const startDate = dayjs(day.timestamp).subtract(12, 'month').startOf('month');
     const endDate = dayjs(day.timestamp).add(12, 'month').endOf('month');

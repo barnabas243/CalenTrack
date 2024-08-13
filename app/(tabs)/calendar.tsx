@@ -13,6 +13,7 @@ import {MonthlyTodo, TodoItem} from '@/store/todo/types';
 import {TimelineEventProps} from 'react-native-calendars';
 import {isEqual} from 'lodash';
 import {useAuth} from '@/hooks/useAuth';
+import {ICalendarEventBase} from 'react-native-big-calendar';
 
 export type Mode = 'month' | 'day' | 'week' | 'agenda';
 
@@ -25,6 +26,7 @@ const CalendarPage = () => {
     useTodo();
 
   const {user} = useAuth();
+
   const [mode, setMode] = useState<Mode>('month');
   const [selectedDate, setSelectedDate] = useState(dayjs(new Date()).format('YYYY-MM-DD'));
   const [expanded, setExpanded] = useState(false);
@@ -71,11 +73,10 @@ const CalendarPage = () => {
   }, [todos]); // Recompute when todos or sections change
 
   useEffect(() => {
-    console.log('Updating monthlyTodoArray:');
     setMonthlyTodoArray(newMonthlyTodoArray);
   }, [newMonthlyTodoArray]);
 
-  const {monthlyTodoRecord, timelineTodoEvents} = useMemo(() => {
+  const {monthlyTodoRecord, timelineTodoEvents, weekTimelineEvents} = useMemo(() => {
     // Helper function to generate an array of dates
     const generateDateRange = (startDate: dayjs.Dayjs, days: number): string[] => {
       return Array.from({length: days}, (_, i) => startDate.add(i, 'day').format('YYYY-MM-DD'));
@@ -120,10 +121,21 @@ const CalendarPage = () => {
         color: colors.onPrimaryContainer,
       }));
 
+    const weekTimelineEvents: ICalendarEventBase[] = todos
+      .filter(todo => todo.start_date && todo.due_date) // Filter todos with both start_date and due_date
+      .map(todo => ({
+        start: dayjs(todo.start_date!).toDate(),
+        end: dayjs(todo.due_date!).toDate(),
+        title: todo.title,
+        summary: todo.summary,
+        color: colors.onPrimaryContainer,
+      }));
+
     return {
       monthlyTodoArray: monthlyTodoArray,
       monthlyTodoRecord: monthlyTodoRecord,
       timelineTodoEvents: timelineTodoEvents,
+      weekTimelineEvents: weekTimelineEvents,
     };
   }, [colors, monthlyTodoArray, todos]); // Only re-compute when todos change
 
@@ -170,7 +182,6 @@ const CalendarPage = () => {
 
           // Assuming addNewSection returns the created section or an identifier
           const result = await addNewSection(newSection);
-          console.log('addNewSection result:', result);
           if (!result || !result.id) {
             Alert.alert('Error', 'Failed to create new section');
             return;
@@ -218,7 +229,6 @@ const CalendarPage = () => {
     };
     const handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
       // Check if the todo has been updated using deep comparison
-      console.log('handleEditModalDismiss');
       if (!isEqual(updatedTodo, selectedTodo)) {
         updateExistingTodos([updatedTodo]);
       }
@@ -231,10 +241,21 @@ const CalendarPage = () => {
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
             colors={colors}
+            onSubmitEditing={handleSubmitEditing}
+            sections={sections}
           />
         );
       case 'week':
-        return <WeekCalendar selectedDate={selectedDate} setSelectedDate={setSelectedDate} />;
+        return (
+          <WeekCalendar
+            selectedDate={selectedDate}
+            events={weekTimelineEvents}
+            setSelectedDate={setSelectedDate}
+            colors={colors}
+            onSubmitEditing={handleSubmitEditing}
+            sections={sections}
+          />
+        );
       case 'agenda':
         return (
           <AgendaCalendar
@@ -247,6 +268,7 @@ const CalendarPage = () => {
             deleteTodo={deleteTodo}
             sections={sections}
             onDismiss={handleEditModalDismiss}
+            onSubmitEditing={handleSubmitEditing}
           />
         );
       case 'month':
@@ -275,11 +297,12 @@ const CalendarPage = () => {
     timelineTodoEvents,
     selectedDate,
     colors,
-    monthlyTodoRecord,
+    handleSubmitEditing,
     sections,
+    weekTimelineEvents,
+    monthlyTodoRecord,
     monthlyTodoArray,
     handleEndDrag,
-    handleSubmitEditing,
   ]);
 
   const onMenuPress = useCallback(() => setExpanded(prev => !prev), []);

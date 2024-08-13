@@ -7,6 +7,9 @@ import {MaterialBottomTabs} from '@/layouts/material-bottom-tabs';
 import {MaterialCommunityIcons} from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import advancedFormat from 'dayjs/plugin/advancedFormat';
+
+dayjs.extend(advancedFormat);
 
 export default function Layout() {
   const {colors} = useTheme();

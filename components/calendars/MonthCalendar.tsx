@@ -56,12 +56,6 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
     } as MutableRefObject<Map<string, SwipeableItemImperativeRef>>;
   }
 
-  componentDidMount() {
-    // Log refs after the component has mounted
-    console.log('swiperRef current:', this.swiperRef.current);
-    console.log('editBottomSheetRef current:', this.editBottomSheetRef.current);
-  }
-
   componentDidUpdate(prevProps: MonthCalendarProps) {
     if (prevProps.monthlyTodoArray !== this.props.monthlyTodoArray) {
       this.setState({
@@ -114,7 +108,6 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
   };
 
   openEditBottomSheet = (item: TodoItem) => {
-    console.log('openEditBottomSheet', item);
     if (this.editBottomSheetRef.current) {
       this.editBottomSheetRef.current.present(item);
     } else {
@@ -218,6 +211,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
             onBackdropPress={this.hideAddTodoModal}
             onSubmitEditing={this.props.onSubmitEditing}
             sections={this.props.sections}
+            propSelectedDueDate={dayjs(selectedDate).toDate()}
           />
           <EditTodoModal
             ref={this.editBottomSheetRef}

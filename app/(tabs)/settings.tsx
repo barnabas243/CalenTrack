@@ -1,5 +1,5 @@
 import React, {useCallback, useState} from 'react';
-import {Alert, SectionList, View, StyleSheet, ColorSchemeName} from 'react-native';
+import {Alert, SectionList, View, StyleSheet, ColorSchemeName, Appearance} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {supabase} from '@/utils/supabase';
 import {
@@ -16,9 +16,9 @@ import {
   useTheme,
 } from 'react-native-paper';
 import {StatusBar} from 'expo-status-bar';
-import {Appearance} from 'react-native';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import {useAuth} from '@/hooks/useAuth';
+import {AuthError} from '@supabase/supabase-js';
 
 export type Theme = 'system' | 'dark' | 'light';
 
@@ -31,10 +31,10 @@ const iconMapping = {
   terms: 'file-document-outline',
   logout: 'logout',
 };
-let count = 0;
+
 export default function SettingsPage() {
-  console.log('SettingsPage rendered ', ++count);
   const {user, isLoading} = useAuth();
+
   const {colors} = useTheme();
 
   const [theme, setTheme] = useState<Theme>('system');
@@ -44,7 +44,6 @@ export default function SettingsPage() {
   const hideModal = useCallback(() => setVisible(false), []);
 
   const handleThemeChange = useCallback((value: string) => {
-    console.log('Theme changed to:', value);
     setTheme(value as Theme);
     Appearance.setColorScheme(value === 'system' ? null : (value as ColorSchemeName));
   }, []);
@@ -65,7 +64,8 @@ export default function SettingsPage() {
       // For example, redirect to the login screen or update state
       // router.replace('/login');
     } catch (error) {
-      Alert.alert('Error Signing Out', error.message);
+      if (error instanceof AuthError) Alert.alert('Error Signing Out', error.message);
+      if (error instanceof Error) Alert.alert('Error Signing Out', error.message);
     }
   }, [user]);
 
