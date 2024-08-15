@@ -13,12 +13,10 @@ import groupBy from 'lodash/groupBy';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
 import Animated from 'react-native-reanimated';
 import AddTodoModal from '../modals/addTodoModal';
-import {SectionItem} from '@/store/section/types';
-import {TodoItem} from '@/store/todo/types';
-
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import {Section, Todo} from '@/powersync/AppSchema';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -37,8 +35,8 @@ interface DailyCalendarProps {
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   colors: MD3Colors;
-  sections: SectionItem[];
-  onSubmitEditing: (todo: TodoItem) => void;
+  sections: Section[];
+  onSubmitEditing: (todo: Todo) => void;
 }
 
 export default class DailyCalendar extends PureComponent<DailyCalendarProps, DailyCalendarState> {

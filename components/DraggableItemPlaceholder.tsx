@@ -15,7 +15,7 @@ const DraggableItemPlaceholder = () => {
     shadowRadius: 4, // Shadow radius
   };
 
-  return <View style={[styles.container, colorsStyle]} />;
+  return <View testID="draggable-item-placeholder" style={[styles.container, colorsStyle]} />;
 };
 
 const styles = StyleSheet.create({

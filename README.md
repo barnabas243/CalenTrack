@@ -18,16 +18,22 @@ CalenTRACK is a mobile task management app that puts the calendar view at the ce
 
 ### Back-End
 
-- **Supabase **:
+- **Supabase**:
   Leverage the robust capabilities of Supabase for your backend needs, including data storage, authentication, and real-time updates.
 
 ## Getting Started
+
+This repository uses Yarn to install packages. Install Yarn with npm
+
+```Node
+  npm install --global yarn
+```
 
 To get started with CalenTRACK, follow these simple steps:
 
 1. **Clone the Repository**:
 
-```
+```Node
     git clone https://github.com/barnabas243/CalenTrack.git
     cd CalenTRACK
 ```

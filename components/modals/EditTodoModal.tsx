@@ -3,11 +3,12 @@ import {BottomSheetBackdrop, BottomSheetModal, BottomSheetView} from '@gorhom/bo
 import {BackHandler, StyleSheet} from 'react-native';
 import {useTheme} from 'react-native-paper';
 import {BottomSheetModalMethods} from '@gorhom/bottom-sheet/lib/typescript/types';
-import {TodoItem} from '@/store/todo/types';
+
 import {BottomSheetDefaultBackdropProps} from '@gorhom/bottom-sheet/lib/typescript/components/bottomSheetBackdrop/types';
+import {Todo} from '@/powersync/AppSchema';
 
 export interface EditTodoModalProps {
-  children: (data: TodoItem) => React.ReactNode;
+  children: (data: Todo) => React.ReactNode;
   onDismiss: () => void;
 }
 
@@ -56,7 +57,7 @@ const EditTodoModal = forwardRef<BottomSheetModalMethods, EditTodoModalProps>(
         // handleIndicatorStyle={{backgroundColor: colors.onSurface}}
         onDismiss={props.onDismiss}
         stackBehavior="replace">
-        {(data: TodoItem) => (
+        {(data: Todo) => (
           <BottomSheetView style={styles.contentContainer}>
             {typeof children === 'function' ? children(data) : children}
           </BottomSheetView>

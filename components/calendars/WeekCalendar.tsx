@@ -1,5 +1,3 @@
-import {SectionItem} from '@/store/section/types';
-import {TodoItem} from '@/store/todo/types';
 import BottomSheet, {BottomSheetBackdrop} from '@gorhom/bottom-sheet';
 import dayjs from 'dayjs';
 import React, {useCallback, useMemo, useState} from 'react';
@@ -8,14 +6,15 @@ import {Calendar, ICalendarEventBase} from 'react-native-big-calendar';
 import {Divider, Text} from 'react-native-paper';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
 import AddTodoModal from '../modals/addTodoModal';
+import {Section, Todo} from '@/powersync/AppSchema';
 
 export interface WeekCalendarProps {
   events: ICalendarEventBase[];
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   colors: MD3Colors;
-  sections: SectionItem[];
-  onSubmitEditing: (todo: TodoItem) => void;
+  sections: Section[];
+  onSubmitEditing: (todo: Todo) => void;
 }
 
 const WeekCalendar = ({
@@ -95,6 +94,7 @@ const WeekCalendar = ({
         height={height - 60}
         events={filteredEvents}
         maxVisibleEventCount={3}
+        showAllDayEventCell
         onLongPressCell={addLongEvent}
         onPressCell={addEvent}
         onPressEvent={event => {

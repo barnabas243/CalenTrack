@@ -20,15 +20,13 @@ import {
   Divider,
   Text,
 } from 'react-native-paper';
-import ToDoItem from '@/components/ToDoItem';
 import AddTodoFAB from '@/components/addTodoFAB';
 import DraggableFlatList, {RenderItemParams, ScaleDecorator} from 'react-native-draggable-flatlist';
 import {router, useLocalSearchParams} from 'expo-router';
 import SwiperFlatList from 'react-native-swiper-flatlist';
 import {SwipeableItemImperativeRef} from 'react-native-swipeable-item';
 import {useTodo} from '@/hooks/useTodo';
-import {Section, SectionItem} from '@/store/section/types';
-import {TodoItem} from '@/store/todo/types';
+import {SectionWithTodos} from '@/store/section/types';
 import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import EditTodoModal from '@/components/modals/EditTodoModal';
 import EditTodoModalContent from '@/components/modals/EditTodoModalContent';
@@ -38,6 +36,8 @@ import AddTodoModal from '@/components/modals/addTodoModal';
 import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
 import {AutoCompleteDropDown} from '@/components/AutoCompleteDropDown';
 import {AutocompleteDropdownItem} from 'react-native-autocomplete-dropdown';
+import {Todo, Section} from '@/powersync/AppSchema';
+import ToDoItem from '@/components/ToDoItem';
 
 const InboxScreen = () => {
   const {colors} = useTheme();
@@ -58,10 +58,10 @@ const InboxScreen = () => {
 
   const {user} = useAuth();
 
-  const [groupedSections, setGroupedSections] = useState<Section[]>([]);
+  const [groupedSections, setGroupedSections] = useState<SectionWithTodos[]>([]);
 
   const [newSectionName, setNewSectionName] = useState('');
-  const [selectedSection, setSelectedSection] = useState<SectionItem | null>(null);
+  const [selectedSection, setSelectedSection] = useState<Section | null>(null);
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
 
@@ -73,7 +73,7 @@ const InboxScreen = () => {
   const editBottomSheetRef = useRef<BottomSheetModal>(null);
 
   const swiperRef = useRef<SwiperFlatList>(null);
-  const draggableListRefs = useRef(new Map<string, FlatList<TodoItem>>());
+  const draggableListRefs = useRef(new Map<string, FlatList<Todo>>());
   const itemRefs = useRef(new Map<string, SwipeableItemImperativeRef>());
 
   const sectionNameMap = useMemo(
@@ -99,14 +99,14 @@ const InboxScreen = () => {
       }
       acc.get(sectionId)!.push(item);
       return acc;
-    }, new Map<number, TodoItem[]>());
+    }, new Map<number, Todo[]>());
 
     // Create a list of updated sections with todos
     const updatedSections = Array.from(sectionNameMap.entries()).map(
       ([sectionId, sectionName]) => ({
         key: sectionId.toString(),
         name: sectionName || 'Unknown',
-        data: groupedSectionsData.get(sectionId) || [], // Use empty array if no todos
+        data: groupedSectionsData.get(Number(sectionId)) || [], // Use empty array if no todos
       }),
     );
 
@@ -147,11 +147,11 @@ const InboxScreen = () => {
 
   const handlePress = useCallback(
     (sectionId: number) => {
-      const section = sections.find(sec => sec.id === sectionId);
+      const section = sections.find(sec => Number(sec.id) === sectionId);
       if (!section) return;
 
       setSelectedSection(section);
-      setNewSectionName(section.name);
+      setNewSectionName(section.name!);
       setSectionModalVisible(true);
     },
     [sections],
@@ -162,12 +162,12 @@ const InboxScreen = () => {
       return;
     }
 
-    if (selectedSection.id === 1) {
+    if (selectedSection.id === '1') {
       return Alert.alert('Error', 'Cannot delete Inbox section');
     }
 
     try {
-      const isDeleted = await deleteExistingSection(selectedSection.id);
+      const isDeleted = await deleteExistingSection(Number(selectedSection.id));
       if (!isDeleted) {
         return Alert.alert('Error', 'Failed to delete section');
       }
@@ -215,13 +215,13 @@ const InboxScreen = () => {
   const hideAddSectionModal = useCallback(() => setSectionModalVisible(false), []);
 
   const handleEndDrag = useCallback(
-    (data: TodoItem[], sectionName: string) => {
+    (data: Todo[], sectionName: string) => {
       const sectionMap = new Map(sections.map(sec => [sec.name, sec.id]));
 
       const sectionId = sectionMap.get(sectionName);
       if (sectionId === undefined) return;
 
-      const sectionData = data.map(item => ({...item, section_id: sectionId}));
+      const sectionData = data.map(item => ({...item, section_id: Number(sectionId)}));
 
       const updatedSections = groupedSections.map(sec =>
         sec.name === sectionName ? {...sec, data: sectionData} : sec,
@@ -232,31 +232,32 @@ const InboxScreen = () => {
     [groupedSections, sections],
   );
 
-  const handleSubmitEditing = async (newTodo: TodoItem, selectedSection = 'Inbox') => {
+  const handleSubmitEditing = async (newTodo: Todo, selectedSection = 'Inbox') => {
     if (!newTodo) return;
 
     try {
-      if (selectedSection !== 'Inbox' && !newTodo.section_id) {
+      if (
+        selectedSection.trim().length > 0 &&
+        selectedSection.trim() !== 'Inbox' &&
+        !newTodo.section_id
+      ) {
         // Create a new section if it doesn't exist
-        const newSection = {name: selectedSection, user_id: user!.id};
+        const newSection = {name: selectedSection.trim(), user_id: user!.id};
 
         // Assuming addNewSection returns the created section or an identifier
         const result = await addNewSection(newSection);
-
         if (!result || !result.id) {
           Alert.alert('Error', 'Failed to create new section');
           return;
         }
 
         // Add section ID to newTodo and then add the todo
-        const updatedTodo = {...newTodo, section_id: result.id};
+        const updatedTodo = {...newTodo, section_id: Number(result.id)};
         const todoResult = await addNewTodo(updatedTodo);
 
         if (!todoResult) {
           Alert.alert('Error', 'Failed to add new todo');
-          return;
         }
-        swiperRef.current?.scrollToIndex({index: groupedSections.length - 2});
       } else {
         // If section_id is present or selectedSection is 'Inbox', directly add the todo
         const todoResult = await addNewTodo(newTodo);
@@ -267,6 +268,7 @@ const InboxScreen = () => {
       }
     } catch (error) {
       console.error('An error occurred while handling submit editing:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
     }
   };
 
@@ -275,39 +277,38 @@ const InboxScreen = () => {
 
     if (index !== prevIndex) {
       const currentSection = sections[index];
-      setSelectedSection(currentSection);
       if (index === groupedSections.length - 1) {
         setShowFAB(false);
       } else if (!showFAB) {
         setShowFAB(true);
       }
+
+      setSelectedSection(currentSection);
     }
   };
 
   const toggleCompleteTodo = (id: string) => {
     const todo = todos.find(todo => todo.id === id);
     if (todo) {
-      updateExistingTodos([
-        {
-          ...todo,
-          completed: !todo.completed,
-          completed_at: todo.completed ? null : new Date().toISOString(),
-        },
-      ]);
+      updateExistingTodos({
+        ...todo,
+        completed: todo.completed === 1 ? 0 : 1,
+        completed_at: todo.completed === 1 ? null : new Date().toISOString(),
+      });
     }
   };
 
-  const openEditBottomSheet = (item: TodoItem) => {
+  const openEditBottomSheet = (item: Todo) => {
     if (editBottomSheetRef.current) {
       editBottomSheetRef.current.present(item);
     }
   };
 
   const deleteTodo = (id: string) => {
-    deleteExistingTodos([id]);
+    deleteExistingTodos(id);
   };
 
-  const renderTodoItem = (params: RenderItemParams<TodoItem>) => (
+  const renderTodoItem = (params: RenderItemParams<Todo>) => (
     <ScaleDecorator>
       <ToDoItem
         {...params}
@@ -317,7 +318,6 @@ const InboxScreen = () => {
         openEditBottomSheet={openEditBottomSheet}
         deleteTodo={deleteTodo}
         sections={sections}
-        enableSwipe={true}
       />
     </ScaleDecorator>
   );
@@ -326,9 +326,9 @@ const InboxScreen = () => {
     setLayoutReady(true);
   };
 
-  const handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+  const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
     if (!isEqual(updatedTodo, selectedTodo)) {
-      updateExistingTodos([updatedTodo]);
+      updateExistingTodos(updatedTodo);
     }
   };
 
@@ -337,7 +337,7 @@ const InboxScreen = () => {
   };
 
   const renderPlaceholder = () => <DraggableItemPlaceholder />;
-  const renderEmptyComponent = (item: Section) =>
+  const renderEmptyComponent = (item: SectionWithTodos) =>
     item.key === 'new_section' ? (
       <View style={styles.centerContainer}>
         <Button mode="contained-tonal" icon={'plus'} onPress={showAddSectionModal}>
@@ -349,7 +349,7 @@ const InboxScreen = () => {
         <Text variant="labelMedium">You have not added any task to the section</Text>
       </View>
     );
-  const renderHeaderComponent = (item: Section) => (
+  const renderHeaderComponent = (item: SectionWithTodos) => (
     <>
       <View style={[styles.headerContainer, {backgroundColor: colors.background}]}>
         <TouchableOpacity onPress={() => handlePress(Number(item.key))}>
@@ -370,7 +370,7 @@ const InboxScreen = () => {
   // };
 
   const findSectionIndexById = (id: number) => {
-    return sections.findIndex(section => section.id === id);
+    return sections.findIndex(sec => Number(sec.id) === id);
   };
   // Callback function to handle text changes
   const handleSelectItem = (item: AutocompleteDropdownItem | null) => {
@@ -391,13 +391,15 @@ const InboxScreen = () => {
       const flatListRef = draggableListRefs.current.get(sectionId.toString());
 
       if (flatListRef && flatListRef.props.data) {
-        const index = flatListRef.props.data.findIndex((item: TodoItem) => item.id === itemId) ?? 0;
+        const index = Array.from(flatListRef.props.data).findIndex(todo => todo.id === itemId);
         if (index !== -1) {
           flatListRef.scrollToIndex({index, animated: true, viewPosition: 0.1});
         }
       }
     }
   };
+
+  const memoizedSelectedSectionName = useMemo(() => selectedSection?.name ?? '', [selectedSection]);
 
   return (
     <View style={[styles.container, {backgroundColor: colors.background}]} onLayout={handleLayout}>
@@ -435,6 +437,7 @@ const InboxScreen = () => {
         ref={swiperRef}
         keyExtractor={item => item.key}
         data={groupedSections}
+        showPagination
         initialNumToRender={3}
         onChangeIndex={onChangeIndex}
         showsVerticalScrollIndicator={false}
@@ -472,6 +475,7 @@ const InboxScreen = () => {
             style={{
               flex: 1,
               justifyContent: 'flex-end',
+              paddingBottom: 50,
             }}>
             <View style={[styles.modalContent, {backgroundColor: colors.surface}]}>
               <TextInput
@@ -504,14 +508,16 @@ const InboxScreen = () => {
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
         <AddTodoModal
           isVisible={isAddTodoModalVisible}
           setIsVisible={setIsAddTodoModalVisible}
           onBackdropPress={hideAddTodoModal}
           onSubmitEditing={handleSubmitEditing}
           sections={sections}
-          propSelectedSectionName=""
+          propSelectedSectionName={memoizedSelectedSectionName}
         />
+
         <EditTodoModal ref={editBottomSheetRef} onDismiss={onDismiss}>
           {data => (
             <EditTodoModalContent

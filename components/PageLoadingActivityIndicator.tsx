@@ -5,8 +5,10 @@ import {useTheme} from 'react-native-paper';
 const PageLoadingActivityIndicator = () => {
   const {colors} = useTheme();
   return (
-    <View style={[styles.container, {backgroundColor: colors.background}]}>
-      <ActivityIndicator size="large" color={colors.primary} />
+    <View
+      testID="activity-indicator-container"
+      style={[styles.container, {backgroundColor: colors.background}]}>
+      <ActivityIndicator testID="activity-indicator" size="large" color={colors.primary} />
     </View>
   );
 };

@@ -1,12 +1,11 @@
-import {SectionItem} from '@/store/section/types';
-import {TodoItem} from '@/store/todo/types';
+import {Section, Todo} from '@/powersync/AppSchema';
 
 export interface AddTodoModalProps {
   isVisible: boolean;
   setIsVisible: (visible: boolean) => void;
   onBackdropPress: () => void;
-  onSubmitEditing: (newTodo: TodoItem, selectedSection: string) => void;
-  sections: SectionItem[];
+  onSubmitEditing: (newTodo: Todo, selectedSection: string) => void;
+  sections: Section[];
   propSelectedSectionName?: string;
   propSelectedStartDate?: Date | undefined;
   propSelectedDueDate?: Date | undefined;

@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Alert, StyleSheet, TouchableOpacity, View} from 'react-native';
-import {Text, ActivityIndicator, useTheme, Divider, Appbar, Menu, Button} from 'react-native-paper';
+import {Text, useTheme, Divider, Appbar, Menu, Button} from 'react-native-paper';
 import ToDoItem from '@/components/ToDoItem';
 import {StatusBar} from 'expo-status-bar';
 import {useTodo} from '@/hooks/useTodo';
@@ -27,7 +27,6 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import {TodoItem} from '@/store/todo/types';
 import EditTodoModal from '@/components/modals/EditTodoModal';
 import {BottomSheetDefaultBackdropProps} from '@gorhom/bottom-sheet/lib/typescript/components/bottomSheetBackdrop/types';
 import {isEqual} from 'lodash';
@@ -36,6 +35,7 @@ import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
 import AddTodoModal from '@/components/modals/addTodoModal';
 import {useAuth} from '@/hooks/useAuth';
 import PageLoadingActivityIndicator from '@/components/PageLoadingActivityIndicator';
+import {Todo} from '@/powersync/AppSchema';
 
 export type sortByType = 'date' | 'title' | 'section' | 'priority';
 export type sortDirectionType = 'asc' | 'desc';
@@ -45,7 +45,7 @@ export interface SortType {
   direction: sortDirectionType;
 }
 
-const filterTodos = (sortedTodos: TodoItem[], filterType: 'overdue' | 'today' | 'completed') => {
+const filterTodos = (sortedTodos: Todo[], filterType: 'overdue' | 'today' | 'completed') => {
   const todayDate = dayjs();
   const yesterday = todayDate.subtract(1, 'day');
 
@@ -71,7 +71,7 @@ const filterTodos = (sortedTodos: TodoItem[], filterType: 'overdue' | 'today' | 
   }
 };
 
-const sortTodos = (todos: TodoItem[], sortBy: sortByType, direction: sortDirectionType = 'asc') => {
+const sortTodos = (todos: Todo[], sortBy: sortByType, direction: sortDirectionType = 'asc') => {
   const sortedTodos = todos.slice(); // Make a copy of the array to avoid mutating the original
 
   switch (sortBy) {
@@ -79,7 +79,7 @@ const sortTodos = (todos: TodoItem[], sortBy: sortByType, direction: sortDirecti
       sortedTodos.sort((a, b) => dayjs(a.due_date).diff(dayjs(b.due_date)));
       break;
     case 'title':
-      sortedTodos.sort((a, b) => a.title.localeCompare(b.title));
+      sortedTodos.sort((a, b) => a.title!.localeCompare(b.title!));
       break;
     case 'section':
       sortedTodos.sort((a, b) => (a.section_id ?? 0) - (b.section_id ?? 0));
@@ -104,9 +104,9 @@ const HomeScreen = () => {
   const {todos, sections, deleteExistingTodos, updateExistingTodos, addNewSection, addNewTodo} =
     useTodo();
 
-  const [overdueTodos, setOverdueTodos] = useState<TodoItem[]>([]);
-  const [todayTodos, setTodayTodos] = useState<TodoItem[]>([]);
-  const [completedTodos, setCompletedTodos] = useState<TodoItem[]>([]);
+  const [overdueTodos, setOverdueTodos] = useState<Todo[]>([]);
+  const [todayTodos, setTodayTodos] = useState<Todo[]>([]);
+  const [completedTodos, setCompletedTodos] = useState<Todo[]>([]);
 
   const [sortBy, setSortBy] = useState<sortByType>('date');
   const [sortDirection, setSortDirection] = useState<sortDirectionType>('asc');
@@ -224,7 +224,7 @@ const HomeScreen = () => {
     [],
   );
 
-  const handleEndDrag = (results: TodoItem[], name: string) => {
+  const handleEndDrag = (results: Todo[], name: string) => {
     switch (name) {
       case 'overdue':
         setOverdueTodos(results);
@@ -256,27 +256,28 @@ const HomeScreen = () => {
   const toggleCompleteTodo = (id: string) => {
     const todo = todos.find(todo => todo.id === id);
     if (todo) {
-      updateExistingTodos([
-        {
-          ...todo,
-          completed: !todo.completed,
-          completed_at: todo.completed ? null : new Date().toString(),
-        },
-      ]);
+      updateExistingTodos({
+        ...todo,
+        completed: !todo.completed ? 1 : 0,
+        completed_at: todo.completed ? null : new Date().toString(),
+      });
     }
   };
 
-  const openEditBottomSheet = (item: TodoItem) => {
+  const openEditBottomSheet = (item: Todo) => {
     if (editBottomSheetRef.current) {
       editBottomSheetRef.current.present(item);
     }
   };
 
-  const deleteTodo = (id: string) => {
-    deleteExistingTodos([id]);
+  const deleteTodo = async (id: string) => {
+    const deleted = await deleteExistingTodos(id);
+    if (!deleted) {
+      Alert.alert('Error', 'Failed to delete todo');
+    }
   };
 
-  const renderTodoItem = (params: RenderItemParams<TodoItem>) => (
+  const renderTodoItem = (params: RenderItemParams<Todo>) => (
     <ScaleDecorator>
       <ToDoItem
         {...params}
@@ -307,8 +308,8 @@ const HomeScreen = () => {
   };
   const closeMenu = () => setIsMenuVisible(false);
 
-  function keyExtractor(item: TodoItem, index: number): string {
-    return item.id?.toString() || index.toString();
+  function keyExtractor(item: Todo, index: number): string {
+    return item.id || index.toString();
   }
 
   function Header({title}: {title: string}) {
@@ -348,18 +349,22 @@ const HomeScreen = () => {
     );
   }
 
-  const handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+  const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
-      updateExistingTodos([updatedTodo]);
+      await updateExistingTodos(updatedTodo);
     }
   };
 
-  const handleSubmitEditing = async (newTodo: TodoItem, selectedSection = 'Inbox') => {
+  const handleSubmitEditing = async (newTodo: Todo, selectedSection = 'Inbox') => {
     if (!newTodo) return;
 
     try {
-      if (selectedSection.trim() !== 'Inbox' && !newTodo.section_id) {
+      if (
+        selectedSection.trim().length > 0 &&
+        selectedSection.trim() !== 'Inbox' &&
+        !newTodo.section_id
+      ) {
         // Create a new section if it doesn't exist
         const newSection = {name: selectedSection.trim(), user_id: user!.id};
 
@@ -371,7 +376,7 @@ const HomeScreen = () => {
         }
 
         // Add section ID to newTodo and then add the todo
-        const updatedTodo = {...newTodo, section_id: result.id};
+        const updatedTodo = {...newTodo, section_id: Number(result.id)};
         const todoResult = await addNewTodo(updatedTodo);
 
         if (!todoResult) {

@@ -1,9 +1,8 @@
 import React, {createContext, useEffect, useMemo, useState} from 'react';
-import {supabase} from '@/utils/supabase'; // Adjust path as per your project structure
 import {UserContextType, UserProviderProps} from './UserContext.types';
 import {Session} from '@supabase/supabase-js';
-import {AuthError} from '@supabase/supabase-js';
 import {router} from 'expo-router';
+import {useSystem} from '@/powersync/system';
 
 // Create a context to hold user-related state
 export const UserContext = createContext<UserContextType>({
@@ -18,48 +17,35 @@ export const AuthProvider = ({children}: UserProviderProps) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize user on mount
-  useEffect(() => {
-    const initializeUser = async () => {
-      setIsLoading(true);
-      try {
-        const {data, error} = await supabase.auth.getSession();
-        if (error) throw error;
-        if (!data.session) {
-          router.replace('/(auth)');
-        } else {
-          setSession(data.session);
-        }
-      } catch (error: any) {
-        if (error instanceof AuthError) {
-          console.error('Authentication Error:', error.message);
-        } else {
-          console.error('Unexpected Error:', error);
-        }
-        router.replace('/(auth)');
-      } finally {
-        setTimeout(() => setIsLoading(false), 100);
-      }
-    };
+  const system = useSystem();
+  const {supabaseConnector} = system;
 
-    initializeUser();
-  }, []);
+  React.useEffect(() => {
+    console.log('Initializing system');
+    system.init();
+  }, [system]);
 
   // Auth state change listener
   useEffect(() => {
-    const {data: authListener} = supabase.auth.onAuthStateChange((event, newSession) => {
-      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        if (!session) setSession(newSession);
-        router.replace('/(tabs)');
-      } else if (event === 'SIGNED_OUT') {
-        router.replace('/(auth)');
-      }
-    });
+    const {data: authListener} = supabaseConnector.client.auth.onAuthStateChange(
+      (event, newSession) => {
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          console.log(event);
+          if (!session) setSession(newSession);
+          setIsLoading(false);
+
+          if (session) router.replace('/(tabs)');
+        } else if (event === 'SIGNED_OUT') {
+          router.replace('/(auth)');
+          setIsLoading(false);
+        }
+      },
+    );
 
     return () => {
       authListener.subscription.unsubscribe(); // Unsubscribe to prevent memory leaks
     };
-  }, [session]); // Empty dependency array
+  }, [session, supabaseConnector.client.auth]); // Empty dependency array
 
   // Derive user from session
   const user = useMemo(() => session?.user ?? null, [session]);

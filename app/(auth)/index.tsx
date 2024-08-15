@@ -25,44 +25,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const {setSession, isLoading} = useAuth();
 
-  console.log('LoginScreen rendered');
-  console.log(isLoading);
-
-  // // Use useCallback to memoize signInSilently
-  // const signInSilently = useCallback(async () => {
-  //   setLoading(true);
-  //   try {
-  //     const userInfo = await GoogleSignin.signInSilently();
-  //     if (userInfo.idToken) {
-  //       const {data, error} = await supabase.auth.signInWithIdToken({
-  //         provider: 'google',
-  //         token: userInfo.idToken,
-  //       });
-
-  //       if (error) throw error;
-
-  //       setSession(data.session);
-  //       router.replace('/(tabs)');
-  //     } else {
-  //       throw new Error('No ID token present!');
-  //     }
-  //   } catch (error: any) {
-  //     if (error.code === statusCodes.SIGN_IN_REQUIRED) {
-  //       // User is not signed in, allow normal sign-in flow
-  //     } else {
-  //       console.log('Silent sign-in failed', error.message);
-  //     }
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }, [setSession]);
-
-  // useEffect(() => {
-  //   signInSilently();
-  // }, [signInSilently]);
-
-  async function signInWithEmail() {
-    const {data, error} = await supabase.auth.signInWithPassword({
+  async function signInWithPassword() {
+    const {error} = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -73,8 +37,37 @@ export default function LoginScreen() {
     }
 
     console.log('Successfully signed in with email');
-    setSession(data.session);
-    router.replace('/(tabs)');
+  }
+
+  async function signInWithGoogle() {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+
+      if (userInfo.idToken) {
+        const {data, error} = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: userInfo.idToken,
+        });
+
+        if (error) throw error;
+
+        setSession(data.session);
+        router.replace('/(tabs)');
+      } else {
+        throw new Error('No ID token present!');
+      }
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        console.log('User cancelled the login flow');
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        console.log('Operation (e.g. sign in) is in progress already');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        console.log('Play services not available or outdated');
+      } else {
+        console.log('Some other error happened', error.message);
+      }
+    }
   }
 
   if (isLoading) {
@@ -85,38 +78,10 @@ export default function LoginScreen() {
     <SafeAreaView style={[styles.container, {backgroundColor: colors.background}]}>
       <View style={styles.header}>
         <GoogleSigninButton
+          testID="google-sign-in-button"
           size={GoogleSigninButton.Size.Standard}
           color={GoogleSigninButton.Color.Light}
-          onPress={async () => {
-            try {
-              await GoogleSignin.hasPlayServices();
-              const userInfo = await GoogleSignin.signIn();
-
-              if (userInfo.idToken) {
-                const {data, error} = await supabase.auth.signInWithIdToken({
-                  provider: 'google',
-                  token: userInfo.idToken,
-                });
-
-                if (error) throw error;
-
-                setSession(data.session);
-                router.replace('/(tabs)');
-              } else {
-                throw new Error('No ID token present!');
-              }
-            } catch (error: any) {
-              if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-                console.log('User cancelled the login flow');
-              } else if (error.code === statusCodes.IN_PROGRESS) {
-                console.log('Operation (e.g. sign in) is in progress already');
-              } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-                console.log('Play services not available or outdated');
-              } else {
-                console.log('Some other error happened', error.message);
-              }
-            }
-          }}
+          onPress={signInWithGoogle}
         />
       </View>
       <View style={styles.dividerContainer}>
@@ -126,6 +91,7 @@ export default function LoginScreen() {
       </View>
       <View style={styles.formContainer}>
         <TextInput
+          testID="email-input"
           mode="outlined"
           label="Email"
           onChangeText={text => setEmail(text)}
@@ -137,6 +103,7 @@ export default function LoginScreen() {
           style={styles.input}
         />
         <TextInput
+          testID="password-input"
           mode="outlined"
           label="Password"
           onChangeText={text => setPassword(text)}
@@ -147,9 +114,10 @@ export default function LoginScreen() {
           style={styles.input}
         />
         <Button
+          testID="sign-in-button"
           mode="contained"
           disabled={isLoading}
-          onPress={signInWithEmail}
+          onPress={signInWithPassword}
           style={styles.button}>
           Sign in
         </Button>

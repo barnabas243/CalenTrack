@@ -4,7 +4,7 @@ import {ExpandableCalendar, CalendarProvider} from 'react-native-calendars';
 import {SwiperFlatList} from 'react-native-swiper-flatlist';
 import {Text} from 'react-native-paper';
 import ToDoItem from '../ToDoItem';
-import {MonthlyTodo, TodoItem} from '@/store/todo/types';
+import {MonthlyTodo} from '@/store/todo/types';
 import {MarkedDates} from 'react-native-calendars/src/types';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
 import DraggableFlatList, {RenderItemParams, ScaleDecorator} from 'react-native-draggable-flatlist';
@@ -13,24 +13,24 @@ import {SwipeableItemImperativeRef} from 'react-native-swipeable-item';
 import EditTodoModal from '../modals/EditTodoModal';
 import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import EditTodoModalContent from '../modals/EditTodoModalContent';
-import {SectionItem} from '@/store/section/types';
 import {isEqual} from 'lodash';
 import AddTodoModal from '../modals/addTodoModal';
 import AddTodoFAB from '../addTodoFAB';
 import DraggableItemPlaceholder from '../DraggableItemPlaceholder';
+import {Section, Todo} from '@/powersync/AppSchema';
 
 interface MonthCalendarProps {
   monthlyTodoArray: MonthlyTodo[];
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   colors: MD3Colors;
-  handleEndDrag: (results: TodoItem[], name: string | Date) => void;
-  updateExistingTodos: (todos: TodoItem[]) => void;
+  handleEndDrag: (results: Todo[], name: string | Date) => void;
+  updateExistingTodos: (todos: Todo) => void;
   deleteTodo: (id: string) => void;
   toggleCompleteTodo: (id: string) => void;
-  sections: SectionItem[];
-  onDismiss: (selectedTodo: TodoItem, updatedTodo: TodoItem) => void;
-  onSubmitEditing: (todo: TodoItem) => void;
+  sections: Section[];
+  onDismiss: (selectedTodo: Todo, updatedTodo: Todo) => void;
+  onSubmitEditing: (todo: Todo) => void;
 }
 
 interface MonthCalendarState {
@@ -107,7 +107,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
     }
   };
 
-  openEditBottomSheet = (item: TodoItem) => {
+  openEditBottomSheet = (item: Todo) => {
     if (this.editBottomSheetRef.current) {
       this.editBottomSheetRef.current.present(item);
     } else {
@@ -115,14 +115,14 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
     }
   };
 
-  handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+  handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
-      this.props.updateExistingTodos([updatedTodo]);
+      this.props.updateExistingTodos(updatedTodo);
     }
   };
 
-  renderTodoItem = (params: RenderItemParams<TodoItem>) => (
+  renderTodoItem = (params: RenderItemParams<Todo>) => (
     <ScaleDecorator>
       <ToDoItem
         {...params}

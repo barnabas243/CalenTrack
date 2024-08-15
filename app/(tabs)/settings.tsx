@@ -19,6 +19,7 @@ import {StatusBar} from 'expo-status-bar';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import {useAuth} from '@/hooks/useAuth';
 import {AuthError} from '@supabase/supabase-js';
+import {useSystem} from '@/powersync/system';
 
 export type Theme = 'system' | 'dark' | 'light';
 
@@ -40,6 +41,7 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<Theme>('system');
   const [visible, setVisible] = useState(false);
 
+  const {supabaseConnector, powersync} = useSystem();
   const showModal = useCallback(() => setVisible(true), []);
   const hideModal = useCallback(() => setVisible(false), []);
 
@@ -55,7 +57,9 @@ export default function SettingsPage() {
         await GoogleSignin.signOut();
       }
       // Sign out of Supabase
-      const {error} = await supabase.auth.signOut();
+
+      await powersync.disconnectAndClear();
+      const {error} = await supabaseConnector.client.auth.signOut();
       if (error) throw error;
 
       // Optionally, redirect user or perform any additional logic after logout
@@ -67,7 +71,7 @@ export default function SettingsPage() {
       if (error instanceof AuthError) Alert.alert('Error Signing Out', error.message);
       if (error instanceof Error) Alert.alert('Error Signing Out', error.message);
     }
-  }, [user]);
+  }, [powersync, supabaseConnector.client.auth, user]);
 
   const sections = [
     {

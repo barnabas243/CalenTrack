@@ -1,4 +1,6 @@
+import '@azure/core-asynciterator-polyfill';
 import 'react-native-url-polyfill/auto';
+
 import {Stack} from 'expo-router';
 import 'react-native-reanimated';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
@@ -11,6 +13,7 @@ import store from './store';
 import {AuthProvider} from '@/contexts/UserContext'; // Adjust path as needed
 import {supabase} from '@/utils/supabase';
 import {AutocompleteDropdownContextProvider} from 'react-native-autocomplete-dropdown';
+import {PowerSyncProvider} from '@/powersync/PowerSyncProvider';
 
 export default function RootLayout() {
   const colorScheme = Appearance.getColorScheme();
@@ -60,29 +63,11 @@ export default function RootLayout() {
       <PaperProvider theme={theme}>
         <SafeAreaProvider>
           <AuthProvider>
-            <AutocompleteDropdownContextProvider>
-              <Stack screenOptions={{headerShown: false}}>
-                <Stack.Screen name="(auth)" options={{title: 'Login'}} />
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen
-                  name="_prototype-feedback"
-                  options={{
-                    title: 'CalenTrack Prototype feedback',
-                    headerBackButtonMenuEnabled: true,
-                    headerShown: true,
-                  }}
-                />
-                <Stack.Screen
-                  name="_feature-feedback"
-                  options={{
-                    title: 'CalenTrack Feedback',
-                    headerBackButtonMenuEnabled: true,
-                    headerShown: true,
-                  }}
-                />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-            </AutocompleteDropdownContextProvider>
+            <PowerSyncProvider>
+              <AutocompleteDropdownContextProvider>
+                <Stack screenOptions={{headerShown: false}} />
+              </AutocompleteDropdownContextProvider>
+            </PowerSyncProvider>
           </AuthProvider>
         </SafeAreaProvider>
       </PaperProvider>

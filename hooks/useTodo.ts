@@ -1,16 +1,16 @@
 import {useEffect} from 'react';
 import {useDispatch, useSelector} from 'react-redux';
 import {AppDispatch, RootState} from '@/app/store';
-import {fetchTodos, updateTodos, deleteTodos, insertTodo} from '@/store/todo/slice';
+import {fetchTodos, powerSyncUpdateTodo, powerSyncDeleteTodo, insertTodo} from '@/store/todo/slice';
 import {
   fetchSections,
   deleteSectionById,
   insertSection,
   updateSectionName,
 } from '@/store/section/slice';
-import {TodoItem} from '@/store/todo/types';
-import {SectionItem} from '@/store/section/types'; // Adjust the path as needed
 import {useAuth} from './useAuth';
+import {useSystem} from '@/powersync/system';
+import {Section, Todo} from '@/powersync/AppSchema';
 
 export const useTodo = () => {
   const dispatch: AppDispatch = useDispatch();
@@ -18,17 +18,19 @@ export const useTodo = () => {
   const todos = useSelector((state: RootState) => state.todos.todos); // Access todos array
   const sections = useSelector((state: RootState) => state.sections.sections); // Access sections array
 
+  const {db} = useSystem();
+
   useEffect(() => {
     if (user) {
-      dispatch(fetchTodos(user.id)).unwrap();
-      dispatch(fetchSections(user.id)).unwrap();
+      dispatch(fetchTodos({userId: user.id, db})).unwrap();
+      dispatch(fetchSections({userId: user.id, db})).unwrap();
     }
-  }, [user, dispatch]);
+  }, [user, dispatch, db]);
 
   // Todo actions
-  const addNewTodo = async (todo: TodoItem) => {
+  const addNewTodo = async (todo: Todo) => {
     try {
-      const resultAction = await dispatch(insertTodo(todo)).unwrap();
+      const resultAction = await dispatch(insertTodo({todo, db})).unwrap();
       console.log('Todo added:', resultAction);
       return resultAction; // Return the result
     } catch (error) {
@@ -37,10 +39,10 @@ export const useTodo = () => {
     }
   };
 
-  const updateExistingTodos = async (todos: TodoItem[]) => {
+  const updateExistingTodos = async (todo: Todo) => {
     try {
-      const resultAction = await dispatch(updateTodos(todos)).unwrap();
-      console.log('Todos updated:', resultAction);
+      const resultAction = await dispatch(powerSyncUpdateTodo({todo, db})).unwrap();
+      console.log('Todo updated:', resultAction);
       return resultAction; // Return the result
     } catch (error) {
       console.error('Error updating todos:', error);
@@ -48,9 +50,9 @@ export const useTodo = () => {
     }
   };
 
-  const deleteExistingTodos = async (ids: string[]) => {
+  const deleteExistingTodos = async (id: string) => {
     try {
-      const resultAction = await dispatch(deleteTodos(ids)).unwrap();
+      const resultAction = await dispatch(powerSyncDeleteTodo({todoId: id, db})).unwrap();
       console.log('Todos deleted:', resultAction);
       return resultAction; // Return the result
     } catch (error) {
@@ -62,7 +64,7 @@ export const useTodo = () => {
   // Section actions
   const addNewSection = async (section: {name: string; user_id: string}) => {
     try {
-      const resultAction = await dispatch(insertSection(section)).unwrap();
+      const resultAction = await dispatch(insertSection({newSection: section, db})).unwrap();
       console.log(resultAction);
       return resultAction; // Return the result
     } catch (error) {
@@ -71,9 +73,11 @@ export const useTodo = () => {
     }
   };
 
-  const updateExistingSection = async (section: SectionItem) => {
+  const updateExistingSection = async (section: Section) => {
     try {
-      const resultAction = await dispatch(updateSectionName(section)).unwrap();
+      const resultAction = await dispatch(
+        updateSectionName({updatedSection: section, db}),
+      ).unwrap();
       console.log(resultAction);
       return resultAction; // Return the result
     } catch (error) {
@@ -82,9 +86,9 @@ export const useTodo = () => {
     }
   };
 
-  const deleteExistingSection = async (id: number) => {
+  const deleteExistingSection = async (id: string) => {
     try {
-      const resultAction = await dispatch(deleteSectionById(id)).unwrap();
+      const resultAction = await dispatch(deleteSectionById({id, db})).unwrap();
       console.log(resultAction);
       return resultAction; // Return the result
     } catch (error) {

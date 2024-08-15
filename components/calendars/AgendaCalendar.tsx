@@ -8,12 +8,11 @@ import {debounce, isEqual} from 'lodash';
 import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import EditTodoModal from '../modals/EditTodoModal';
 import EditTodoModalContent from '../modals/EditTodoModalContent';
-import {SectionItem} from '@/store/section/types';
-import {TodoItem} from '@/store/todo/types';
 import AddTodoFAB from '../addTodoFAB';
 import AddTodoModal from '../modals/addTodoModal';
+import {Section, Todo} from '@/powersync/AppSchema';
 interface State {
-  items?: Record<string, TodoItem[]>;
+  items?: Record<string, Todo[]>;
   isAddTodoModalVisible: boolean;
 }
 
@@ -21,13 +20,13 @@ interface Props {
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   colors: MD3Colors;
-  monthlyTodoRecord: Record<string, TodoItem[]>;
-  updateExistingTodos: (todos: TodoItem[]) => void;
-  onDismiss: (selectedTodo: TodoItem, updatedTodo: TodoItem) => void;
-  sections: SectionItem[];
+  monthlyTodoRecord: Record<string, Todo[]>;
+  updateExistingTodos: (todos: Todo) => void;
+  onDismiss: (selectedTodo: Todo, updatedTodo: Todo) => void;
+  sections: Section[];
   toggleCompleteTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
-  onSubmitEditing: (todo: TodoItem) => void;
+  onSubmitEditing: (todo: Todo) => void;
 }
 export default class AgendaCalendar extends PureComponent<Props, State> {
   private agendaRef = createRef<Agenda>();
@@ -47,7 +46,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
   };
 
   componentDidUpdate(prevProps: Props) {
-    if (!isEqual(prevProps.monthlyTodoRecord, this.props.monthlyTodoRecord)) {
+    if (prevProps.monthlyTodoRecord !== this.props.monthlyTodoRecord) {
       const selectedDate = dayjs(this.props.selectedDate);
       const dateData: DateData = {
         dateString: selectedDate.format('YYYY-MM-DD'),
@@ -76,7 +75,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
     }
   }, 800); // Adjust the delay (in milliseconds) as needed
 
-  openEditBottomSheet = (item: TodoItem) => {
+  openEditBottomSheet = (item: Todo) => {
     if (this.editBottomSheetRef.current) {
       this.editBottomSheetRef.current.present(item);
     } else {
@@ -85,13 +84,13 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
   };
 
   getSectionNameById = (id: number) => {
-    const section = this.props.sections.find(section => section.id === id);
+    const section = this.props.sections.find(section => Number(section.id) === id);
     return section ? section.name : 'Unknown';
   };
-  handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+  handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
-      this.props.updateExistingTodos([updatedTodo]);
+      this.props.updateExistingTodos(updatedTodo);
     }
   };
   render() {
@@ -160,7 +159,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
     const endDate = dayjs(day.timestamp).add(12, 'month').endOf('month');
 
     // Initialize items with existing state or as an empty object
-    const newItems: Record<string, TodoItem[]> = {};
+    const newItems: Record<string, Todo[]> = {};
 
     // Iterate over the range of dates
     for (
@@ -178,7 +177,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
     }
   };
 
-  renderItem = (reservation: TodoItem, isFirst: boolean) => {
+  renderItem = (reservation: Todo, isFirst: boolean) => {
     const color = isFirst ? this.props.colors.primary : this.props.colors.inversePrimary;
     const borderColor = isFirst ? this.props.colors.primary : this.props.colors.outline;
 
@@ -243,7 +242,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
     );
   };
 
-  rowHasChanged = (r1: TodoItem, r2: TodoItem) => {
+  rowHasChanged = (r1: Todo, r2: Todo) => {
     return !isEqual(r1, r2);
   };
 

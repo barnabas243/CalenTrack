@@ -9,11 +9,12 @@ import WeekCalendar from '@/components/calendars/WeekCalendar';
 import {MaterialCommunityIcons} from '@expo/vector-icons';
 import Animated, {useAnimatedStyle, useSharedValue, withSpring} from 'react-native-reanimated';
 import {useTodo} from '@/hooks/useTodo';
-import {MonthlyTodo, TodoItem} from '@/store/todo/types';
+import {MonthlyTodo} from '@/store/todo/types';
 import {TimelineEventProps} from 'react-native-calendars';
 import {isEqual} from 'lodash';
 import {useAuth} from '@/hooks/useAuth';
 import {ICalendarEventBase} from 'react-native-big-calendar';
+import {Todo} from '@/powersync/AppSchema';
 
 export type Mode = 'month' | 'day' | 'week' | 'agenda';
 
@@ -34,7 +35,7 @@ const CalendarPage = () => {
   const [monthlyTodoArray, setMonthlyTodoArray] = useState<MonthlyTodo[]>([]);
 
   const newMonthlyTodoArray = useMemo(() => {
-    const categorizeTodos = (todos: TodoItem[]): MonthlyTodo[] => {
+    const categorizeTodos = (todos: Todo[]): MonthlyTodo[] => {
       // Helper function to generate an array of dates
       const generateDateRange = (startDate: dayjs.Dayjs, days: number): string[] => {
         return Array.from({length: days}, (_, i) => startDate.add(i, 'day').format('YYYY-MM-DD'));
@@ -45,7 +46,7 @@ const CalendarPage = () => {
       const dateRange = generateDateRange(todayDate.subtract(100, 'day'), 465);
 
       // Initialize the sorted object with the date range and empty arrays
-      const todoSortedByDate: Record<string, TodoItem[]> = {};
+      const todoSortedByDate: Record<string, Todo[]> = {};
       dateRange.forEach(date => {
         todoSortedByDate[date] = [];
       });
@@ -87,7 +88,7 @@ const CalendarPage = () => {
     const dateRange = generateDateRange(todayDate.subtract(50, 'day'), 101);
 
     // Initialize the sorted object with the date range and empty arrays
-    const todoSortedByDate: Record<string, TodoItem[]> = {};
+    const todoSortedByDate: Record<string, Todo[]> = {};
     dateRange.forEach(date => {
       todoSortedByDate[date] = [];
     });
@@ -102,13 +103,13 @@ const CalendarPage = () => {
       }
     });
 
-    // Convert the array to a Record<string, TodoItem[]>
-    const monthlyTodoRecord: Record<string, TodoItem[]> = monthlyTodoArray.reduce(
-      (acc: Record<string, TodoItem[]>, item: MonthlyTodo) => {
+    // Convert the array to a Record<string, Todo[]>
+    const monthlyTodoRecord: Record<string, Todo[]> = monthlyTodoArray.reduce(
+      (acc: Record<string, Todo[]>, item: MonthlyTodo) => {
         acc[item.dueDate] = item.data;
         return acc;
       },
-      {} as Record<string, TodoItem[]>, // Type the initial value to match the result type
+      {} as Record<string, Todo[]>, // Type the initial value to match the result type
     );
 
     const timelineTodoEvents: TimelineEventProps[] = todos
@@ -116,8 +117,8 @@ const CalendarPage = () => {
       .map(todo => ({
         start: dayjs(todo.start_date!).format('YYYY-MM-DD HH:mm:ss'),
         end: dayjs(todo.due_date!).format('YYYY-MM-DD HH:mm:ss'),
-        title: todo.title,
-        summary: todo.summary,
+        title: todo.title!,
+        summary: todo.summary || '',
         color: colors.onPrimaryContainer,
       }));
 
@@ -126,8 +127,8 @@ const CalendarPage = () => {
       .map(todo => ({
         start: dayjs(todo.start_date!).toDate(),
         end: dayjs(todo.due_date!).toDate(),
-        title: todo.title,
-        summary: todo.summary,
+        title: todo.title!,
+        summary: todo.summary || '',
         color: colors.onPrimaryContainer,
       }));
 
@@ -166,13 +167,13 @@ const CalendarPage = () => {
     setTimeout(() => setMode(m), 700); // adjust to preference. set higher so that animation completes before changing mode
   }, []);
 
-  const handleEndDrag = useCallback((results: TodoItem[], name: string | Date) => {
+  const handleEndDrag = useCallback((results: Todo[], name: string | Date) => {
     console.log('handleEndDrag', results, name);
   }, []);
 
   // Memoize the handleSubmitEditing function
   const handleSubmitEditing = useCallback(
-    async (newTodo: TodoItem, selectedSection = 'Inbox') => {
+    async (newTodo: Todo, selectedSection = 'Inbox') => {
       if (!newTodo) return;
 
       try {
@@ -188,7 +189,7 @@ const CalendarPage = () => {
           }
 
           // Add section ID to newTodo and then add the todo
-          const updatedTodo = {...newTodo, section_id: result.id};
+          const updatedTodo = {...newTodo, section_id: Number(result.id)};
           const todoResult = await addNewTodo(updatedTodo);
 
           if (!todoResult) {
@@ -212,25 +213,23 @@ const CalendarPage = () => {
 
   const renderCalendarComponent = useMemo(() => {
     const deleteTodo = (id: string) => {
-      deleteExistingTodos([id]);
+      deleteExistingTodos(id);
     };
 
     const toggleCompleteTodo = (id: string) => {
       const todo = todos.find(todo => todo.id === id);
       if (todo) {
-        updateExistingTodos([
-          {
-            ...todo,
-            completed: !todo.completed,
-            completed_at: todo.completed ? null : new Date().toString(),
-          },
-        ]);
+        updateExistingTodos({
+          ...todo,
+          completed: todo.completed === 1 ? 0 : 1,
+          completed_at: todo.completed === 1 ? null : new Date().toString(),
+        });
       }
     };
-    const handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+    const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
       // Check if the todo has been updated using deep comparison
       if (!isEqual(updatedTodo, selectedTodo)) {
-        updateExistingTodos([updatedTodo]);
+        updateExistingTodos(updatedTodo);
       }
     };
     switch (mode) {

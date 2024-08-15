@@ -14,20 +14,21 @@ import {
 } from '@10play/tentap-editor';
 import {debounce} from 'lodash';
 import {router} from 'expo-router';
-import {PriorityType, TodoItem} from '@/store/todo/types';
+import {PriorityType} from '@/store/todo/types';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
+import {Section, Todo} from '@/powersync/AppSchema';
 
 export interface EditTodoModalContentProps {
-  todo: TodoItem;
-  onDismiss: (oldTodo: TodoItem, newTodo: TodoItem) => void;
-  sections: {id: number; name: string}[];
+  todo: Todo;
+  onDismiss: (oldTodo: Todo, newTodo: Todo) => void;
+  sections: Section[];
   colors: MD3Colors;
 }
 
 const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModalContentProps) => {
   const [isPriorityMenuVisible, setIsPriorityMenuVisible] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const [newTodo, setNewTodo] = useState<TodoItem>(todo); // Initialize with the todo prop
+  const [newTodo, setNewTodo] = useState<Todo>(todo); // Initialize with the todo prop
   const [titleInputFocus, setTitleInputFocus] = useState(false);
   const [inputHeight, setInputHeight] = useState(20);
   const titleInputRef = useRef(null);
@@ -36,13 +37,14 @@ const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModal
   const latestNewTodo = useRef(newTodo);
 
   const findSectionById = (id: number) =>
-    sections.find(section => section.id === id)?.name || 'Unknown';
+    sections.find(section => Number(section.id) === id)?.name || 'Unknown';
 
   const handlePriorityChange = (priority: PriorityType) => {
     setNewTodo(prev => ({...prev, priority}));
     setIsPriorityMenuVisible(false);
   };
-  const handleCompletedChange = () => setNewTodo(prev => ({...prev, completed: !prev.completed}));
+  const handleCompletedChange = () =>
+    setNewTodo(prev => ({...prev, completed: prev.completed ? 0 : 1}));
   const handleTitleChange = (text: string) => setNewTodo(prev => ({...prev, title: text}));
   const handleContentSizeChange = (event: {
     nativeEvent: {contentSize: {height: React.SetStateAction<number>}};
@@ -52,7 +54,8 @@ const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModal
     setNewTodo(prevTodo => ({...prevTodo, summary: summary.trim()}));
   }, []);
 
-  const getSectionIndex = (id: number) => sections.findIndex(section => section.id === id);
+  const getSectionIndex = (id: number) => sections.findIndex(sec => Number(sec.id) === id);
+
   const editor = useEditorBridge({
     autofocus: false,
     avoidIosKeyboard: true,
@@ -88,7 +91,7 @@ const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModal
     <View style={styles.container}>
       <Appbar.Header statusBarHeight={0}>
         <Appbar.Content
-          title={findSectionById(newTodo.section_id)}
+          title={findSectionById(newTodo.section_id || 0)}
           titleStyle={{fontSize: 16}}
           onPress={() => {
             console.log('Appbar.Content pressed');
@@ -103,14 +106,14 @@ const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModal
           anchor={
             <Appbar.Action
               icon="flag"
-              color={getBorderColor(newTodo.priority)}
+              color={getBorderColor(newTodo.priority as PriorityType)}
               onPress={() => setIsPriorityMenuVisible(true)}
             />
           }>
           {['4', '3', '2', '1'].map(priority => (
             <Menu.Item
               key={priority}
-              onPress={() => handlePriorityChange(priority)}
+              onPress={() => handlePriorityChange(priority as PriorityType)}
               leadingIcon="flag"
               title={`Priority ${priority}`}
               trailingIcon={newTodo.priority === priority ? 'check' : ''}
@@ -145,7 +148,7 @@ const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModal
           outlineStyle={{borderWidth: titleInputFocus ? 1 : 0}}
           multiline
           textBreakStrategy="highQuality"
-          value={newTodo.title}
+          value={newTodo.title!}
           onChangeText={handleTitleChange}
           style={{
             flex: 1,
