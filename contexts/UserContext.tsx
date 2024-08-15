@@ -13,8 +13,6 @@ export const UserContext = createContext<UserContextType>({
   isLoading: true,
 });
 
-export const useAuth = () => React.useContext(UserContext);
-
 // Context provider component
 export const AuthProvider = ({children}: UserProviderProps) => {
   const [session, setSession] = useState<Session | null>(null);
