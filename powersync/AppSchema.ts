@@ -2,6 +2,14 @@ import {column, Schema, TableV2} from '@powersync/react-native';
 
 export const TODO_TABLE = 'todos';
 export const SECTION_TABLE = 'sections';
+export const PROFILE_TABLE = 'profiles';
+
+const profiles = new TableV2({
+  updated_at: column.text,
+  full_name: column.text,
+  avatar_url: column.text,
+  expoPushToken: column.text,
+});
 
 const sections = new TableV2({
   created_at: column.text,
@@ -20,7 +28,7 @@ const todos = new TableV2(
     recurrence: column.text,
     priority: column.text,
     parent_id: column.text,
-    section_id: column.integer,
+    section_id: column.text,
     created_by: column.text,
   },
   {indexes: {section: ['section_id']}},
@@ -29,36 +37,10 @@ const todos = new TableV2(
 export const AppSchema = new Schema({
   todos,
   sections,
+  profiles,
 });
-
-// export const AppSchema = new Schema([
-//   new Table({
-//     name: 'sections',
-//     columns: [
-//       new Column({name: 'created_at', type: column.text}),
-//       new Column({name: 'name', type: column.text}),
-//       new Column({name: 'user_id', type: column.text}),
-//     ],
-//   }),
-//   new Table({
-//     name: 'todos',
-//     columns: [
-//       new Column({name: 'created_at', type: column.text}),
-//       new Column({name: 'completed_at', type: column.text}),
-//       new Column({name: 'title', type: column.text}),
-//       new Column({name: 'summary', type: column.text}),
-//       new Column({name: 'completed', type: ColumnType.INTEGER}),
-//       new Column({name: 'start_date', type: column.text}),
-//       new Column({name: 'due_date', type: column.text}),
-//       new Column({name: 'recurrence', type: column.text}),
-//       new Column({name: 'priority', type: column.text}),
-//       new Column({name: 'parent_id', type: column.text}),
-//       new Column({name: 'section_id', type: ColumnType.INTEGER}),
-//       new Column({name: 'created_by', type: column.text}),
-//     ],
-//   }),
-// ]);
 
 export type Database = (typeof AppSchema)['types'];
 export type Todo = Database['todos'];
 export type Section = Database['sections'];
+export type Profile = Database['profiles'];

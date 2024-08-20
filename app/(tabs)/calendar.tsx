@@ -189,7 +189,7 @@ const CalendarPage = () => {
           }
 
           // Add section ID to newTodo and then add the todo
-          const updatedTodo = {...newTodo, section_id: Number(result.id)};
+          const updatedTodo = {...newTodo, section_id: result.id};
           const todoResult = await addNewTodo(updatedTodo);
 
           if (!todoResult) {

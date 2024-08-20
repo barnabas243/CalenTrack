@@ -6,7 +6,7 @@ export interface AddTodoModalProps {
   onBackdropPress: () => void;
   onSubmitEditing: (newTodo: Todo, selectedSection: string) => void;
   sections: Section[];
-  propSelectedSectionName?: string;
+  propSelectedSection?: Section | undefined;
   propSelectedStartDate?: Date | undefined;
   propSelectedDueDate?: Date | undefined;
 }

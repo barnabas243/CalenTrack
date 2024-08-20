@@ -128,24 +128,30 @@ const ToDoItem = ({
   deleteTodo,
   sections,
 }: ToDoProps) => {
-  const [toggleCheckBox, setToggleCheckBox] = useState<0 | 1>(0);
-
   const {title, priority, id, completed, summary, due_date, section_id} = item;
+  const [toggleCheckBox, setToggleCheckBox] = useState<0 | 1>(completed as 0 | 1);
 
   // Shared values for translation
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
   useEffect(() => {
-    // Update the toggleCheckBox state based on the completed prop
-    setToggleCheckBox(completed ? 1 : 0);
-  }, [completed]);
-
-  useEffect(() => {
     // Update animation based on isActive
-    translateX.value = withSpring(isActive ? 40 : 0, {damping: 20});
-    translateY.value = withSpring(isActive ? -20 : 0, {damping: 20});
+    // Update animation based on isActive
+    translateX.value = withSpring(isActive ? 40 : 0, {
+      damping: 20, // Lower damping for faster animation
+      stiffness: 300, // Higher stiffness for faster animation
+      mass: 1, // Default mass
+      velocity: 10, // Higher velocity for quicker start
+    });
+    translateY.value = withSpring(isActive ? -20 : 0, {
+      damping: 20, // Lower damping for faster animation
+      stiffness: 300, // Higher stiffness for faster animation
+      mass: 1, // Default mass
+      velocity: 100, // Higher velocity for quicker start
+    });
   }, [isActive, translateX, translateY]);
+
   const animatedStyle = useAnimatedStyle(
     () => ({
       transform: [{translateX: translateX.value}, {translateY: translateY.value}],
@@ -158,8 +164,8 @@ const ToDoItem = ({
   };
 
   const getSectionNameById = useCallback(
-    (section_id: number) => {
-      const section = sections.find(sec => Number(sec.id) === section_id);
+    (section_id: string) => {
+      const section = sections.find(sec => sec.id === section_id);
       return section ? section.name : '[invalid section id] ';
     },
     [sections],
@@ -168,11 +174,11 @@ const ToDoItem = ({
   const contentStyle = useMemo(
     () => ({
       borderColor: getBorderColor(priority as PriorityType),
-      opacity: completed ? 0.5 : 1,
+      opacity: toggleCheckBox ? 0.5 : 1,
       marginVertical: 3,
       marginHorizontal: 10,
     }),
-    [priority, completed],
+    [priority, toggleCheckBox],
   );
 
   return (
@@ -237,7 +243,10 @@ const ToDoItem = ({
           <View style={styles.textContainer}>
             <Text
               variant="titleSmall"
-              style={{marginLeft: 10, textDecorationLine: completed ? 'line-through' : 'none'}}>
+              style={{
+                marginLeft: 10,
+                textDecorationLine: toggleCheckBox ? 'line-through' : 'none',
+              }}>
               {title}
             </Text>
             {summary && (
@@ -257,7 +266,7 @@ const ToDoItem = ({
               </Text>
             </View>
             <Text variant="bodySmall" style={styles.bottomRightText}>
-              {getSectionNameById(section_id as number)}
+              {getSectionNameById(section_id as string)}
             </Text>
           </View>
         </Animated.View>

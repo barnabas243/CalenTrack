@@ -1,6 +1,6 @@
 import React, {useState, useRef, useEffect, useCallback} from 'react';
 import {View, StyleSheet, KeyboardAvoidingView, Platform, Appearance} from 'react-native';
-import {Appbar, Checkbox, Divider, Menu, TextInput} from 'react-native-paper';
+import {Appbar, Checkbox, Menu, TextInput} from 'react-native-paper';
 import {getBorderColor} from '../ToDoItem';
 import {
   CoreBridge,
@@ -17,15 +17,21 @@ import {router} from 'expo-router';
 import {PriorityType} from '@/store/todo/types';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
 import {Section, Todo} from '@/powersync/AppSchema';
-
 export interface EditTodoModalContentProps {
   todo: Todo;
   onDismiss: (oldTodo: Todo, newTodo: Todo) => void;
   sections: Section[];
   colors: MD3Colors;
+  deleteTodo: (id: string) => void;
 }
 
-const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModalContentProps) => {
+const EditTodoModalContent = ({
+  todo,
+  onDismiss,
+  sections,
+  colors,
+  deleteTodo,
+}: EditTodoModalContentProps) => {
   const [isPriorityMenuVisible, setIsPriorityMenuVisible] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [newTodo, setNewTodo] = useState<Todo>(todo); // Initialize with the todo prop
@@ -36,8 +42,8 @@ const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModal
 
   const latestNewTodo = useRef(newTodo);
 
-  const findSectionById = (id: number) =>
-    sections.find(section => Number(section.id) === id)?.name || 'Unknown';
+  const findSectionById = (id: string) =>
+    sections.find(section => section.id === id)?.name || 'Unknown';
 
   const handlePriorityChange = (priority: PriorityType) => {
     setNewTodo(prev => ({...prev, priority}));
@@ -54,7 +60,7 @@ const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModal
     setNewTodo(prevTodo => ({...prevTodo, summary: summary.trim()}));
   }, []);
 
-  const getSectionIndex = (id: number) => sections.findIndex(sec => Number(sec.id) === id);
+  const getSectionIndex = (id: string) => sections.findIndex(sec => sec.id === id);
 
   const editor = useEditorBridge({
     autofocus: false,
@@ -91,12 +97,14 @@ const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModal
     <View style={styles.container}>
       <Appbar.Header statusBarHeight={0}>
         <Appbar.Content
-          title={findSectionById(newTodo.section_id || 0)}
+          title={findSectionById(newTodo.section_id || '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d')}
           titleStyle={{fontSize: 16}}
           onPress={() => {
             console.log('Appbar.Content pressed');
             // handleDismiss();
-            router.replace(`/inbox?id=${getSectionIndex(newTodo.section_id || 0)}`);
+            router.replace(
+              `/inbox?id=${getSectionIndex(newTodo.section_id || '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d')}`,
+            );
           }}
         />
         <Menu
@@ -131,10 +139,16 @@ const EditTodoModalContent = ({todo, onDismiss, sections, colors}: EditTodoModal
               onPress={() => setIsMenuVisible(true)}
             />
           }>
-          <Menu.Item onPress={() => {}} title="Sort" />
-          <Menu.Item onPress={() => {}} title="Select tasks" />
-          <Divider />
-          <Menu.Item onPress={() => {}} title="Activity log" />
+          <Menu.Item
+            onPress={() => {
+              setIsMenuVisible(false);
+              setTimeout(() => {
+                onDismiss(todo, newTodo);
+                deleteTodo(todo.id);
+              }, 1000);
+            }}
+            title="delete"
+          />
         </Menu>
       </Appbar.Header>
       <View style={styles.inputContainer}>

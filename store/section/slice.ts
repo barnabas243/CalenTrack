@@ -9,7 +9,9 @@ export interface SectionState {
 }
 
 export const initialState: SectionState = {
-  sections: [{id: '1', name: 'Inbox', user_id: '', created_at: null}],
+  sections: [
+    {id: '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d', name: 'Inbox', user_id: '', created_at: null},
+  ],
   loading: false,
   error: null,
 };
@@ -21,7 +23,6 @@ export const fetchSections = createAsyncThunk<
   {rejectValue: string}
 >('sections/fetchSections', async ({userId, db}, {rejectWithValue}) => {
   // Use the db instance to fetch sections
-  console.log('Fetching sections for user:', userId);
 
   try {
     const sections = await db.selectFrom(SECTION_TABLE).selectAll().execute();
@@ -35,7 +36,7 @@ export const fetchSections = createAsyncThunk<
 // Thunk to insert a new section
 export const insertSection = createAsyncThunk<
   Section,
-  {newSection: {name: string; user_id: string}; db: any},
+  {newSection: Section; db: any},
   {rejectValue: string}
 >('sections/insertSection', async ({newSection, db}, {rejectWithValue}) => {
   try {

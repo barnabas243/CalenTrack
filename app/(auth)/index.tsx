@@ -1,43 +1,39 @@
-import 'react-native-url-polyfill/auto';
+import React from 'react';
+import {View, StyleSheet, Alert, Dimensions} from 'react-native';
+import {useRouter} from 'expo-router';
 import {
   GoogleSignin,
   GoogleSigninButton,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
-import {supabase} from '@/utils/supabase';
-import React, {useState} from 'react';
-import {Alert, StyleSheet, View} from 'react-native';
+import {useSystem} from '@/powersync/system';
+import {AuthError} from '@supabase/supabase-js';
+import {Menu, Button, Text, useTheme} from 'react-native-paper';
+import {Image} from 'expo-image';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {router} from 'expo-router';
-import {Button, Text, TextInput, useTheme} from 'react-native-paper';
-import {useAuth} from '@/hooks/useAuth';
-import PageLoadingActivityIndicator from '@/components/PageLoadingActivityIndicator';
 
-// Configure Google Sign-In outside the component
-GoogleSignin.configure({
-  scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-  webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com',
-});
+const imageSource = require('@/assets/images/icon.svg');
 
-export default function LoginScreen() {
+const {width, height} = Dimensions.get('window');
+
+export default function Index() {
+  GoogleSignin.configure({
+    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com',
+  });
+
+  const router = useRouter();
+  const {supabaseConnector} = useSystem();
   const {colors} = useTheme();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const {setSession, isLoading} = useAuth();
 
-  async function signInWithPassword() {
-    const {error} = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  const [isMenuVisible, setIsMenuVisible] = React.useState(false);
+  const showMenu = () => setIsMenuVisible(true);
+  const closeMenu = () => setIsMenuVisible(false);
 
-    if (error) {
-      Alert.alert(error.message);
-      return;
-    }
-
-    console.log('Successfully signed in with email');
-  }
+  const handleMenuPress = (option: 'login' | 'register') => {
+    closeMenu();
+    router.push(option);
+  };
 
   async function signInWithGoogle() {
     try {
@@ -45,15 +41,9 @@ export default function LoginScreen() {
       const userInfo = await GoogleSignin.signIn();
 
       if (userInfo.idToken) {
-        const {data, error} = await supabase.auth.signInWithIdToken({
-          provider: 'google',
-          token: userInfo.idToken,
+        await supabaseConnector.loginWithGoogle(userInfo.idToken).catch((error: AuthError) => {
+          Alert.alert('Sign in failed', error.message);
         });
-
-        if (error) throw error;
-
-        setSession(data.session);
-        router.replace('/(tabs)');
       } else {
         throw new Error('No ID token present!');
       }
@@ -70,57 +60,33 @@ export default function LoginScreen() {
     }
   }
 
-  if (isLoading) {
-    return <PageLoadingActivityIndicator />;
-  }
-
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: colors.background}]}>
-      <View style={styles.header}>
+      <Image source={imageSource} contentFit="cover" style={styles.image} />
+
+      <Text variant="bodyMedium" style={styles.description}>
+        Your ultimate tool for organizing tasks and boosting productivity. Start managing your tasks
+        effortlessly and stay on top of your goals.
+      </Text>
+      <View style={styles.buttonContainer}>
         <GoogleSigninButton
           testID="google-sign-in-button"
           size={GoogleSigninButton.Size.Standard}
           color={GoogleSigninButton.Color.Light}
           onPress={signInWithGoogle}
         />
-      </View>
-      <View style={styles.dividerContainer}>
-        <View style={styles.divider} />
-        <Text style={styles.dividerText}>or</Text>
-        <View style={styles.divider} />
-      </View>
-      <View style={styles.formContainer}>
-        <TextInput
-          testID="email-input"
-          mode="outlined"
-          label="Email"
-          onChangeText={text => setEmail(text)}
-          value={email}
-          placeholder="email@address.com"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-          style={styles.input}
-        />
-        <TextInput
-          testID="password-input"
-          mode="outlined"
-          label="Password"
-          onChangeText={text => setPassword(text)}
-          value={password}
-          secureTextEntry
-          autoCapitalize="none"
-          autoComplete="password"
-          style={styles.input}
-        />
-        <Button
-          testID="sign-in-button"
-          mode="contained"
-          disabled={isLoading}
-          onPress={signInWithPassword}
-          style={styles.button}>
-          Sign in
-        </Button>
+        <Menu
+          anchorPosition="bottom"
+          visible={isMenuVisible}
+          onDismiss={closeMenu}
+          anchor={
+            <Button icon={'email'} mode="elevated" onPress={showMenu} style={styles.continueButton}>
+              Continue with Email
+            </Button>
+          }>
+          <Menu.Item onPress={() => handleMenuPress('login')} title="Login" />
+          <Menu.Item onPress={() => handleMenuPress('register')} title="Register" />
+        </Menu>
       </View>
     </SafeAreaView>
   );
@@ -129,41 +95,26 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    padding: 16,
   },
-  header: {
-    alignItems: 'center',
+  image: {
+    width: width * 0.8,
+    height: height * 0.4,
+    marginVertical: 30, // Increased margin for more space below the image
   },
-  formContainer: {
-    alignItems: 'center',
+  heading: {
+    marginBottom: 16, // Increased margin for more space below the heading
   },
-  input: {
-    width: '100%',
-    marginBottom: 10,
+  description: {
+    marginBottom: 24, // Increased margin for more space below the description
+    textAlign: 'center', // Center-align the text
+    paddingHorizontal: 20, // Add horizontal padding for better text readability
   },
-  button: {
-    marginTop: 20,
-    width: '100%',
+  buttonContainer: {
+    marginBottom: 30, // Increased margin for more space below the Google Sign-In button
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-    width: '100%',
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#ccc',
-  },
-  dividerText: {
-    paddingHorizontal: 10,
-    color: '#aaa',
+  continueButton: {
+    marginTop: 20, // Margin above the "Continue with Email" button
   },
 });

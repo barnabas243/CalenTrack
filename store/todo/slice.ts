@@ -21,7 +21,6 @@ export const fetchTodos = createAsyncThunk<
 >('todos/fetchTodos', async ({userId, db}, {rejectWithValue}) => {
   try {
     // Use the db instance to fetch todos
-    console.log('Fetching todos for user:', userId);
     const todos = await db.selectFrom(TODO_TABLE).selectAll().execute();
 
     return todos as Todo[];
@@ -29,13 +28,12 @@ export const fetchTodos = createAsyncThunk<
     return rejectWithValue(error.message || 'Failed to fetch todos');
   }
 });
+
 // Insert a single todo
 export const insertTodo = createAsyncThunk<Todo, {todo: Todo; db: any}, {rejectValue: string}>(
   'todos/insertTodo',
   async ({todo, db}, {rejectWithValue}) => {
     try {
-      // Use the db instance to insert the todo
-      console.log('Inserting todo:', todo);
       const result = await db
         .insertInto(TODO_TABLE)
         .values(todo)

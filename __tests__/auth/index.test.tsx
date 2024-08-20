@@ -2,7 +2,6 @@ import React from 'react';
 import {render, fireEvent, waitFor, act} from '@testing-library/react-native';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import LoginScreen from '@/app/(auth)/index'; // Adjust the import path as needed
-import {supabase} from '@/utils/supabase';
 import {Alert} from 'react-native';
 
 // Mock modules

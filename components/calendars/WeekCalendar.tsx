@@ -25,7 +25,6 @@ const WeekCalendar = ({
   colors,
 }: WeekCalendarProps) => {
   const {height} = useWindowDimensions();
-  const [additionalEvents, setAdditionalEvents] = useState<ICalendarEventBase[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<ICalendarEventBase | null>(null);
 
   const [isAddTodoModalVisible, setIsAddTodoModalVisible] = useState(false);
@@ -41,24 +40,26 @@ const WeekCalendar = ({
   const snapPoints = useMemo(() => ['25%', '50%', '80%'], []);
   const bottomSheetRef = React.createRef<BottomSheet>();
 
-  // Combine initial and additional events
-  const filteredEvents = useMemo(
-    () => [...events, ...additionalEvents],
-    [additionalEvents, events],
-  );
-
   // Callback to add a new event
-  const addEvent = useCallback((start: Date) => {
-    const title = 'new Event';
-    const end = dayjs(start).add(29, 'minute').toDate();
-    setAdditionalEvents(prevEvents => [...prevEvents, {start, end, title}]);
-  }, []);
+  // Callback to add a long event
+  const addEvent = useCallback(
+    (start: Date) => {
+      // const title = 'new Long Event';
+      const end = dayjs(start).add(29, 'minute').toDate();
 
+      setSelectedRange({start, end});
+
+      setTimeout(() => {
+        toggleAddTodoModal(true);
+      }, 0);
+    },
+    [toggleAddTodoModal],
+  );
   // Callback to add a long event
   const addLongEvent = useCallback(
     (start: Date) => {
       // const title = 'new Long Event';
-      const end = dayjs(start).add(2, 'hour').add(59, 'minute').toDate();
+      const end = dayjs(start).add(59, 'minute').toDate();
 
       setSelectedRange({start, end});
 
@@ -92,7 +93,7 @@ const WeekCalendar = ({
       <Calendar
         date={dayjs(selectedDate).toDate()}
         height={height - 60}
-        events={filteredEvents}
+        events={events}
         maxVisibleEventCount={3}
         showAllDayEventCell
         onLongPressCell={addLongEvent}

@@ -37,7 +37,7 @@ const AddTodoModal = ({
   onBackdropPress,
   onSubmitEditing,
   sections,
-  propSelectedSectionName = undefined,
+  propSelectedSection = undefined,
   propSelectedStartDate = undefined,
   propSelectedDueDate = undefined,
 }: AddTodoModalProps) => {
@@ -55,10 +55,18 @@ const AddTodoModal = ({
     dayjs(new Date()).startOf('day').format('[Today] h:mm A'),
   );
 
+  const [selectedSection, setSelectedSection] = useState(propSelectedSection?.name ?? 'Inbox');
+  const [sectionId, setSectionId] = useState<string | null>(sections[0].id);
+
+  useEffect(() => {
+    if (!propSelectedSection) return;
+    handleTextChange(`@${propSelectedSection.name} `);
+    setSectionId(propSelectedSection.id);
+  }, [propSelectedSection]);
   // Initialize state only once
   useEffect(() => {
-    const initialStartDate = propSelectedStartDate ?? dayjs().startOf('day').toDate();
-    const initialEndDate = propSelectedDueDate ?? dayjs().toDate();
+    const initialEndDate = propSelectedDueDate ?? dayjs().endOf('day').toDate();
+    const initialStartDate = propSelectedStartDate ?? dayjs(initialEndDate).startOf('day').toDate();
 
     setRange({
       startDate: initialStartDate,
@@ -97,9 +105,6 @@ const AddTodoModal = ({
   const screenWidth = Dimensions.get('window').width;
 
   const [shortcut, setShortcut] = useState('');
-
-  const [selectedSection, setSelectedSection] = useState(propSelectedSectionName ?? 'Inbox');
-  const [sectionId, setSectionId] = useState<number | null>(null);
 
   const dueDateBottomSheetRef = useRef<BottomSheet>(null);
 
@@ -156,6 +161,7 @@ const AddTodoModal = ({
     setDueDateTitle(dayjs(new Date()).endOf('day').format('h:mm A'));
     setShortcut('');
     setSelectedSection('');
+    setSectionId('');
     setRecurrenceRule(null);
   };
 
@@ -323,11 +329,6 @@ const AddTodoModal = ({
     );
   };
 
-  useEffect(() => {
-    if (!propSelectedSectionName) return;
-    handleTextChange(`@${propSelectedSectionName}`);
-  }, []);
-
   const isValidPriorityType = (value: string): value is PriorityType => {
     return ['1', '2', '3', '4'].includes(value);
   };
@@ -338,7 +339,7 @@ const AddTodoModal = ({
     updateTextIfSymbolIsLastChar('!', priority.toString() as PriorityType);
   };
 
-  function handleLabelPress(label: string): void {
+  function handleLabelPress(label: Section | string): void {
     updateTextIfSymbolIsLastChar('@', label);
   }
   const handleSubmitEditing = () => {
@@ -348,23 +349,21 @@ const AddTodoModal = ({
         summary: '',
         completed: 0,
         due_date:
-          range?.endDate?.toLocaleString() ||
-          dayjs(range?.endDate).endOf('day').toISOString() ||
-          null,
+          range?.endDate?.toString() || dayjs(range?.endDate).endOf('day').toISOString() || null,
         start_date:
-          range?.startDate?.toLocaleString() ||
-          dayjs(range?.endDate).startOf('day').toISOString() ||
+          range?.startDate?.toString() ||
+          dayjs(range?.startDate).startOf('day').toISOString() || // Corrected from `endDate` to `startDate`
           null,
         recurrence: recurrenceRule?.toString() || null,
         priority: todoPriority,
-        section_id: selectedSection ? sectionId : 1,
+        section_id: selectedSection ? sectionId : null, // Logic looks correct
         created_by: user!.id,
         parent_id: null,
         created_at: null,
         completed_at: null,
         id: generateUUID(),
       },
-      selectedSection || 'Inbox',
+      selectedSection,
     );
 
     resetUserToDoInput();
@@ -398,7 +397,7 @@ const AddTodoModal = ({
       )
       .forEach(([, labelValue]) => {
         tooltipRows.push(
-          <TouchableOpacity key={labelValue.id} onPress={() => handleLabelPress(labelValue.name!)}>
+          <TouchableOpacity key={labelValue.id} onPress={() => handleLabelPress(labelValue)}>
             <Text>{labelValue.name}</Text>
           </TouchableOpacity>,
         );
@@ -450,7 +449,7 @@ const AddTodoModal = ({
     setTooltipVisible(false);
 
     if (typeof label !== 'string') {
-      setSectionId(Number(label.id));
+      setSectionId(label.id);
       setSelectedSection(label.name!);
     }
   };
@@ -476,7 +475,7 @@ const AddTodoModal = ({
       newHighlightedText.splice(existingIndex, 2); // Remove the existing symbol
 
       if (symbol === '@') {
-        setSectionId(1);
+        setSectionId('');
         setSelectedSection('');
       } else if (symbol === '!') {
         setTodoPriority('4');
@@ -560,7 +559,10 @@ const AddTodoModal = ({
       setDueDateTitle(formattedEndDate);
     }
     // Update the range state
-    setRange(prev => ({startDate: newStartDate, endDate: newEndDate}));
+    setRange(prev => ({
+      startDate: newStartDate,
+      endDate: newEndDate,
+    }));
   };
 
   const handleSheetChanges = useCallback(
@@ -728,7 +730,7 @@ const AddTodoModal = ({
                 setShowStartDatePicker(false);
                 if (selectedDate) {
                   handleDateChange({
-                    newStartDate: dayjs(selectedDate).toDate(),
+                    newStartDate: selectedDate,
                     newEndDate: range.endDate,
                   });
                 }
@@ -746,7 +748,7 @@ const AddTodoModal = ({
                 if (selectedDate) {
                   handleDateChange({
                     newStartDate: range.startDate,
-                    newEndDate: dayjs(selectedDate).toDate(),
+                    newEndDate: selectedDate,
                   });
                 }
               }}

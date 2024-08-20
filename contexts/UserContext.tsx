@@ -25,17 +25,31 @@ export const AuthProvider = ({children}: UserProviderProps) => {
     system.init();
   }, [system]);
 
+  console.log('AuthProvider');
+
   // Auth state change listener
   useEffect(() => {
     const {data: authListener} = supabaseConnector.client.auth.onAuthStateChange(
       (event, newSession) => {
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        if (event === 'INITIAL_SESSION') {
+          console.log(event);
+          if (newSession && !session) setSession(newSession);
+
+          setIsLoading(false);
+          setTimeout(() => {
+            if (!session && !newSession) router.replace('/(auth)');
+            else router.replace('/(tabs)');
+          }, 1000);
+        } else if (event === 'SIGNED_IN') {
           console.log(event);
           if (!session) setSession(newSession);
-          setIsLoading(false);
 
           if (session) router.replace('/(tabs)');
+
+          setIsLoading(false);
         } else if (event === 'SIGNED_OUT') {
+          console.log(event);
+          setSession(null);
           router.replace('/(auth)');
           setIsLoading(false);
         }

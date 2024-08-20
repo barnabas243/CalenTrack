@@ -83,11 +83,12 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
     }
   };
 
-  getSectionNameById = (id: number) => {
-    const section = this.props.sections.find(section => Number(section.id) === id);
+  getSectionNameById = (id: string) => {
+    const section = this.props.sections.find(section => section.id === id);
     return section ? section.name : 'Unknown';
   };
   handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
+    this.editBottomSheetRef.current?.dismiss();
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
       this.props.updateExistingTodos(updatedTodo);
@@ -144,6 +145,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
                 onDismiss={this.props.onDismiss}
                 sections={this.props.sections}
                 colors={this.props.colors}
+                deleteTodo={this.props.deleteTodo}
               />
             )}
           </EditTodoModal>
