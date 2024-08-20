@@ -1,64 +1,89 @@
 import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
-import {supabase} from '@/utils/supabase';
-import {SectionItem} from './types';
+import {Section, SECTION_TABLE} from '@/powersync/AppSchema';
 
 // Define the initial state
 export interface SectionState {
-  sections: SectionItem[];
+  sections: Section[];
   loading: boolean;
   error: string | null;
 }
 
 export const initialState: SectionState = {
-  sections: [],
+  sections: [
+    {id: '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d', name: 'Inbox', user_id: '', created_at: null},
+  ],
   loading: false,
   error: null,
 };
 
 // Thunk to fetch sections
-export const fetchSections = createAsyncThunk('sections/fetchSections', async (userId: string) => {
-  const {data, error} = await supabase
-    .from('sections')
-    .select('*')
-    .or(`user_id.eq.${userId},user_id.is.null`)
-    .order('id', {ascending: true});
-  if (error) throw error;
-  return data as SectionItem[];
+export const fetchSections = createAsyncThunk<
+  Section[],
+  {userId: string; db: any},
+  {rejectValue: string}
+>('sections/fetchSections', async ({userId, db}, {rejectWithValue}) => {
+  // Use the db instance to fetch sections
+
+  try {
+    const sections = await db.selectFrom(SECTION_TABLE).selectAll().execute();
+
+    return sections as Section[];
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to fetch sections');
+  }
 });
 
 // Thunk to insert a new section
-export const insertSection = createAsyncThunk(
-  'sections/insertSection',
-  async (newSection: {name: string; user_id: string}) => {
-    const {data, error} = await supabase
-      .from('sections')
-      .insert({name: newSection.name, user_id: newSection.user_id})
-      .select();
-    if (error) throw error;
-    return data[0] as SectionItem;
-  },
-);
+export const insertSection = createAsyncThunk<
+  Section,
+  {newSection: Section; db: any},
+  {rejectValue: string}
+>('sections/insertSection', async ({newSection, db}, {rejectWithValue}) => {
+  try {
+    const insertResult = await db
+      .insertInto(SECTION_TABLE)
+      .values(newSection)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return insertResult as Section;
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to insert section');
+  }
+});
 
 // Thunk to update a section by ID with a new name
-export const updateSectionName = createAsyncThunk(
-  'sections/updateSectionName',
-  async (updatedSection: SectionItem) => {
-    const {id, name} = updatedSection;
-    const {data, error} = await supabase.from('sections').update({name}).eq('id', id).select();
-    if (error) throw error;
-    return data[0] as SectionItem;
-  },
-);
+export const updateSectionName = createAsyncThunk<
+  Section,
+  {updatedSection: Section; db: any},
+  {rejectValue: string}
+>('sections/updateSectionName', async ({updatedSection, db}, {rejectWithValue}) => {
+  const {id, name} = updatedSection;
+  try {
+    const updateResult = await db
+      .updateTable(SECTION_TABLE)
+      .set({name})
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return updateResult as Section;
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to update section');
+  }
+});
 
 // Thunk to delete a section
-export const deleteSectionById = createAsyncThunk(
-  'sections/deleteSectionById',
-  async (id: number) => {
-    const {error} = await supabase.from('sections').delete().eq('id', id);
-    if (error) throw error;
-    return id; // Return the deleted ID
-  },
-);
+export const deleteSectionById = createAsyncThunk<
+  string,
+  {id: string; db: any},
+  {rejectValue: string}
+>('sections/deleteSectionById', async ({id, db}, {rejectWithValue}) => {
+  try {
+    await db.deleteFrom(SECTION_TABLE).where('id', '=', id).execute();
+    return id;
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to delete section');
+  }
+});
 
 const sectionSlice = createSlice({
   name: 'sections',
@@ -84,7 +109,18 @@ const sectionSlice = createSlice({
       })
       .addCase(fetchSections.fulfilled, (state, action) => {
         state.loading = false;
-        state.sections = action.payload;
+
+        // Filter out any sections from the fetched payload that already exist in the state
+        const newSections = action.payload.filter(
+          fetchedSection =>
+            !state.sections.some(existingSection => existingSection.id === fetchedSection.id),
+        );
+
+        // Append only the new sections to the existing state
+        state.sections = [
+          ...state.sections, // Keep the permanent initial inbox section
+          ...newSections, // Add only the new sections
+        ];
       })
       .addCase(fetchSections.rejected, (state, action) => {
         state.loading = false;

@@ -1,31 +1,42 @@
+import '@azure/core-asynciterator-polyfill';
 import 'react-native-url-polyfill/auto';
+
 import {Stack} from 'expo-router';
 import 'react-native-reanimated';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {DefaultTheme, MD3DarkTheme, PaperProvider} from 'react-native-paper';
-import React, {useEffect} from 'react';
 import 'expo-dev-client';
-import {Alert, Appearance, AppState, AppStateStatus, BackHandler} from 'react-native';
+import {
+  Alert,
+  Appearance,
+  AppState,
+  AppStateStatus,
+  BackHandler,
+  ColorSchemeName,
+} from 'react-native';
 import {Provider} from 'react-redux';
 import store from './store';
 import {AuthProvider} from '@/contexts/UserContext'; // Adjust path as needed
-import {supabase} from '@/utils/supabase';
 import {AutocompleteDropdownContextProvider} from 'react-native-autocomplete-dropdown';
+import {PowerSyncProvider} from '@/powersync/PowerSyncProvider';
+
+import React, {useEffect} from 'react';
+import {useSystem} from '@/powersync/system';
+import {getSetting, SETTINGS} from '@/utils/settingUtils';
 
 export default function RootLayout() {
   const colorScheme = Appearance.getColorScheme();
   const [theme, setTheme] = React.useState(colorScheme === 'dark' ? MD3DarkTheme : DefaultTheme);
-  Appearance.addChangeListener(({colorScheme}) => {
-    setTheme(colorScheme === 'dark' ? MD3DarkTheme : DefaultTheme);
-  });
+
+  const {supabaseConnector} = useSystem();
 
   useEffect(() => {
     // AppState listener setup
     const handleAppStateChange = (state: AppStateStatus) => {
       if (state === 'active') {
-        supabase.auth.startAutoRefresh();
+        supabaseConnector.client.auth.startAutoRefresh();
       } else {
-        supabase.auth.stopAutoRefresh();
+        supabaseConnector.client.auth.stopAutoRefresh();
       }
     };
 
@@ -35,6 +46,24 @@ export default function RootLayout() {
     return () => {
       subscription.remove();
     };
+  }, [supabaseConnector.client.auth]);
+
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        //fetch theme setting
+        const savedColorScheme = await getSetting(SETTINGS.THEME);
+        if (savedColorScheme) {
+          Appearance.setColorScheme(
+            savedColorScheme === 'system' ? null : (savedColorScheme as ColorSchemeName),
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+
+    loadTheme();
   }, []);
 
   useEffect(() => {
@@ -47,7 +76,7 @@ export default function RootLayout() {
         },
         {text: 'YES', onPress: () => BackHandler.exitApp()},
       ]);
-      return true; // Indicate that we've handled the back press
+      return true;
     };
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
@@ -55,34 +84,24 @@ export default function RootLayout() {
     return () => backHandler.remove();
   }, []);
 
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(({colorScheme}) => {
+      setTheme(colorScheme === 'dark' ? MD3DarkTheme : DefaultTheme);
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   return (
     <Provider store={store}>
       <PaperProvider theme={theme}>
         <SafeAreaProvider>
           <AuthProvider>
-            <AutocompleteDropdownContextProvider>
-              <Stack screenOptions={{headerShown: false}}>
-                <Stack.Screen name="(auth)" options={{title: 'Login'}} />
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen
-                  name="_prototype-feedback"
-                  options={{
-                    title: 'CalenTrack Prototype feedback',
-                    headerBackButtonMenuEnabled: true,
-                    headerShown: true,
-                  }}
-                />
-                <Stack.Screen
-                  name="_feature-feedback"
-                  options={{
-                    title: 'CalenTrack Feedback',
-                    headerBackButtonMenuEnabled: true,
-                    headerShown: true,
-                  }}
-                />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-            </AutocompleteDropdownContextProvider>
+            <PowerSyncProvider>
+              <AutocompleteDropdownContextProvider>
+                <Stack screenOptions={{headerShown: false}} />
+              </AutocompleteDropdownContextProvider>
+            </PowerSyncProvider>
           </AuthProvider>
         </SafeAreaProvider>
       </PaperProvider>

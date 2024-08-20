@@ -4,10 +4,12 @@ CalenTRACK is a mobile task management app that puts the calendar view at the ce
 
 ## Features
 
-- **Calendar View Integration**:
-  Seamlessly sync your tasks with Outlook and/or Google Calendar, ensuring you're always up-to-date across platforms.
+- **Calendar Views**:
+  Experience a range of customizable calendar views tailored to your needs. Whether you prefer a daily, weekly, or monthly perspective, CalenTrack adapts to your workflow.
+- **NLP based task creation**
+  Effortlessly create tasks using natural language processing (NLP). Simply describe your task with keywords, and CalenTrack will intelligently extract and set parameters like due dates and priorities.
 - **Real-Time Synchronization**:
-  Enjoy instant updates and synchronization across multiple devices, ensuring your tasks are always current, no matter where you are.
+  Stay connected and organized with real-time updates and synchronization across all your devices. Your tasks remain up-to-date and accessible, no matter where you are.
 
 ## Frameworks
 
@@ -18,38 +20,44 @@ CalenTRACK is a mobile task management app that puts the calendar view at the ce
 
 ### Back-End
 
-- **Supabase **:
-  Leverage the robust capabilities of Supabase for your backend needs, including data storage, authentication, and real-time updates.
+- **Supabase with PowersSync**:
+  Leverage the robust capabilities of Supabase for your backend needs, including data storage, authentication, and real-time updates. PowerSync enhances the functionality with offline capabilities, ensuring that your app remains usable even when connectivity is intermittent.
 
 ## Getting Started
 
-To get started with CalenTRACK, follow these simple steps:
+This repository uses Yarn to install packages. Install Yarn with npm
 
-1. **Clone the Repository**:
-
+```Node
+  npm install --global yarn
 ```
+
+To get started with CalenTrack, follow these simple steps:
+
+1 **Clone the Repository**:
+
+```Node
     git clone https://github.com/barnabas243/CalenTrack.git
     cd CalenTRACK
 ```
 
-2. **Install Dependencies**:
+2 **Install Dependencies**:
 
-```
+```Node
     npx expo install
 ```
 
-3. **Run the Application**:
+3 **Run the Application**:
 
-```
+```Node
     npx expo start
 ```
 
-4. **Start Exploring**: Access the app on your device or emulator and start exploring its features!
+4 **Start Exploring**: Access the app on your device or emulator and start exploring its features!
 
 ## Support
 
-If you encounter any issues or have any questions, feel free to reach out to us at [bttf243@gmail.com](mailto:bttf243@gmail.com). We're here to help!
+If you encounter any issues or have any questions, feel free to reach out at [bttf243@gmail.com](mailto:bttf243@gmail.com).
 
 ## License
 
-CalenTRACK is licensed under the [MIT License](LICENSE).
+CalenTrack is licensed under the [MIT License](LICENSE).

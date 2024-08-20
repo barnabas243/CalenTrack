@@ -16,14 +16,16 @@ export const AutoCompleteDropDown = memo(function AutoCompleteDropDown({
   onSelectItem,
 }: AutoCompleteDropDownProps) {
   return (
-    <>
+    <View testID="autocomplete-dropdown">
       <AutocompleteDropdown
+        trimSearchText
         clearOnFocus={false}
         closeOnBlur={true}
         showClear={true}
-        initialValue={''}
         emptyResultText="No results found"
-        onSelectItem={item => onSelectItem(item)}
+        onSelectItem={item => {
+          if (item) onSelectItem(item);
+        }}
         dataSet={data}
         textInputProps={{
           placeholder: 'Search...',
@@ -44,6 +46,6 @@ export const AutoCompleteDropDown = memo(function AutoCompleteDropDown({
         ignoreAccents
         suggestionsListMaxHeight={Dimensions.get('window').height / 1.5}
       />
-    </>
+    </View>
   );
 });

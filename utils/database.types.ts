@@ -9,24 +9,21 @@ export type Database = {
           full_name: string | null;
           id: string;
           updated_at: string | null;
-          username: string | null;
-          website: string | null;
+          expoPushToken: string | null;
         };
         Insert: {
           avatar_url?: string | null;
           full_name?: string | null;
           id: string;
           updated_at?: string | null;
-          username?: string | null;
-          website?: string | null;
+          expoPushToken: string | null;
         };
         Update: {
           avatar_url?: string | null;
           full_name?: string | null;
           id?: string;
           updated_at?: string | null;
-          username?: string | null;
-          website?: string | null;
+          expoPushToken: string | null;
         };
         Relationships: [
           {

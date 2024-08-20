@@ -1,9 +1,8 @@
 import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
-import {supabase} from '@/utils/supabase'; // Adjust the path as needed
-import {TodoItem} from './types'; // Adjust the path as needed
+import {Todo, TODO_TABLE} from '@/powersync/AppSchema';
 
 interface TodoState {
-  todos: TodoItem[];
+  todos: Todo[];
   loading: boolean;
   error: string | null;
 }
@@ -15,38 +14,72 @@ const initialState: TodoState = {
 };
 
 // Fetch todos
-export const fetchTodos = createAsyncThunk<TodoItem[], string>('todos/fetchTodos', async userId => {
-  const {data, error} = await supabase.from('todos').select('*').eq('created_by', userId);
-  if (error) throw error;
-  return data as TodoItem[];
+export const fetchTodos = createAsyncThunk<
+  Todo[],
+  {userId: string; db: any},
+  {rejectValue: string}
+>('todos/fetchTodos', async ({userId, db}, {rejectWithValue}) => {
+  try {
+    // Use the db instance to fetch todos
+    const todos = await db.selectFrom(TODO_TABLE).selectAll().execute();
+
+    return todos as Todo[];
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to fetch todos');
+  }
 });
 
 // Insert a single todo
-export const insertTodo = createAsyncThunk<TodoItem, TodoItem>('todos/insertTodo', async todo => {
-  const {data, error} = await supabase.from('todos').insert([todo]).select();
-  if (error) throw error;
-  return data[0] as TodoItem;
+export const insertTodo = createAsyncThunk<Todo, {todo: Todo; db: any}, {rejectValue: string}>(
+  'todos/insertTodo',
+  async ({todo, db}, {rejectWithValue}) => {
+    try {
+      const result = await db
+        .insertInto(TODO_TABLE)
+        .values(todo)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      return result as Todo;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to insert todo');
+    }
+  },
+);
+
+// update todo
+export const powerSyncUpdateTodo = createAsyncThunk<
+  Todo,
+  {todo: Todo; db: any},
+  {rejectValue: string}
+>('todos/powerSyncUpdateTodo', async ({todo, db}, {rejectWithValue}) => {
+  try {
+    const result = await db
+      .updateTable(TODO_TABLE)
+      .set(todo)
+      .where('id', '=', todo.id)
+      .returningAll()
+      .executeTakeFirst();
+    return result as Todo;
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to update todo');
+  }
 });
 
-// Batch update todos
-export const updateTodos = createAsyncThunk<TodoItem[], TodoItem[]>(
-  'todos/updateTodos',
-  async todos => {
-    const {data, error} = await supabase.from('todos').upsert(todos, {onConflict: 'id'}).select();
-    if (error) throw error;
-    return data as TodoItem[];
-  },
-);
-
-// Batch delete todos
-export const deleteTodos = createAsyncThunk<string[], string[]>(
-  'todos/deleteTodos',
-  async todoIds => {
-    const {error} = await supabase.from('todos').delete().in('id', todoIds);
-    if (error) throw error;
-    return todoIds; // Returning the IDs of deleted todos
-  },
-);
+// delete todo
+export const powerSyncDeleteTodo = createAsyncThunk<
+  string,
+  {todoId: string; db: any},
+  {rejectValue: string}
+>('todos/powerSyncDeleteTodo', async ({todoId, db}, {rejectWithValue}) => {
+  try {
+    const result = await db.deleteFrom(TODO_TABLE).where('id', '=', todoId).executeTakeFirst();
+    if (!result) throw new Error('Todo not found');
+    return todoId;
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to delete todo');
+  }
+});
 
 const todoSlice = createSlice({
   name: 'todos',
@@ -67,6 +100,7 @@ const todoSlice = createSlice({
     builder
       .addCase(fetchTodos.pending, state => {
         state.loading = true;
+        state.error = null; // Clear error on new fetch
       })
       .addCase(fetchTodos.fulfilled, (state, action) => {
         state.loading = false;
@@ -74,10 +108,11 @@ const todoSlice = createSlice({
       })
       .addCase(fetchTodos.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to fetch todos';
+        state.error = (action.payload as string) || 'Failed to fetch todos';
       })
       .addCase(insertTodo.pending, state => {
         state.loading = true;
+        state.error = null; // Clear error on new insert
       })
       .addCase(insertTodo.fulfilled, (state, action) => {
         state.loading = false;
@@ -85,31 +120,33 @@ const todoSlice = createSlice({
       })
       .addCase(insertTodo.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to insert todo';
+        state.error = (action.payload as string) || 'Failed to insert todo';
       })
-      .addCase(updateTodos.pending, state => {
+      .addCase(powerSyncUpdateTodo.pending, state => {
         state.loading = true;
+        state.error = null; // Clear error on update
       })
-      .addCase(updateTodos.fulfilled, (state, action) => {
+      .addCase(powerSyncUpdateTodo.fulfilled, (state, action) => {
         state.loading = false;
-        state.todos = state.todos.map(
-          todo => action.payload.find(updated => updated.id === todo.id) || todo,
+        state.todos = state.todos.map(todo =>
+          todo.id === action.payload.id ? action.payload : todo,
         );
       })
-      .addCase(updateTodos.rejected, (state, action) => {
+      .addCase(powerSyncUpdateTodo.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to update todos';
+        state.error = (action.payload as string) || 'Failed to update todos';
       })
-      .addCase(deleteTodos.pending, state => {
+      .addCase(powerSyncDeleteTodo.pending, state => {
         state.loading = true;
+        state.error = null; // Clear error on delete
       })
-      .addCase(deleteTodos.fulfilled, (state, action) => {
+      .addCase(powerSyncDeleteTodo.fulfilled, (state, action) => {
         state.loading = false;
         state.todos = state.todos.filter(todo => !action.payload.includes(todo.id!));
       })
-      .addCase(deleteTodos.rejected, (state, action) => {
+      .addCase(powerSyncDeleteTodo.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to delete todos';
+        state.error = (action.payload as string) || 'Failed to delete todos';
       });
   },
 });

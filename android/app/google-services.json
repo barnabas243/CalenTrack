@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "485200927972",
+    "project_id": "calentrack-5a66b",
+    "storage_bucket": "calentrack-5a66b.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:485200927972:android:4af414446a1e829c1aa0f1",
+        "android_client_info": {
+          "package_name": "com.barnabas243.CalenTrack"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCiF-DBNBl0Qc93USNcNQvYz7guhuH19KY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

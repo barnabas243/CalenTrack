@@ -1,7 +1,6 @@
 import React, {useCallback, useState} from 'react';
 import {Alert, SectionList, View, StyleSheet, ColorSchemeName, Appearance} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {supabase} from '@/utils/supabase';
 import {
   ActivityIndicator,
   Avatar,
@@ -19,10 +18,13 @@ import {StatusBar} from 'expo-status-bar';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import {useAuth} from '@/hooks/useAuth';
 import {AuthError} from '@supabase/supabase-js';
+import {useSystem} from '@/powersync/system';
+import {router} from 'expo-router';
+import {saveSetting, SETTINGS} from '@/utils/settingUtils';
 
 export type Theme = 'system' | 'dark' | 'light';
 
-const iconMapping = {
+const iconMapping: Record<string, string> = {
   theme: 'theme-light-dark',
   changePassword: 'key',
   manageAccounts: 'account-group',
@@ -37,14 +39,20 @@ export default function SettingsPage() {
 
   const {colors} = useTheme();
 
-  const [theme, setTheme] = useState<Theme>('system');
+  let colorScheme = Appearance.getColorScheme();
+  const [theme, setTheme] = useState<Theme>(
+    colorScheme === null ? 'system' : (colorScheme as Theme),
+  );
   const [visible, setVisible] = useState(false);
 
+  const {supabaseConnector, powersync} = useSystem();
   const showModal = useCallback(() => setVisible(true), []);
   const hideModal = useCallback(() => setVisible(false), []);
 
-  const handleThemeChange = useCallback((value: string) => {
+  const handleThemeChange = useCallback(async (value: string) => {
     setTheme(value as Theme);
+
+    await saveSetting(SETTINGS.THEME, value);
     Appearance.setColorScheme(value === 'system' ? null : (value as ColorSchemeName));
   }, []);
 
@@ -54,20 +62,14 @@ export default function SettingsPage() {
       if (user?.app_metadata.providers.includes('google')) {
         await GoogleSignin.signOut();
       }
-      // Sign out of Supabase
-      const {error} = await supabase.auth.signOut();
-      if (error) throw error;
 
-      // Optionally, redirect user or perform any additional logic after logout
-      console.log('Successfully signed out');
-
-      // For example, redirect to the login screen or update state
-      // router.replace('/login');
+      await powersync.disconnectAndClear();
+      await supabaseConnector.logout();
     } catch (error) {
       if (error instanceof AuthError) Alert.alert('Error Signing Out', error.message);
       if (error instanceof Error) Alert.alert('Error Signing Out', error.message);
     }
-  }, [user]);
+  }, [powersync, supabaseConnector, user]);
 
   const sections = [
     {
@@ -77,21 +79,22 @@ export default function SettingsPage() {
     {
       title: 'Account Settings',
       data: [
-        {key: 'changePassword', title: 'Change Password', type: 'button'},
+        {
+          key: 'changePassword',
+          title: 'Change Password',
+          type: 'button',
+          onPress: () => router.push('/change_password'),
+        },
         {key: 'manageAccounts', title: 'Manage Connected Accounts', type: 'button'},
       ],
     },
     {
       title: 'App Information',
       data: [
-        {key: 'about', title: 'About', type: 'button'},
+        {key: 'about', title: 'About', type: 'button', onPress: () => router.push('/about')},
         {key: 'help', title: 'Help & Support', type: 'button'},
         {key: 'terms', title: 'Terms of Service & Privacy Policy', type: 'button'},
       ],
-    },
-    {
-      title: '',
-      data: [{key: 'logout', title: 'Logout', type: 'button'}],
     },
   ];
 
@@ -99,46 +102,35 @@ export default function SettingsPage() {
     <List.Subheader>{title}</List.Subheader>
   );
 
-  const renderItem = ({item, index, section}: {item: any; index: number; section: any}) =>
-    item.key === 'logout' ? (
-      <View style={styles.logoutButtonContainer}>
-        <Button
-          mode="contained"
-          onPress={handleLogout}
-          icon={iconMapping[item.key]}
-          style={styles.logoutButton}>
-          {item.title}
-        </Button>
-      </View>
-    ) : (
-      <View
-        style={[
-          {backgroundColor: colors.secondaryContainer},
-          index === 0 && styles.firstItem,
-          index === section.data.length - 1 && styles.lastItem,
-        ]}>
-        {item.type === 'modal' ? (
-          <List.Item
-            style={styles.horizontallySpaced}
-            title={item.title}
-            onPress={showModal}
-            left={() => <List.Icon icon={iconMapping[item.key]} />}
-            right={() => <List.Icon icon="chevron-right" />}
-          />
-        ) : (
-          <List.Item
-            style={styles.horizontallySpaced}
-            title={item.title}
-            left={() => <List.Icon icon={iconMapping[item.key]} />}
-            right={() => <List.Icon icon="chevron-right" />}
-            onPress={() => {}}
-          />
-        )}
-        {index < section.data.length - 1 && (
-          <Divider style={[styles.divider, {backgroundColor: colors.primary}]} horizontalInset />
-        )}
-      </View>
-    );
+  const renderItem = ({item, index, section}: {item: any; index: number; section: any}) => (
+    <View
+      style={[
+        {backgroundColor: colors.secondaryContainer},
+        index === 0 && styles.firstItem,
+        index === section.data.length - 1 && styles.lastItem,
+      ]}>
+      {item.type === 'modal' ? (
+        <List.Item
+          style={styles.horizontallySpaced}
+          title={item.title}
+          onPress={showModal}
+          left={() => <List.Icon icon={iconMapping[item.key]} />}
+          right={() => <List.Icon icon="chevron-right" />}
+        />
+      ) : (
+        <List.Item
+          style={styles.horizontallySpaced}
+          title={item.title}
+          left={() => <List.Icon icon={iconMapping[item.key]} />}
+          right={() => <List.Icon icon="chevron-right" />}
+          onPress={() => item.onPress?.()}
+        />
+      )}
+      {index < section.data.length - 1 && (
+        <Divider style={[styles.divider, {backgroundColor: colors.primary}]} horizontalInset />
+      )}
+    </View>
+  );
 
   if (isLoading) {
     return <ActivityIndicator />;
@@ -153,9 +145,10 @@ export default function SettingsPage() {
         keyExtractor={item => item.key}
         renderSectionHeader={renderSectionHeader}
         renderItem={renderItem}
+        contentContainerStyle={styles.contentContainer}
         ListHeaderComponent={() => (
-          <View style={styles.contentContainer}>
-            <Card onPress={() => console.log('pressed Card')}>
+          <View style={styles.header}>
+            <Card onPress={() => router.push('/details')}>
               <Card.Title
                 title={user?.user_metadata.full_name}
                 subtitle={user?.user_metadata.email}
@@ -167,6 +160,17 @@ export default function SettingsPage() {
           </View>
         )}
         renderSectionFooter={() => <View style={styles.footer} />}
+        ListFooterComponent={() => (
+          <View style={styles.logoutButtonContainer}>
+            <Button
+              mode="contained"
+              onPress={handleLogout}
+              icon={iconMapping['logout']}
+              style={styles.logoutButton}>
+              Logout
+            </Button>
+          </View>
+        )}
       />
       <Portal>
         <Modal
@@ -192,8 +196,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    paddingVertical: 20,
+  },
   contentContainer: {
-    flex: 1,
     padding: 20,
   },
   horizontallySpaced: {

@@ -20,15 +20,13 @@ import {
   Divider,
   Text,
 } from 'react-native-paper';
-import ToDoItem from '@/components/ToDoItem';
 import AddTodoFAB from '@/components/addTodoFAB';
 import DraggableFlatList, {RenderItemParams, ScaleDecorator} from 'react-native-draggable-flatlist';
 import {router, useLocalSearchParams} from 'expo-router';
 import SwiperFlatList from 'react-native-swiper-flatlist';
 import {SwipeableItemImperativeRef} from 'react-native-swipeable-item';
 import {useTodo} from '@/hooks/useTodo';
-import {Section, SectionItem} from '@/store/section/types';
-import {TodoItem} from '@/store/todo/types';
+import {SectionWithTodos} from '@/store/section/types';
 import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import EditTodoModal from '@/components/modals/EditTodoModal';
 import EditTodoModalContent from '@/components/modals/EditTodoModalContent';
@@ -38,6 +36,11 @@ import AddTodoModal from '@/components/modals/addTodoModal';
 import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
 import {AutoCompleteDropDown} from '@/components/AutoCompleteDropDown';
 import {AutocompleteDropdownItem} from 'react-native-autocomplete-dropdown';
+import {Todo, Section} from '@/powersync/AppSchema';
+import ToDoItem from '@/components/ToDoItem';
+import {MaterialCommunityIcons} from '@expo/vector-icons';
+import {FadeInLeft, FadeOutLeft} from 'react-native-reanimated';
+import AlertSnackbar from '@/components/AlertSnackbar';
 
 const InboxScreen = () => {
   const {colors} = useTheme();
@@ -58,22 +61,35 @@ const InboxScreen = () => {
 
   const {user} = useAuth();
 
-  const [groupedSections, setGroupedSections] = useState<Section[]>([]);
+  const [groupedSections, setGroupedSections] = useState<SectionWithTodos[]>([]);
 
   const [newSectionName, setNewSectionName] = useState('');
-  const [selectedSection, setSelectedSection] = useState<SectionItem | null>(null);
+  const [selectedSection, setSelectedSection] = useState<Section | null>(null);
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
 
   const [isSectionModalVisible, setSectionModalVisible] = useState(false);
   const [isAddTodoModalVisible, setIsAddTodoModalVisible] = useState(false);
 
+  const [isAlertSnackbarVisible, setIsAlertSnackbarVisible] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+
+  const showAlertSnackbar = (message: string) => {
+    setAlertMessage(message);
+    setIsAlertSnackbarVisible(true);
+  };
+
+  const hideAlertSnackbar = () => {
+    setAlertMessage('');
+    setIsAlertSnackbarVisible(false);
+  };
+
   const [showFAB, setShowFAB] = useState(true);
 
   const editBottomSheetRef = useRef<BottomSheetModal>(null);
 
   const swiperRef = useRef<SwiperFlatList>(null);
-  const draggableListRefs = useRef(new Map<string, FlatList<TodoItem>>());
+  const draggableListRefs = useRef(new Map<string, FlatList<Todo>>());
   const itemRefs = useRef(new Map<string, SwipeableItemImperativeRef>());
 
   const sectionNameMap = useMemo(
@@ -82,7 +98,7 @@ const InboxScreen = () => {
   );
 
   const autoCompleteItems: AutocompleteDropdownItem[] = useMemo(() => {
-    const sectionItems = sections.map(sec => ({id: sec.id.toString(), title: sec.name}));
+    const sectionItems = sections.map(sec => ({id: sec.id, title: sec.name}));
     const todoItems = todos.map(todo => ({id: `${todo.section_id} ${todo.id}`, title: todo.title}));
     return [...sectionItems, ...todoItems];
   }, [sections, todos]);
@@ -92,19 +108,20 @@ const InboxScreen = () => {
 
   const memoizedGroupedSections = useMemo(() => {
     // Map of section IDs to section names
+    console.log('Memoizing grouped sections');
     const groupedSectionsData = todos.reduce((acc, item) => {
-      const sectionId = item.section_id ?? 1;
+      const sectionId = item.section_id ?? '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d';
       if (!acc.has(sectionId)) {
         acc.set(sectionId, []);
       }
       acc.get(sectionId)!.push(item);
       return acc;
-    }, new Map<number, TodoItem[]>());
+    }, new Map<string, Todo[]>());
 
     // Create a list of updated sections with todos
     const updatedSections = Array.from(sectionNameMap.entries()).map(
       ([sectionId, sectionName]) => ({
-        key: sectionId.toString(),
+        key: sectionId,
         name: sectionName || 'Unknown',
         data: groupedSectionsData.get(sectionId) || [], // Use empty array if no todos
       }),
@@ -122,12 +139,13 @@ const InboxScreen = () => {
 
   // Update state when memoizedGroupedSections changes
   useEffect(() => {
+    console.log('Updating grouped sections');
     setGroupedSections(memoizedGroupedSections);
   }, [memoizedGroupedSections]);
 
   useEffect(() => {
     if (id && swiperRef.current && isLayoutReady) {
-      swiperRef.current.scrollToIndex({index: parseInt(id, 10), animated: true});
+      swiperRef.current.scrollToIndex({index: parseInt(id as string, 10), animated: true});
     }
   }, [id, isLayoutReady]);
 
@@ -138,7 +156,8 @@ const InboxScreen = () => {
     }
 
     addNewSection({name: trimmedSectionName, user_id: user!.id}).catch(() => {
-      Alert.alert('Error', 'Failed to add section');
+      showAlertSnackbar('Failed to add section');
+      // Alert.alert('Error', 'Failed to add section');
     });
 
     setNewSectionName('');
@@ -146,12 +165,12 @@ const InboxScreen = () => {
   }, [newSectionName, addNewSection, user]);
 
   const handlePress = useCallback(
-    (sectionId: number) => {
+    (sectionId: string) => {
       const section = sections.find(sec => sec.id === sectionId);
       if (!section) return;
 
       setSelectedSection(section);
-      setNewSectionName(section.name);
+      setNewSectionName(section.name!);
       setSectionModalVisible(true);
     },
     [sections],
@@ -159,22 +178,26 @@ const InboxScreen = () => {
 
   const handleDeleteSection = useCallback(async () => {
     if (!selectedSection) {
+      showAlertSnackbar('No section selected');
       return;
     }
 
-    if (selectedSection.id === 1) {
-      return Alert.alert('Error', 'Cannot delete Inbox section');
+    if (selectedSection.id === '1') {
+      showAlertSnackbar('Cannot delete Inbox section');
+      // return Alert.alert('Error', 'Cannot delete Inbox section');
     }
 
     try {
       const isDeleted = await deleteExistingSection(selectedSection.id);
       if (!isDeleted) {
-        return Alert.alert('Error', 'Failed to delete section');
+        showAlertSnackbar('Failed to delete section');
+        // return Alert.alert('Error', 'Failed to delete section');
       }
       setNewSectionName('');
       setSectionModalVisible(false);
     } catch {
-      Alert.alert('Error', 'Failed to delete section');
+      showAlertSnackbar('Failed to delete section');
+      // Alert.alert('Error', 'Failed to delete section');
     }
   }, [selectedSection, deleteExistingSection]);
 
@@ -199,9 +222,12 @@ const InboxScreen = () => {
         setNewSectionName('');
         setSelectedSection(null);
         setSectionModalVisible(false);
+
+        showAlertSnackbar('Section updated successfully');
       }
     } catch {
-      Alert.alert('Error', 'Failed to update section');
+      showAlertSnackbar('Failed to update section');
+      // Alert.alert('Error', 'Failed to update section');
     }
   }, [selectedSection, newSectionName, updateExistingSection]);
 
@@ -215,7 +241,7 @@ const InboxScreen = () => {
   const hideAddSectionModal = useCallback(() => setSectionModalVisible(false), []);
 
   const handleEndDrag = useCallback(
-    (data: TodoItem[], sectionName: string) => {
+    (data: Todo[], sectionName: string) => {
       const sectionMap = new Map(sections.map(sec => [sec.name, sec.id]));
 
       const sectionId = sectionMap.get(sectionName);
@@ -232,19 +258,23 @@ const InboxScreen = () => {
     [groupedSections, sections],
   );
 
-  const handleSubmitEditing = async (newTodo: TodoItem, selectedSection = 'Inbox') => {
+  const handleSubmitEditing = async (newTodo: Todo, selectedSection = 'Inbox') => {
     if (!newTodo) return;
 
     try {
-      if (selectedSection !== 'Inbox' && !newTodo.section_id) {
+      if (
+        selectedSection.trim().length > 0 &&
+        selectedSection.trim() !== 'Inbox' &&
+        !newTodo.section_id
+      ) {
         // Create a new section if it doesn't exist
-        const newSection = {name: selectedSection, user_id: user!.id};
+        const newSection = {name: selectedSection.trim(), user_id: user!.id};
 
         // Assuming addNewSection returns the created section or an identifier
         const result = await addNewSection(newSection);
-
         if (!result || !result.id) {
-          Alert.alert('Error', 'Failed to create new section');
+          showAlertSnackbar('Failed to create new section');
+          // Alert.alert('Error', 'Failed to create new section');
           return;
         }
 
@@ -253,20 +283,25 @@ const InboxScreen = () => {
         const todoResult = await addNewTodo(updatedTodo);
 
         if (!todoResult) {
-          Alert.alert('Error', 'Failed to add new todo');
-          return;
+          showAlertSnackbar('Failed to add new todo');
+          // Alert.alert('Error', 'Failed to add new todo');
         }
-        swiperRef.current?.scrollToIndex({index: groupedSections.length - 2});
       } else {
         // If section_id is present or selectedSection is 'Inbox', directly add the todo
         const todoResult = await addNewTodo(newTodo);
 
         if (!todoResult) {
-          Alert.alert('Error', 'Failed to add new todo');
+          showAlertSnackbar('Failed to add new todo');
+          // Alert.alert('Error', 'Failed to add new todo');
+        } else {
+          // Alert user that the todo has been added
+          showAlertSnackbar('Todo added successfully');
         }
       }
     } catch (error) {
       console.error('An error occurred while handling submit editing:', error);
+      showAlertSnackbar('An unexpected error occurred');
+      // Alert.alert('Error', 'An unexpected error occurred');
     }
   };
 
@@ -275,39 +310,50 @@ const InboxScreen = () => {
 
     if (index !== prevIndex) {
       const currentSection = sections[index];
-      setSelectedSection(currentSection);
       if (index === groupedSections.length - 1) {
         setShowFAB(false);
       } else if (!showFAB) {
         setShowFAB(true);
       }
+
+      setSelectedSection(currentSection);
     }
   };
 
   const toggleCompleteTodo = (id: string) => {
     const todo = todos.find(todo => todo.id === id);
     if (todo) {
-      updateExistingTodos([
-        {
-          ...todo,
-          completed: !todo.completed,
-          completed_at: todo.completed ? null : new Date().toISOString(),
-        },
-      ]);
+      updateExistingTodos({
+        ...todo,
+        completed: todo.completed === 1 ? 0 : 1,
+        completed_at: todo.completed === 1 ? null : new Date().toISOString(),
+      })
+        .then(result => {
+          if (result) showAlertSnackbar('Todo updated successfully');
+        })
+        .catch(error => {
+          showAlertSnackbar(`Failed to update todo: ${error.message}`);
+        });
     }
   };
 
-  const openEditBottomSheet = (item: TodoItem) => {
+  const openEditBottomSheet = (item: Todo) => {
     if (editBottomSheetRef.current) {
       editBottomSheetRef.current.present(item);
     }
   };
 
-  const deleteTodo = (id: string) => {
-    deleteExistingTodos([id]);
+  const deleteTodo = async (id: string) => {
+    await deleteExistingTodos(id)
+      .then(result => {
+        if (result) showAlertSnackbar('Todo deleted successfully');
+      })
+      .catch(error => {
+        showAlertSnackbar(`Failed to delete todo: ${error.message}`);
+      });
   };
 
-  const renderTodoItem = (params: RenderItemParams<TodoItem>) => (
+  const renderTodoItem = (params: RenderItemParams<Todo>) => (
     <ScaleDecorator>
       <ToDoItem
         {...params}
@@ -317,7 +363,6 @@ const InboxScreen = () => {
         openEditBottomSheet={openEditBottomSheet}
         deleteTodo={deleteTodo}
         sections={sections}
-        enableSwipe={true}
       />
     </ScaleDecorator>
   );
@@ -326,18 +371,25 @@ const InboxScreen = () => {
     setLayoutReady(true);
   };
 
-  const handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+  const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
+    editBottomSheetRef.current?.close();
+    // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
-      updateExistingTodos([updatedTodo]);
+      await updateExistingTodos(updatedTodo)
+        .then(result => {
+          if (result) showAlertSnackbar('Todo updated successfully');
+        })
+        .catch(error => {
+          showAlertSnackbar(`Failed to update todo: ${error.message}`);
+        });
     }
   };
-
   const onDismiss = () => {
     console.log('EditTodoModal dismissed');
   };
 
   const renderPlaceholder = () => <DraggableItemPlaceholder />;
-  const renderEmptyComponent = (item: Section) =>
+  const renderEmptyComponent = (item: SectionWithTodos) =>
     item.key === 'new_section' ? (
       <View style={styles.centerContainer}>
         <Button mode="contained-tonal" icon={'plus'} onPress={showAddSectionModal}>
@@ -346,13 +398,24 @@ const InboxScreen = () => {
       </View>
     ) : (
       <View style={styles.centerContainer}>
-        <Text variant="labelMedium">You have not added any task to the section</Text>
+        <MaterialCommunityIcons name="file-document-outline" size={70} color={colors.primary} />
+        <View style={{flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center'}}>
+          <Text variant="titleLarge" style={{color: colors.onSurface}}>
+            No Tasks Available
+          </Text>
+          <Text variant="bodySmall" style={{color: colors.onSurfaceVariant, marginTop: 5}}>
+            It appears there are no tasks in this section yet.
+          </Text>
+        </View>
       </View>
     );
-  const renderHeaderComponent = (item: Section) => (
+  const renderHeaderComponent = (item: SectionWithTodos) => (
     <>
       <View style={[styles.headerContainer, {backgroundColor: colors.background}]}>
-        <TouchableOpacity onPress={() => handlePress(Number(item.key))}>
+        <TouchableOpacity
+          onPress={() => handlePress(item.key)}
+          onLongPress={displayDeleteSectionAlert}
+          disabled={item.name === 'Inbox' || item.key === 'new_section'}>
           <Text variant="titleMedium" style={{color: colors.primary}}>
             {item.name}
           </Text>
@@ -361,16 +424,8 @@ const InboxScreen = () => {
     </>
   );
 
-  // const goToSwiperPage = useCallback(index => {
-  //   swiperRef.current?.scrollToIndex({index, animated: true});
-  // }, []);
-
-  // const findSectionIndexByName = (name: string) => {
-  //   return sections.findIndex(section => section.name.toLowerCase().includes(name.toLowerCase()));
-  // };
-
-  const findSectionIndexById = (id: number) => {
-    return sections.findIndex(section => section.id === id);
+  const findSectionIndexById = (id: string) => {
+    return sections.findIndex(sec => sec.id === id);
   };
   // Callback function to handle text changes
   const handleSelectItem = (item: AutocompleteDropdownItem | null) => {
@@ -381,7 +436,7 @@ const InboxScreen = () => {
     const idParts = item.id.split(' ');
     const isTodoItem = idParts.length > 1;
     // If the idParts has more than one element, the item id is the last element
-    const sectionId = Number(idParts[0]);
+    const sectionId = idParts[0];
     const sectionIndex = findSectionIndexById(sectionId);
 
     swiperRef.current?.scrollToIndex({index: sectionIndex, animated: true});
@@ -391,7 +446,7 @@ const InboxScreen = () => {
       const flatListRef = draggableListRefs.current.get(sectionId.toString());
 
       if (flatListRef && flatListRef.props.data) {
-        const index = flatListRef.props.data.findIndex((item: TodoItem) => item.id === itemId) ?? 0;
+        const index = Array.from(flatListRef.props.data).findIndex(todo => todo.id === itemId);
         if (index !== -1) {
           flatListRef.scrollToIndex({index, animated: true, viewPosition: 0.1});
         }
@@ -431,10 +486,12 @@ const InboxScreen = () => {
           />
         </Menu>
       </Appbar.Header>
+
       <SwiperFlatList
         ref={swiperRef}
         keyExtractor={item => item.key}
         data={groupedSections}
+        showPagination
         initialNumToRender={3}
         onChangeIndex={onChangeIndex}
         showsVerticalScrollIndicator={false}
@@ -457,6 +514,8 @@ const InboxScreen = () => {
             renderPlaceholder={renderPlaceholder}
             ListEmptyComponent={renderEmptyComponent(item)}
             ListHeaderComponent={renderHeaderComponent(item)}
+            itemEnteringAnimation={FadeInLeft}
+            itemExitingAnimation={FadeOutLeft}
           />
         )}
       />
@@ -472,6 +531,7 @@ const InboxScreen = () => {
             style={{
               flex: 1,
               justifyContent: 'flex-end',
+              paddingBottom: 50,
             }}>
             <View style={[styles.modalContent, {backgroundColor: colors.surface}]}>
               <TextInput
@@ -504,14 +564,16 @@ const InboxScreen = () => {
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
         <AddTodoModal
           isVisible={isAddTodoModalVisible}
           setIsVisible={setIsAddTodoModalVisible}
           onBackdropPress={hideAddTodoModal}
           onSubmitEditing={handleSubmitEditing}
           sections={sections}
-          propSelectedSectionName=""
+          propSelectedSection={selectedSection || undefined}
         />
+
         <EditTodoModal ref={editBottomSheetRef} onDismiss={onDismiss}>
           {data => (
             <EditTodoModalContent
@@ -519,12 +581,19 @@ const InboxScreen = () => {
               onDismiss={handleEditModalDismiss}
               sections={sections}
               colors={colors}
+              deleteTodo={deleteTodo}
             />
           )}
         </EditTodoModal>
       </BottomSheetModalProvider>
 
       {showFAB && <AddTodoFAB onPress={showAddTodoModal} />}
+
+      <AlertSnackbar
+        visible={isAlertSnackbarVisible}
+        message={alertMessage}
+        onDismiss={hideAlertSnackbar}
+      />
     </View>
   );
 };
@@ -554,7 +623,10 @@ const styles = StyleSheet.create({
     width,
   },
   centerContainer: {
-    paddingHorizontal: 16,
+    flex: 1,
+    flexDirection: 'row',
+
+    paddingVertical: 16,
     width: '100%',
   },
   headerContainer: {

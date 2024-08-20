@@ -1,10 +1,11 @@
 import React from 'react';
-import {render, fireEvent} from '@testing-library/react-native';
-
-import {MD3Colors} from 'react-native-paper/lib/typescript/types';
+import {render, fireEvent, waitFor, act} from '@testing-library/react-native';
+import {MD3Colors, MD3ElevationColors} from 'react-native-paper/lib/typescript/types';
 import {TodoItem, PriorityType} from '@/store/todo/types';
 import ToDoItem, {ToDoItemProps} from '../ToDoItem';
 import {SectionItem} from '@/store/section/types';
+import {Dimensions} from 'react-native';
+import {OpenDirection} from 'react-native-swipeable-item';
 
 const mockColors: MD3Colors = {
   primary: '#000',
@@ -39,7 +40,7 @@ const mockColors: MD3Colors = {
   inversePrimary: '',
   shadow: '',
   scrim: '',
-  elevation: '',
+  elevation: {} as MD3ElevationColors,
 };
 
 const mockTodoItem: TodoItem = {
@@ -51,7 +52,6 @@ const mockTodoItem: TodoItem = {
   due_date: '2024-08-12',
   section_id: 1,
   created_by: '1',
-  // Add other required fields if necessary
 };
 
 const mockSections: SectionItem[] = [
@@ -83,30 +83,76 @@ const defaultProps: ToDoItemProps = {
   sections: mockSections,
 };
 
+// Get the WIDTH value for testing
+const WIDTH = Dimensions.get('window').width;
+
 describe('ToDoItem Component', () => {
+  const priorityLevels = [
+    {priority: '1', expectedColor: 'red'},
+    {priority: '2', expectedColor: 'orange'},
+    {priority: '3', expectedColor: 'green'},
+    {priority: '4', expectedColor: '#CCCCCC'}, // Default case
+  ];
+  beforeEach(() => {
+    jest.clearAllMocks(); // Clear mock history before each test
+  });
+
+  test.each(priorityLevels)(
+    'todo item border color changes according to priority',
+    ({priority, expectedColor}) => {
+      const {getByTestId} = render(
+        <ToDoItem
+          {...defaultProps}
+          item={{...defaultProps.item, priority: priority as PriorityType}}
+        />,
+      );
+      const todoItem = getByTestId('todo-item');
+      const {borderColor} = todoItem.props.style;
+
+      expect(borderColor).toBe(expectedColor);
+    },
+  );
+
   it('renders correctly with given props', () => {
     const {getByText} = render(<ToDoItem {...defaultProps} />);
     expect(getByText('Test Todo')).toBeTruthy();
     expect(getByText('This is a test todo item')).toBeTruthy();
   });
 
-  it('calls onToggleComplete when checkbox is toggled', () => {
-    const {getByRole} = render(<ToDoItem {...defaultProps} />);
-    const checkbox = getByRole('checkbox');
-    fireEvent(checkbox, 'valueChange');
-    expect(defaultProps.onToggleComplete).toHaveBeenCalledWith('1');
+  it('calls onToggleComplete when checkbox is toggled', async () => {
+    const {getByTestId} = render(<ToDoItem {...defaultProps} />);
+    const checkbox = getByTestId('todo-checkbox');
+
+    // Wrap the fireEvent in act to ensure state updates are processed
+    await act(async () => {
+      fireEvent.press(checkbox);
+    });
+
+    await waitFor(() => {
+      expect(defaultProps.onToggleComplete).toHaveBeenCalledWith('1');
+    });
   });
 
-  it('opens edit modal when pressed', () => {
+  it('todo item border color changes according to priority', () => {
+    const {getByTestId} = render(<ToDoItem {...defaultProps} />);
+    const borderColor = getByTestId('todo-item').props.style.borderColor;
+    expect(borderColor).toBe('red');
+  });
+
+  it('opens edit modal when pressed', async () => {
     const {getByText} = render(<ToDoItem {...defaultProps} />);
     fireEvent.press(getByText('Test Todo'));
-    expect(defaultProps.openEditBottomSheet).toHaveBeenCalledWith(mockTodoItem);
+    await waitFor(() => {
+      expect(defaultProps.openEditBottomSheet).toHaveBeenCalledWith(mockTodoItem);
+    });
   });
 
-  it('calls drag function when long pressed', () => {
+  it('calls drag function when long pressed', async () => {
     const {getByText} = render(<ToDoItem {...defaultProps} />);
     fireEvent(getByText('Test Todo'), 'onLongPress');
-    expect(defaultProps.drag).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(defaultProps.drag).toHaveBeenCalled();
+    });
   });
 
   it('displays the correct section name', () => {
@@ -114,9 +160,53 @@ describe('ToDoItem Component', () => {
     expect(getByText('Inbox')).toBeTruthy();
   });
 
-  it('calls deleteTodo when delete button is pressed', () => {
+  it('renders correct underlay buttons on swipe', async () => {
     const {getByText} = render(<ToDoItem {...defaultProps} />);
-    fireEvent.press(getByText('delete'));
+    // Simulate swipe to reveal buttons
+    fireEvent.press(getByText('Test Todo'));
+    await waitFor(() => {
+      expect(getByText('Complete')).toBeTruthy();
+      expect(getByText('delete')).toBeTruthy();
+    });
+  });
+
+  it('calls deleteTodo when snapPoint is WIDTH and openDirection is LEFT', async () => {
+    // Render the component
+    const {getByTestId} = render(<ToDoItem {...defaultProps} />);
+
+    // Trigger the onChange event
+    // Assuming that 'onChange' is triggered by some user action (like pressing a button)
+    const item = getByTestId('todo-item').children[0];
+
+    await act(async () => {
+      fireEvent(item, 'onChange', {
+        openDirection: OpenDirection.LEFT,
+        snapPoint: WIDTH,
+      });
+    });
+
+    // Verify the function calls
+    expect(defaultProps.onToggleComplete).not.toHaveBeenCalled();
     expect(defaultProps.deleteTodo).toHaveBeenCalledWith('1');
+  });
+
+  it('calls onToggleComplete when snapPoint is WIDTH and openDirection is RIGHT', async () => {
+    // Render the component
+    const {getByTestId} = render(<ToDoItem {...defaultProps} />);
+
+    // Trigger the onChange event
+    // Assuming that 'onChange' is triggered by some user action (like pressing a button)
+    const item = getByTestId('todo-item').children[0];
+
+    await act(async () => {
+      fireEvent(item, 'onChange', {
+        openDirection: OpenDirection.RIGHT,
+        snapPoint: WIDTH,
+      });
+    });
+
+    // Verify the function calls
+    expect(defaultProps.deleteTodo).not.toHaveBeenCalled();
+    expect(defaultProps.onToggleComplete).toHaveBeenCalledWith('1');
   });
 });

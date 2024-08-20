@@ -1,42 +1,48 @@
 import React, {createRef, MutableRefObject, PureComponent} from 'react';
-import {StyleSheet, View, Dimensions} from 'react-native';
+import {StyleSheet, View, Dimensions, Appearance} from 'react-native';
 import {ExpandableCalendar, CalendarProvider} from 'react-native-calendars';
 import {SwiperFlatList} from 'react-native-swiper-flatlist';
 import {Text} from 'react-native-paper';
 import ToDoItem from '../ToDoItem';
-import {MonthlyTodo, TodoItem} from '@/store/todo/types';
+import {MonthlyTodo} from '@/store/todo/types';
 import {MarkedDates} from 'react-native-calendars/src/types';
 import {MD3Colors} from 'react-native-paper/lib/typescript/types';
 import DraggableFlatList, {RenderItemParams, ScaleDecorator} from 'react-native-draggable-flatlist';
-import dayjs from 'dayjs';
+
 import {SwipeableItemImperativeRef} from 'react-native-swipeable-item';
 import EditTodoModal from '../modals/EditTodoModal';
 import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import EditTodoModalContent from '../modals/EditTodoModalContent';
-import {SectionItem} from '@/store/section/types';
 import {isEqual} from 'lodash';
 import AddTodoModal from '../modals/addTodoModal';
 import AddTodoFAB from '../addTodoFAB';
 import DraggableItemPlaceholder from '../DraggableItemPlaceholder';
+import {Section, Todo} from '@/powersync/AppSchema';
+import {getColorForSection, loadSectionColors} from '@/utils/settingUtils';
 
+import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(timezone);
 interface MonthCalendarProps {
   monthlyTodoArray: MonthlyTodo[];
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   colors: MD3Colors;
-  handleEndDrag: (results: TodoItem[], name: string | Date) => void;
-  updateExistingTodos: (todos: TodoItem[]) => void;
+  handleEndDrag: (results: Todo[], name: string | Date) => void;
+  updateExistingTodos: (todos: Todo) => void;
   deleteTodo: (id: string) => void;
   toggleCompleteTodo: (id: string) => void;
-  sections: SectionItem[];
-  onDismiss: (selectedTodo: TodoItem, updatedTodo: TodoItem) => void;
-  onSubmitEditing: (todo: TodoItem) => void;
+  sections: Section[];
+  onDismiss: (selectedTodo: Todo, updatedTodo: Todo) => void;
+  onSubmitEditing: (todo: Todo) => void;
 }
 
 interface MonthCalendarState {
   markedDates: MarkedDates;
   currentDate: string;
   isAddTodoModalVisible: boolean;
+  isDarkMode: boolean;
 }
 
 class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState> {
@@ -47,30 +53,87 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
   constructor(props: MonthCalendarProps) {
     super(props);
     this.state = {
-      markedDates: this.calculateMarkedDates(props.monthlyTodoArray),
+      markedDates: {},
       currentDate: props.selectedDate,
       isAddTodoModalVisible: false,
+      isDarkMode: Appearance.getColorScheme() === 'dark',
     };
     this.todoItemRefs = {
       current: new Map<string, SwipeableItemImperativeRef>(),
     } as MutableRefObject<Map<string, SwipeableItemImperativeRef>>;
   }
 
-  componentDidUpdate(prevProps: MonthCalendarProps) {
+  async componentDidMount() {
+    // Load section colors and calculate marked dates
+    await this.loadSectionColorsAndMarkedDates();
+  }
+
+  async componentDidUpdate(prevProps: MonthCalendarProps) {
     if (prevProps.monthlyTodoArray !== this.props.monthlyTodoArray) {
-      this.setState({
-        markedDates: this.calculateMarkedDates(this.props.monthlyTodoArray),
-      });
+      await this.loadSectionColorsAndMarkedDates();
     }
   }
 
-  calculateMarkedDates = (monthlyTodoArray: MonthlyTodo[]): MarkedDates => {
-    return monthlyTodoArray.reduce((acc, item) => {
-      if (item.data.length > 0) {
-        acc[item.dueDate] = {marked: true};
-      }
-      return acc;
-    }, {} as MarkedDates);
+  loadSectionColorsAndMarkedDates = async () => {
+    // Calculate marked dates with colors
+    await loadSectionColors();
+    const markedDates = await this.calculateMarkedDates(this.props.monthlyTodoArray);
+    this.setState({markedDates});
+  };
+
+  calculateMarkedDates = async (monthlyTodoArray: MonthlyTodo[]) => {
+    const markedDates: MarkedDates = {};
+
+    await Promise.all(
+      monthlyTodoArray.map(async item => {
+        if (item.data.length > 0) {
+          await Promise.all(
+            item.data.map(async todo => {
+              // Convert to dayjs object with time zone
+              const startDate = dayjs.tz(todo.start_date);
+              let endDate = dayjs.tz(todo.due_date);
+              const color = todo.section_id
+                ? await getColorForSection(todo.section_id, this.state.isDarkMode)
+                : '';
+
+              // Ensure endDate is inclusive by adding one day
+              if (startDate.isAfter(endDate)) {
+                endDate = startDate;
+              }
+
+              console.log('startDate', startDate);
+              console.log('endDate', endDate);
+
+              let currentDate = startDate;
+
+              // Iterate through the range of dates from startDate to endDate (inclusive)
+              while (currentDate.isBefore(endDate.add(1, 'day'))) {
+                const dateStr = currentDate.format('YYYY-MM-DD'); // Convert dayjs object to YYYY-MM-DD string
+
+                // Initialize the entry for the current date if it does not exist
+                if (!markedDates[dateStr]) {
+                  markedDates[dateStr] = {
+                    periods: [],
+                  };
+                }
+
+                // Add the period data for the current date
+                markedDates[dateStr].periods!.push({
+                  color,
+                  startingDay: currentDate.isSame(startDate, 'day'),
+                  endingDay: currentDate.isSame(endDate, 'day'),
+                });
+
+                // Move to the next day
+                currentDate = currentDate.add(1, 'day');
+              }
+            }),
+          );
+        }
+      }),
+    );
+
+    return markedDates;
   };
 
   findIndexByDate = (date: string): number => {
@@ -107,7 +170,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
     }
   };
 
-  openEditBottomSheet = (item: TodoItem) => {
+  openEditBottomSheet = (item: Todo) => {
     if (this.editBottomSheetRef.current) {
       this.editBottomSheetRef.current.present(item);
     } else {
@@ -115,14 +178,15 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
     }
   };
 
-  handleEditModalDismiss = async (selectedTodo: TodoItem, updatedTodo: TodoItem) => {
+  handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
+    this.editBottomSheetRef.current?.dismiss();
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
-      this.props.updateExistingTodos([updatedTodo]);
+      this.props.updateExistingTodos(updatedTodo);
     }
   };
 
-  renderTodoItem = (params: RenderItemParams<TodoItem>) => (
+  renderTodoItem = (params: RenderItemParams<Todo>) => (
     <ScaleDecorator>
       <ToDoItem
         {...params}
@@ -173,6 +237,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
               selectedDayBackgroundColor: colors.onErrorContainer,
               selectedDayTextColor: colors.onError,
             }}
+            markingType="multi-period"
             firstDay={1}
             markedDates={markedDates}
             onDayPress={this.onDayPress}
@@ -222,6 +287,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
                 onDismiss={this.props.onDismiss}
                 sections={this.props.sections}
                 colors={colors}
+                deleteTodo={this.props.deleteTodo}
               />
             )}
           </EditTodoModal>
