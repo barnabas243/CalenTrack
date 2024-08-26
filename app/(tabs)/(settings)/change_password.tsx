@@ -1,5 +1,5 @@
 import React, {useState, useCallback, useEffect} from 'react';
-import {View, StyleSheet, Alert, BackHandler} from 'react-native';
+import {View, StyleSheet, BackHandler} from 'react-native';
 import {Button, TextInput, Text, useTheme, Appbar, HelperText} from 'react-native-paper';
 import {router} from 'expo-router';
 import {StatusBar} from 'expo-status-bar';

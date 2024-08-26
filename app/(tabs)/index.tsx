@@ -29,7 +29,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import EditTodoModal from '@/components/modals/EditTodoModal';
 import {BottomSheetDefaultBackdropProps} from '@gorhom/bottom-sheet/lib/typescript/components/bottomSheetBackdrop/types';
-import {find, isEqual} from 'lodash';
+import {isEqual} from 'lodash';
 import EditTodoModalContent from '@/components/modals/EditTodoModalContent';
 import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
 import AddTodoModal from '@/components/modals/addTodoModal';

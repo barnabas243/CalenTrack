@@ -13,7 +13,7 @@ import {MonthlyTodo} from '@/store/todo/types';
 import {TimelineEventProps} from 'react-native-calendars';
 import {isEqual} from 'lodash';
 import {useAuth} from '@/hooks/useAuth';
-import {ICustomCalendarEvent} from 'react-native-big-calendar';
+import {ICustomCalendarEvent} from '@/components/calendars/WeekCalendar';
 import {Todo} from '@/powersync/AppSchema';
 import {useNotification} from '@/contexts/NotificationContext';
 import {Host} from 'react-native-portalize';

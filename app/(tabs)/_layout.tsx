@@ -1,6 +1,6 @@
 // app/(tabs)/_layout.tsx
 
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {useTheme} from 'react-native-paper';
 import {MaterialBottomTabs} from '@/layouts/material-bottom-tabs';
 import {MaterialCommunityIcons} from '@expo/vector-icons';

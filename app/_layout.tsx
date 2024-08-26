@@ -1,7 +1,7 @@
 import '@azure/core-asynciterator-polyfill';
 import 'react-native-url-polyfill/auto';
 
-import {router, Stack} from 'expo-router';
+import {Stack} from 'expo-router';
 import 'react-native-reanimated';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {DefaultTheme, MD3DarkTheme, PaperProvider} from 'react-native-paper';
@@ -13,7 +13,6 @@ import {
   AppStateStatus,
   BackHandler,
   ColorSchemeName,
-  Linking,
 } from 'react-native';
 import {Provider} from 'react-redux';
 import store from './store';

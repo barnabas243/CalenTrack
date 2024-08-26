@@ -1,5 +1,5 @@
 import React, {useState, useRef, useEffect, useCallback} from 'react';
-import {View, StyleSheet, KeyboardAvoidingView, Platform, Appearance} from 'react-native';
+import {View, StyleSheet, KeyboardAvoidingView, Platform} from 'react-native';
 import {
   Appbar,
   Checkbox,
@@ -21,7 +21,6 @@ import DatePicker from 'react-native-date-picker';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone'; // For timezone handling
 import utc from 'dayjs/plugin/utc'; // For UTC handling
-import {de} from 'chrono-node';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);

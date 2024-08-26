@@ -1,8 +1,7 @@
 import AlertSnackbar from '@/components/AlertSnackbar';
 import {useSystem} from '@/powersync/system';
-import {AuthError} from '@supabase/supabase-js';
 import {router} from 'expo-router';
-import React, {useEffect} from 'react';
+import React from 'react';
 import {View, StyleSheet, Keyboard} from 'react-native';
 import {Appbar, Button, HelperText, Text, TextInput, useTheme} from 'react-native-paper';
 
@@ -73,7 +72,7 @@ export default function RecoverScreen() {
     // }
 
     try {
-      const {data, error} = await supabaseConnector.client.auth.updateUser({
+      const {error} = await supabaseConnector.client.auth.updateUser({
         password: newPassword,
       });
 
@@ -83,7 +82,7 @@ export default function RecoverScreen() {
         setSuccess(true);
       }
     } catch (error) {
-      setError('An error occurred while resetting the password.');
+      setError('An error occurred while resetting the password.', error);
     } finally {
       setIsLoading(false);
     }

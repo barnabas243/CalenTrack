@@ -12,7 +12,7 @@ import AlertSnackbar from '@/components/AlertSnackbar';
 const iconSource = require('@/assets/images/icon-left-text.svg');
 const checklistSource = require('@/assets/images/plan-list.svg');
 
-const {width, height} = Dimensions.get('window');
+const {width} = Dimensions.get('window');
 
 GoogleSignin.configure({
   scopes: ['https://www.googleapis.com/auth/drive.readonly'],

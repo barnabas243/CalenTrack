@@ -1,6 +1,6 @@
 import {debounce} from 'lodash';
 import React, {useRef, useState} from 'react';
-import {Dimensions, StyleSheet, View, ViewStyle} from 'react-native';
+import {Dimensions, StyleSheet, ViewStyle} from 'react-native';
 import {Snackbar, useTheme, Text} from 'react-native-paper';
 import {clamp} from 'react-native-reanimated';
 

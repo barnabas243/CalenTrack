@@ -30,7 +30,7 @@ import {SectionWithTodos} from '@/store/section/types';
 import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import EditTodoModal from '@/components/modals/EditTodoModal';
 import EditTodoModalContent from '@/components/modals/EditTodoModalContent';
-import {get, isEqual, set} from 'lodash';
+import {isEqual} from 'lodash';
 import {useAuth} from '@/hooks/useAuth';
 import AddTodoModal from '@/components/modals/addTodoModal';
 import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';

@@ -1,5 +1,5 @@
-import React, {createRef, PureComponent, useRef} from 'react';
-import {View, Text, StyleSheet} from 'react-native';
+import React, {createRef, PureComponent} from 'react';
+import {View, StyleSheet} from 'react-native';
 import {
   ExpandableCalendar,
   TimelineEventProps,
