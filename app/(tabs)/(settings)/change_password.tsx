@@ -1,10 +1,12 @@
 import React, {useState, useCallback, useEffect} from 'react';
-import {View, StyleSheet, Alert, BackHandler} from 'react-native';
+import {View, StyleSheet, BackHandler} from 'react-native';
 import {Button, TextInput, Text, useTheme, Appbar, HelperText} from 'react-native-paper';
 import {router} from 'expo-router';
 import {StatusBar} from 'expo-status-bar';
 import {useSystem} from '@/powersync/system';
 import {useAuth} from '@/hooks/useAuth';
+import {AuthError} from '@supabase/supabase-js';
+import AlertSnackbar from '@/components/AlertSnackbar';
 
 const ChangePasswordPage = () => {
   const {supabaseConnector} = useSystem(); // Adjust according to your setup
@@ -14,7 +16,9 @@ const ChangePasswordPage = () => {
 
   const isEmailProvider = user?.app_metadata.providers.includes('email') || false;
 
-  console.log(user?.app_metadata.providers);
+  const currentPasswordRef = React.useRef(null);
+  const newPasswordRef = React.useRef(null);
+  const confirmPasswordRef = React.useRef(null);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -31,6 +35,19 @@ const ChangePasswordPage = () => {
 
   const [isPasswordHidden, setIsPasswordHidden] = React.useState(true);
   const [isConfirmPasswordHidden, setIsConfirmPasswordHidden] = React.useState(true);
+
+  const [isSnackbarVisible, setIsSnackbarVisible] = React.useState(false);
+  const [snackbarMessage, setSnackbarMessage] = React.useState('');
+
+  const showSnackbar = (message: string) => {
+    setSnackbarMessage(message);
+    setIsSnackbarVisible(true);
+  };
+
+  const hideSnackbar = () => {
+    setSnackbarMessage('');
+    setIsSnackbarVisible(false);
+  };
 
   useEffect(() => {
     const backAction = () => {
@@ -72,21 +89,30 @@ const ChangePasswordPage = () => {
 
   const handleChangePassword = useCallback(async () => {
     if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'New password and confirmation do not match.');
+      showSnackbar('New password and confirmation do not match.');
+      // Alert.alert('Error', 'New password and confirmation do not match.');
       return;
     }
 
     setLoading(true);
-    try {
-      // Call Supabase function to change password
-      await supabaseConnector.changePassword(currentPassword, newPassword);
 
-      Alert.alert('Success', 'Password changed successfully');
-    } catch (error) {
-      Alert.alert('Error', error.message || 'Failed to change password');
-    } finally {
-      setLoading(false);
-    }
+    // Call Supabase function to change password
+    await supabaseConnector
+      .changePassword(currentPassword, newPassword)
+      .then(() => {
+        // Alert.alert('Success', 'Password changed successfully');
+        showSnackbar('Password changed successfully');
+        setTimeout(() => {
+          router.back();
+        }, 1000);
+      })
+      .catch((error: AuthError | Error) => {
+        // Alert.alert('Error', error.message || 'Failed to change password');
+        showSnackbar(error.message || 'Failed to change password');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [currentPassword, newPassword, confirmPassword, supabaseConnector]);
 
   return (
@@ -99,8 +125,11 @@ const ChangePasswordPage = () => {
       <StatusBar style="auto" />
 
       <View style={styles.contentContainer}>
-        {!isEmailProvider && <Text>Only email providers can change password</Text>}
+        {!isEmailProvider && (
+          <Text variant="headlineMedium">Only email providers can change password</Text>
+        )}
         <TextInput
+          ref={currentPasswordRef}
           mode="outlined"
           label="Current Password"
           value={currentPassword}
@@ -109,8 +138,14 @@ const ChangePasswordPage = () => {
           style={styles.input}
           autoFocus
           disabled={!isEmailProvider}
+          blurOnSubmit={false}
+          enterKeyHint="next"
+          onSubmitEditing={() => {
+            if (newPasswordRef.current) newPasswordRef.current?.focus();
+          }}
         />
         <TextInput
+          ref={newPasswordRef}
           mode="outlined"
           label="New Password"
           value={newPassword}
@@ -131,6 +166,11 @@ const ChangePasswordPage = () => {
               onPress={() => setIsPasswordHidden(prev => !prev)}
             />
           }
+          blurOnSubmit={false}
+          enterKeyHint="next"
+          onSubmitEditing={() => {
+            if (confirmPasswordRef.current) confirmPasswordRef.current?.focus();
+          }}
         />
         {newPassword.length > 0 &&
           (!isLengthValid || !hasUppercase || !hasLowercase || !hasNumber || !hasSpecialChar) && (
@@ -153,6 +193,7 @@ const ChangePasswordPage = () => {
             </>
           )}
         <TextInput
+          ref={confirmPasswordRef}
           mode="outlined"
           label="Confirm Password"
           error={!!isPasswordMatch}
@@ -170,6 +211,7 @@ const ChangePasswordPage = () => {
               onPress={() => setIsConfirmPasswordHidden(prev => !prev)}
             />
           }
+          blurOnSubmit={false}
         />
         <HelperText type="error" visible={!!isPasswordMatch}>
           Passwords Must match
@@ -183,6 +225,11 @@ const ChangePasswordPage = () => {
           Change Password
         </Button>
       </View>
+      <AlertSnackbar
+        visible={isSnackbarVisible}
+        message={snackbarMessage}
+        onDismiss={hideSnackbar}
+      />
     </View>
   );
 };

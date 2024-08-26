@@ -13,20 +13,22 @@ import {MonthlyTodo} from '@/store/todo/types';
 import {TimelineEventProps} from 'react-native-calendars';
 import {isEqual} from 'lodash';
 import {useAuth} from '@/hooks/useAuth';
-import {ICalendarEventBase} from 'react-native-big-calendar';
+import {ICustomCalendarEvent} from '@/components/calendars/WeekCalendar';
 import {Todo} from '@/powersync/AppSchema';
+import {useNotification} from '@/contexts/NotificationContext';
+import {Host} from 'react-native-portalize';
 
 export type Mode = 'month' | 'day' | 'week' | 'agenda';
 
-let count = 0;
 const CalendarPage = () => {
-  console.log('CalendarPage rendered ', ++count);
   const {colors} = useTheme();
 
   const {todos, sections, deleteExistingTodos, updateExistingTodos, addNewSection, addNewTodo} =
     useTodo();
 
   const {user} = useAuth();
+
+  const {scheduleTodoNotification, updateTodoWithNotification} = useNotification();
 
   const [mode, setMode] = useState<Mode>('month');
   const [selectedDate, setSelectedDate] = useState(dayjs(new Date()).format('YYYY-MM-DD'));
@@ -115,16 +117,18 @@ const CalendarPage = () => {
     const timelineTodoEvents: TimelineEventProps[] = todos
       .filter(todo => todo.start_date && todo.due_date) // Filter todos with both start_date and due_date
       .map(todo => ({
+        id: todo.id!,
         start: dayjs(todo.start_date!).format('YYYY-MM-DD HH:mm:ss'),
         end: dayjs(todo.due_date!).format('YYYY-MM-DD HH:mm:ss'),
         title: todo.title!,
         summary: todo.summary || '',
-        color: colors.onPrimaryContainer,
+        color: colors.onSurfaceDisabled,
       }));
 
-    const weekTimelineEvents: ICalendarEventBase[] = todos
+    const weekTimelineEvents: ICustomCalendarEvent[] = todos
       .filter(todo => todo.start_date && todo.due_date) // Filter todos with both start_date and due_date
       .map(todo => ({
+        id: todo.id!,
         start: dayjs(todo.start_date!).toDate(),
         end: dayjs(todo.due_date!).toDate(),
         title: todo.title!,
@@ -171,45 +175,131 @@ const CalendarPage = () => {
     console.log('handleEndDrag', results, name);
   }, []);
 
+  const handleTimeLineSubmitEditing = useCallback(
+    async (timeline: TimelineEventProps) => {
+      console.log('handleTimeLineSubmitEditing', timeline);
+
+      const existingTodo = todos.find(todo => todo.id === timeline.id);
+      if (!existingTodo) {
+        console.error('Existing todo not found');
+        return;
+      }
+
+      const todoData = {
+        title: timeline.title,
+        summary: timeline.summary?.trim() ?? '',
+        start_date: timeline.start,
+        due_date: timeline.end,
+      };
+
+      // Compare the relevant fields
+      const hasChanges =
+        todoData.title !== existingTodo.title ||
+        todoData.summary !== existingTodo.summary ||
+        !dayjs(existingTodo.start_date).isSame(dayjs(todoData.start_date)) ||
+        !dayjs(existingTodo.due_date).isSame(dayjs(todoData.due_date));
+
+      if (hasChanges) {
+        const updatedData = {...existingTodo, ...todoData};
+        const message = await updateTodoWithNotification(existingTodo, updatedData);
+        console.log('handleTimeLineSubmitEditing:', message);
+      } else {
+        console.log('No changes detected');
+      }
+    },
+    [todos, updateTodoWithNotification],
+  );
+  const handleWeekCalendarSubmitEditing = useCallback(
+    async (timeline: ICustomCalendarEvent) => {
+      console.log('handleTimeLineSubmitEditing', timeline);
+
+      // Find existing todo by title
+      const existingTodo = todos.find(todo => todo.id === timeline.id);
+      if (!existingTodo) {
+        console.error('Existing todo not found');
+        return;
+      }
+
+      // Prepare data for comparison
+      const todoData = {
+        title: timeline.title,
+        start_date: dayjs(timeline.start).format(), // Use dayjs for consistent date formatting
+        due_date: dayjs(timeline.end).format(),
+      };
+
+      // Compare the relevant fields
+      const hasChanges =
+        todoData.title !== existingTodo.title ||
+        !dayjs(todoData.start_date).isSame(dayjs(existingTodo.start_date)) ||
+        !dayjs(todoData.due_date).isSame(dayjs(existingTodo.due_date));
+
+      if (hasChanges) {
+        try {
+          const updatedData = {...existingTodo, ...todoData};
+          const message = await updateTodoWithNotification(existingTodo, updatedData);
+          console.log('handleTimeLineSubmitEditing:', message);
+        } catch (error) {
+          console.error('Error updating todo:', error);
+        }
+      } else {
+        console.log('No changes detected');
+      }
+    },
+    [todos, updateTodoWithNotification], // Make sure these dependencies are stable
+  );
+
   // Memoize the handleSubmitEditing function
   const handleSubmitEditing = useCallback(
     async (newTodo: Todo, selectedSection = 'Inbox') => {
-      if (!newTodo) return;
-
       try {
-        if (selectedSection !== 'Inbox' && !newTodo.section_id) {
-          // Create a new section if it doesn't exist
-          const newSection = {name: selectedSection, user_id: user!.id};
+        // Trim the selected section name
+        const trimmedSection = selectedSection.trim();
 
-          // Assuming addNewSection returns the created section or an identifier
-          const result = await addNewSection(newSection);
-          if (!result || !result.id) {
-            Alert.alert('Error', 'Failed to create new section');
+        const findSection = sections.find(section => section.name === trimmedSection);
+
+        // Check if a new section needs to be created
+        if (!findSection) {
+          const newSection = {name: trimmedSection, user_id: user!.id};
+
+          // Create a new section
+          const sectionResult = await addNewSection(newSection);
+          if (!sectionResult || !sectionResult.id) {
             return;
           }
 
-          // Add section ID to newTodo and then add the todo
-          const updatedTodo = {...newTodo, section_id: result.id};
-          const todoResult = await addNewTodo(updatedTodo);
+          // Add the new section ID to the todo
+          newTodo = {...newTodo, section_id: sectionResult.id};
+        } else {
+          // Add the existing section ID to the todo
+          newTodo = {...newTodo, section_id: findSection.id};
+        }
+        // Add the todo item
+        const todoResult = await addNewTodo(newTodo);
+        if (!todoResult) {
+          return;
+        }
 
-          if (!todoResult) {
-            Alert.alert('Error', 'Failed to add new todo');
+        // Handle notification scheduling if a reminder option is set
+        if (todoResult.reminder_option && !todoResult.notification_id) {
+          const notificationId = await scheduleTodoNotification(todoResult);
+          if (!notificationId) {
+            return;
+          }
+
+          // Update the todo with the notification ID
+          const updatedTodoWithNotification = {...todoResult, notification_id: notificationId};
+          const updateResult = await updateExistingTodos(updatedTodoWithNotification);
+          if (!updateResult) {
+            return;
           }
         } else {
-          // If section_id is present or selectedSection is 'Inbox', directly add the todo
-          const todoResult = await addNewTodo(newTodo);
-
-          if (!todoResult) {
-            Alert.alert('Error', 'Failed to add new todo');
-          }
         }
       } catch (error) {
         console.error('An error occurred while handling submit editing:', error);
-        Alert.alert('Error', 'An unexpected error occurred');
       }
     },
-    [addNewSection, addNewTodo, user],
-  ); // Dependencies
+    [addNewSection, addNewTodo, scheduleTodoNotification, updateExistingTodos, sections, user],
+  );
 
   const renderCalendarComponent = useMemo(() => {
     const deleteTodo = (id: string) => {
@@ -229,9 +319,12 @@ const CalendarPage = () => {
     const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
       // Check if the todo has been updated using deep comparison
       if (!isEqual(updatedTodo, selectedTodo)) {
-        updateExistingTodos(updatedTodo);
+        const message = await updateTodoWithNotification(selectedTodo, updatedTodo);
+
+        console.log('handleEditModalDismiss:', message);
       }
     };
+
     switch (mode) {
       case 'day':
         return (
@@ -242,6 +335,7 @@ const CalendarPage = () => {
             colors={colors}
             onSubmitEditing={handleSubmitEditing}
             sections={sections}
+            onTimeLineSubmitEditing={handleTimeLineSubmitEditing}
           />
         );
       case 'week':
@@ -253,6 +347,7 @@ const CalendarPage = () => {
             colors={colors}
             onSubmitEditing={handleSubmitEditing}
             sections={sections}
+            onWeekCalendarSubmitEditing={handleWeekCalendarSubmitEditing}
           />
         );
       case 'agenda':
@@ -293,12 +388,15 @@ const CalendarPage = () => {
     deleteExistingTodos,
     todos,
     updateExistingTodos,
+    updateTodoWithNotification,
     timelineTodoEvents,
     selectedDate,
     colors,
     handleSubmitEditing,
     sections,
+    handleTimeLineSubmitEditing,
     weekTimelineEvents,
+    handleWeekCalendarSubmitEditing,
     monthlyTodoRecord,
     monthlyTodoArray,
     handleEndDrag,
@@ -331,35 +429,37 @@ const CalendarPage = () => {
   );
 
   return (
-    <View style={[styles.container, {backgroundColor: colors.background}]}>
-      <Appbar.Header>
-        <Appbar.Content title={dayjs(selectedDate).format('MMM YYYY')} />
-        <Appbar.Action
-          icon={
-            mode === 'month'
-              ? 'calendar-month'
-              : mode === 'day'
-                ? 'view-day'
-                : mode === 'week'
-                  ? 'view-week'
-                  : mode === 'agenda'
-                    ? 'view-agenda'
-                    : 'calendar-month-outline'
-          }
-          onPress={onMenuPress}
-        />
-        <Appbar.Action icon="dots-vertical" onPress={() => {}} />
-      </Appbar.Header>
-      <Animated.View style={[animatedStyle]}>
-        <View style={styles.buttonRow}>
-          {renderButton('Month', 'calendar-month', 'month')}
-          {renderButton('Day', 'view-day', 'day')}
-          {renderButton('Week', 'view-week', 'week')}
-          {renderButton('Agenda', 'view-agenda', 'agenda')}
-        </View>
-      </Animated.View>
-      {renderCalendarComponent}
-    </View>
+    <Host>
+      <View style={[styles.container, {backgroundColor: colors.background}]}>
+        <Appbar.Header>
+          <Appbar.Content title={dayjs(selectedDate).format('MMM YYYY')} />
+          <Appbar.Action
+            icon={
+              mode === 'month'
+                ? 'calendar-month'
+                : mode === 'day'
+                  ? 'view-day'
+                  : mode === 'week'
+                    ? 'view-week'
+                    : mode === 'agenda'
+                      ? 'view-agenda'
+                      : 'calendar-month-outline'
+            }
+            onPress={onMenuPress}
+          />
+          <Appbar.Action icon="dots-vertical" onPress={() => {}} />
+        </Appbar.Header>
+        <Animated.View style={[animatedStyle]}>
+          <View style={styles.buttonRow}>
+            {renderButton('Month', 'calendar-month', 'month')}
+            {renderButton('Day', 'view-day', 'day')}
+            {renderButton('Week', 'view-week', 'week')}
+            {renderButton('Agenda', 'view-agenda', 'agenda')}
+          </View>
+        </Animated.View>
+        {renderCalendarComponent}
+      </View>
+    </Host>
   );
 };
 

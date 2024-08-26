@@ -4,16 +4,19 @@ import {Button, TextInput, useTheme, Appbar} from 'react-native-paper';
 import {useAuth} from '@/hooks/useAuth'; // Adjust the import according to your structure
 import {useSystem} from '@/powersync/system'; // Adjust the import according to your structure'
 import Avatar from '@/components/Avatar';
-import {router} from 'expo-router';
+import {router, useLocalSearchParams} from 'expo-router';
 
 const UserDetailsPage = () => {
   const {user} = useAuth(); // Fetch current user data
   const {supabaseConnector} = useSystem(); // Supabase connector for updating user data
   const {colors} = useTheme();
+  const {variable} = useLocalSearchParams(); // Retrieve the route parameters
 
-  const [fullName, setFullName] = useState(user?.user_metadata.full_name || '');
+  const profile = JSON.parse(Array.isArray(variable) ? variable[0] : variable); // Parse the profile data from the route parameters
+
+  const [fullName, setFullName] = useState(profile.full_name || '');
   const [email, setEmail] = useState(user?.user_metadata.email || '');
-  const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata.avatar_url || '');
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url || '');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -31,14 +34,25 @@ const UserDetailsPage = () => {
     try {
       setLoading(true);
       if (!user) throw new Error('No user on the session!');
-      //   async updateProfile(id: string, username: string, fullName: string, avatarUrl: string) {
+
+      // Define the updates for the profile
       const updates = {
         id: user.id,
         full_name: fullName,
         avatar_url: avatarUrl,
       };
 
-      await supabaseConnector.updateProfile(updates);
+      // Run updateEmail and updateProfile concurrently
+      await Promise.all([
+        supabaseConnector.updateEmail(email),
+        supabaseConnector.updateProfile(updates),
+      ]).then(([emailResult, profileResult]) => {
+        console.log('Email update result:', emailResult);
+        console.log('Profile update result:', profileResult);
+        Alert.alert('Profile and email updated successfully');
+
+        router.replace('/(settings)');
+      });
     } catch (error) {
       if (error instanceof Error) {
         Alert.alert(error.message);
@@ -61,7 +75,8 @@ const UserDetailsPage = () => {
             url={avatarUrl}
             onUpload={(url: string) => {
               setAvatarUrl(url);
-              handleSave();
+              console.log('Avatar uploaded:', url);
+              // handleSave();
             }}
           />
         </View>

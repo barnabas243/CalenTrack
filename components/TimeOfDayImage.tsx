@@ -47,7 +47,7 @@ const TimeOfDayImage = () => {
       <Text variant="titleLarge" style={{color: colors.onSurface}}>
         {mainText}
       </Text>
-      <Text variant="bodySmall" style={{color: colors.onSurfaceVariant}}>
+      <Text variant="bodyMedium" style={{color: colors.onSurfaceVariant}}>
         {subText}
       </Text>
     </>
@@ -61,8 +61,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   image: {
-    width: width * 0.4,
-    height: height * 0.2,
+    width: width * 0.6,
+    height: height * 0.3,
     marginBottom: 20,
   },
 });

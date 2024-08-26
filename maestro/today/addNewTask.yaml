@@ -1,0 +1,9 @@
+# initial.yaml
+
+appId: com.barnabas243.CalenTrack
+---
+- launchApp
+- tapOn: 'Continue with Email'
+- tapOn: 'Login'
+- enterText: 'maestro@gmail.com:Email'
+- enterText: 'MaestroOnly:Password'

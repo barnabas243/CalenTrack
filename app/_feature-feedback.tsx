@@ -1,4 +1,7 @@
+import {router} from 'expo-router';
 import React from 'react';
+import {View} from 'react-native';
+import {Appbar} from 'react-native-paper';
 import {WebView} from 'react-native-webview';
 
 const htmlContent = `
@@ -21,7 +24,13 @@ const htmlContent = `
 const FeatureFeedbackWebView = () => {
   return (
     <>
-      <WebView source={{html: htmlContent}} style={{flex: 1}} />
+      <Appbar.Header mode="small" elevated>
+        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.Content title="CalenTrack: Feature feedback" />
+      </Appbar.Header>
+      <View style={{flex: 1}}>
+        <WebView originWhitelist={['*']} source={{html: htmlContent}} style={{flex: 1}} />
+      </View>
     </>
   );
 };

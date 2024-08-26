@@ -1,13 +1,19 @@
 import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
 import {Section, SECTION_TABLE} from '@/powersync/AppSchema';
 
-// Define the initial state
+/**
+ * Define the initial state for the section slice.
+ */
 export interface SectionState {
   sections: Section[];
   loading: boolean;
   error: string | null;
 }
 
+/**
+ * Initial state for the section slice.
+ * Includes a default inbox section.
+ */
 export const initialState: SectionState = {
   sections: [
     {id: '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d', name: 'Inbox', user_id: '', created_at: null},
@@ -16,24 +22,31 @@ export const initialState: SectionState = {
   error: null,
 };
 
-// Thunk to fetch sections
+/**
+ * Thunk to fetch sections for a given user ID from the database.
+ * @param userId - The ID of the user whose sections are to be fetched.
+ * @param db - The database instance to use for the query.
+ * @returns A promise that resolves to an array of sections.
+ */
 export const fetchSections = createAsyncThunk<
   Section[],
   {userId: string; db: any},
   {rejectValue: string}
 >('sections/fetchSections', async ({userId, db}, {rejectWithValue}) => {
-  // Use the db instance to fetch sections
-
   try {
     const sections = await db.selectFrom(SECTION_TABLE).selectAll().execute();
-
     return sections as Section[];
   } catch (error) {
     return rejectWithValue(error.message || 'Failed to fetch sections');
   }
 });
 
-// Thunk to insert a new section
+/**
+ * Thunk to insert a new section into the database.
+ * @param newSection - The section object to be inserted.
+ * @param db - The database instance to use for the insertion.
+ * @returns A promise that resolves to the inserted section.
+ */
 export const insertSection = createAsyncThunk<
   Section,
   {newSection: Section; db: any},
@@ -51,7 +64,12 @@ export const insertSection = createAsyncThunk<
   }
 });
 
-// Thunk to update a section by ID with a new name
+/**
+ * Thunk to update the name of a section in the database.
+ * @param updatedSection - The section object with the updated name.
+ * @param db - The database instance to use for the update.
+ * @returns A promise that resolves to the updated section.
+ */
 export const updateSectionName = createAsyncThunk<
   Section,
   {updatedSection: Section; db: any},
@@ -71,7 +89,12 @@ export const updateSectionName = createAsyncThunk<
   }
 });
 
-// Thunk to delete a section
+/**
+ * Thunk to delete a section by its ID from the database.
+ * @param id - The ID of the section to be deleted.
+ * @param db - The database instance to use for the deletion.
+ * @returns A promise that resolves to the ID of the deleted section.
+ */
 export const deleteSectionById = createAsyncThunk<
   string,
   {id: string; db: any},
@@ -85,19 +108,35 @@ export const deleteSectionById = createAsyncThunk<
   }
 });
 
+/**
+ * Create the section slice using Redux Toolkit.
+ */
 const sectionSlice = createSlice({
   name: 'sections',
   initialState,
   reducers: {
-    // The reducers are no longer used for API calls
-    // Keeping them for possible local updates or other logic
+    /**
+     * Reducer to add a new section to the state.
+     * @param state - The current state.
+     * @param action - The action containing the new section.
+     */
     addSection: (state, action) => {
       state.sections.push(action.payload);
     },
+    /**
+     * Reducer to update an existing section in the state.
+     * @param state - The current state.
+     * @param action - The action containing the updated section.
+     */
     updateSection: (state, action) => {
       const index = state.sections.findIndex(section => section.id === action.payload.id);
       if (index !== -1) state.sections[index] = action.payload;
     },
+    /**
+     * Reducer to delete a section from the state.
+     * @param state - The current state.
+     * @param action - The action containing the ID of the section to be deleted.
+     */
     deleteSection: (state, action) => {
       state.sections = state.sections.filter(section => section.id !== action.payload);
     },
@@ -109,18 +148,11 @@ const sectionSlice = createSlice({
       })
       .addCase(fetchSections.fulfilled, (state, action) => {
         state.loading = false;
-
-        // Filter out any sections from the fetched payload that already exist in the state
         const newSections = action.payload.filter(
           fetchedSection =>
             !state.sections.some(existingSection => existingSection.id === fetchedSection.id),
         );
-
-        // Append only the new sections to the existing state
-        state.sections = [
-          ...state.sections, // Keep the permanent initial inbox section
-          ...newSections, // Add only the new sections
-        ];
+        state.sections = [...state.sections, ...newSections];
       })
       .addCase(fetchSections.rejected, (state, action) => {
         state.loading = false;
@@ -163,5 +195,12 @@ const sectionSlice = createSlice({
   },
 });
 
+/**
+ * Export the actions generated by the slice.
+ */
 export const {addSection, updateSection, deleteSection} = sectionSlice.actions;
+
+/**
+ * Export the reducer for the section slice.
+ */
 export default sectionSlice.reducer;

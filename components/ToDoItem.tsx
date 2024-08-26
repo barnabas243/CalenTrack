@@ -18,12 +18,12 @@ const OVERSWIPE_DIST = 20;
 
 export interface ToDoProps {
   item: Todo;
-  getIndex: () => number | undefined;
-  drag: () => void;
-  isActive: boolean;
+  getIndex?: () => number | undefined;
+  drag?: () => void;
+  isActive?: boolean;
   colors: MD3Colors;
   enableSwipe?: boolean;
-  itemRefs: React.MutableRefObject<Map<string, SwipeableItemImperativeRef>>;
+  itemRefs?: React.MutableRefObject<Map<string, SwipeableItemImperativeRef>>;
   onToggleComplete: (id: string) => void;
   openEditBottomSheet: (item: Todo) => void;
   deleteTodo: (id: string) => void;
@@ -37,25 +37,27 @@ export const getBorderColor = (priority: PriorityType) => {
     case '2':
       return 'orange';
     case '3':
-      return 'green';
+      return 'blue';
     default:
       return '#CCCCCC';
   }
 };
 
 export interface UnderlayLeftProps {
+  handleDelete: (id: string) => void;
   deleteTodo: (id: string) => void;
   todoId: string;
 }
 
 export interface UnderlayRightProps {
+  handleComplete: (id: string) => void;
   onToggleComplete: (id: string) => void;
   todo: Todo;
 }
 
 const WIDTH = Dimensions.get('window').width;
 
-const UnderlayLeft = ({deleteTodo, todoId}: UnderlayLeftProps) => {
+const UnderlayLeft = ({handleDelete, todoId}: UnderlayLeftProps) => {
   const {percentOpen} = useSwipeableItemParams();
   const animStyle = useAnimatedStyle(
     () => ({
@@ -64,16 +66,11 @@ const UnderlayLeft = ({deleteTodo, todoId}: UnderlayLeftProps) => {
     [percentOpen],
   );
 
-  const handleDelete = async () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-    deleteTodo(todoId);
-  };
-
   return (
     <Animated.View style={[styles.row, styles.underlayLeft, animStyle]}>
       <TouchableOpacity
         testID="delete-touchableOpacity"
-        onPress={handleDelete}
+        onPressIn={() => handleDelete(todoId)}
         style={styles.deleteButton}>
         <Icon source="delete" size={24} color="white" />
         <Text style={styles.text}>delete</Text>
@@ -82,7 +79,7 @@ const UnderlayLeft = ({deleteTodo, todoId}: UnderlayLeftProps) => {
   );
 };
 
-const UnderlayRight = ({onToggleComplete, todo}: UnderlayRightProps) => {
+const UnderlayRight = ({handleComplete, todo}: UnderlayRightProps) => {
   const {percentOpen} = useSwipeableItemParams();
   const animStyle = useAnimatedStyle(
     () => ({
@@ -91,15 +88,9 @@ const UnderlayRight = ({onToggleComplete, todo}: UnderlayRightProps) => {
     [percentOpen],
   );
 
-  const handleComplete = async () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-    onToggleComplete(todo.id);
-  };
-
   return (
     <Animated.View style={[styles.row, styles.underlayRight, animStyle]}>
-      <TouchableOpacity onPress={handleComplete} style={styles.deleteButton}>
-        {/* Conditionally render the content if todo is not completed */}
+      <TouchableOpacity onPress={() => handleComplete(todo.id)} style={styles.deleteButton}>
         {!todo.completed ? (
           <>
             <Icon source="check-circle" size={24} color="white" />
@@ -131,24 +122,31 @@ const ToDoItem = ({
   const {title, priority, id, completed, summary, due_date, section_id} = item;
   const [toggleCheckBox, setToggleCheckBox] = useState<0 | 1>(completed as 0 | 1);
 
+  useEffect(() => {
+    // Update toggleCheckBox when completed prop changes
+    setToggleCheckBox(prev => {
+      if (prev !== completed) return completed as 0 | 1;
+      return prev;
+    });
+  }, [completed]);
+
   // Shared values for translation
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
   useEffect(() => {
     // Update animation based on isActive
-    // Update animation based on isActive
     translateX.value = withSpring(isActive ? 40 : 0, {
       damping: 20, // Lower damping for faster animation
       stiffness: 300, // Higher stiffness for faster animation
-      mass: 1, // Default mass
-      velocity: 10, // Higher velocity for quicker start
+      mass: 1,
+      velocity: 10,
     });
     translateY.value = withSpring(isActive ? -20 : 0, {
-      damping: 20, // Lower damping for faster animation
-      stiffness: 300, // Higher stiffness for faster animation
-      mass: 1, // Default mass
-      velocity: 100, // Higher velocity for quicker start
+      damping: 20,
+      stiffness: 300,
+      mass: 1,
+      velocity: 100,
     });
   }, [isActive, translateX, translateY]);
 
@@ -163,10 +161,20 @@ const ToDoItem = ({
     openEditBottomSheet(item);
   };
 
+  const handleComplete = async (id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+    onToggleComplete(id);
+  };
+
+  const handleDelete = async (id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+    deleteTodo(id);
+  };
+
   const getSectionNameById = useCallback(
     (section_id: string) => {
       const section = sections.find(sec => sec.id === section_id);
-      return section ? section.name : '[invalid section id] ';
+      return section ? section.name : `[invalid id: ${section_id}]`;
     },
     [sections],
   );
@@ -192,7 +200,7 @@ const ToDoItem = ({
         key={id}
         item={item}
         ref={ref => {
-          if (!id) return;
+          if (!id || !itemRefs) return;
           if (ref && !itemRefs.current.has(id)) {
             itemRefs.current.set(id, ref);
           }
@@ -200,25 +208,24 @@ const ToDoItem = ({
         onChange={({openDirection, snapPoint}) => {
           if (!id) return;
           if (openDirection !== OpenDirection.NONE) {
-            [...itemRefs.current.entries()].forEach(([key, ref]) => {
-              if (key !== id && ref) ref.close();
-            });
+            if (itemRefs)
+              [...itemRefs.current.entries()].forEach(([key, ref]) => {
+                if (key !== id && ref) ref.close();
+              });
           }
 
           if (snapPoint === WIDTH) {
             if (openDirection === OpenDirection.LEFT) {
-              deleteTodo(id);
+              handleDelete(id);
             } else {
-              onToggleComplete(id);
+              handleComplete(id);
             }
           }
         }}
         swipeEnabled={enableSwipe}
         overSwipe={OVERSWIPE_DIST}
-        renderUnderlayLeft={() => <UnderlayLeft deleteTodo={deleteTodo} todoId={item.id!} />}
-        renderUnderlayRight={() => (
-          <UnderlayRight onToggleComplete={onToggleComplete} todo={item} />
-        )}
+        renderUnderlayLeft={() => <UnderlayLeft deleteTodo={handleDelete} todoId={item.id!} />}
+        renderUnderlayRight={() => <UnderlayRight onToggleComplete={handleComplete} todo={item} />}
         snapPointsRight={[130, WIDTH]}
         snapPointsLeft={[100, WIDTH]}>
         <Animated.View
@@ -243,6 +250,7 @@ const ToDoItem = ({
           <View style={styles.textContainer}>
             <Text
               variant="titleSmall"
+              numberOfLines={2}
               style={{
                 marginLeft: 10,
                 textDecorationLine: toggleCheckBox ? 'line-through' : 'none',
@@ -250,7 +258,10 @@ const ToDoItem = ({
               {title}
             </Text>
             {summary && (
-              <Text variant="bodySmall" style={{marginLeft: 10, marginVertical: 5}}>
+              <Text
+                variant="bodySmall"
+                numberOfLines={1}
+                style={{marginLeft: 10, marginVertical: 5}}>
                 {summary}
               </Text>
             )}

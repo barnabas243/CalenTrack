@@ -7,7 +7,6 @@ import {ReactNode} from 'react';
  * - `session`: The current session object, or `null` if there is no active session.
  * - `setSession`: Function to update the session state.
  * - `isLoading`: Boolean indicating whether the authentication state is currently being loaded.
- *
  */
 export interface UserContextType {
   user: User | null;

@@ -1,35 +1,49 @@
 import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
 import {Todo, TODO_TABLE} from '@/powersync/AppSchema';
 
+/**
+ * Define the initial state for the todo slice.
+ */
 interface TodoState {
   todos: Todo[];
   loading: boolean;
   error: string | null;
 }
 
+/**
+ * Initial state for the todo slice.
+ */
 const initialState: TodoState = {
   todos: [],
   loading: false,
   error: null,
 };
 
-// Fetch todos
+/**
+ * Thunk to fetch todos for a given user ID from the database.
+ * @param userId - The ID of the user whose todos are to be fetched.
+ * @param db - The database instance to use for the query.
+ * @returns A promise that resolves to an array of todos.
+ */
 export const fetchTodos = createAsyncThunk<
   Todo[],
   {userId: string; db: any},
   {rejectValue: string}
 >('todos/fetchTodos', async ({userId, db}, {rejectWithValue}) => {
   try {
-    // Use the db instance to fetch todos
     const todos = await db.selectFrom(TODO_TABLE).selectAll().execute();
-
     return todos as Todo[];
   } catch (error) {
     return rejectWithValue(error.message || 'Failed to fetch todos');
   }
 });
 
-// Insert a single todo
+/**
+ * Thunk to insert a new todo into the database.
+ * @param todo - The todo object to be inserted.
+ * @param db - The database instance to use for the insertion.
+ * @returns A promise that resolves to the inserted todo.
+ */
 export const insertTodo = createAsyncThunk<Todo, {todo: Todo; db: any}, {rejectValue: string}>(
   'todos/insertTodo',
   async ({todo, db}, {rejectWithValue}) => {
@@ -39,7 +53,6 @@ export const insertTodo = createAsyncThunk<Todo, {todo: Todo; db: any}, {rejectV
         .values(todo)
         .returningAll()
         .executeTakeFirstOrThrow();
-
       return result as Todo;
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to insert todo');
@@ -47,7 +60,12 @@ export const insertTodo = createAsyncThunk<Todo, {todo: Todo; db: any}, {rejectV
   },
 );
 
-// update todo
+/**
+ * Thunk to update an existing todo in the database.
+ * @param todo - The todo object with updated fields.
+ * @param db - The database instance to use for the update.
+ * @returns A promise that resolves to the updated todo.
+ */
 export const powerSyncUpdateTodo = createAsyncThunk<
   Todo,
   {todo: Todo; db: any},
@@ -66,7 +84,12 @@ export const powerSyncUpdateTodo = createAsyncThunk<
   }
 });
 
-// delete todo
+/**
+ * Thunk to delete a todo by its ID from the database.
+ * @param todoId - The ID of the todo to be deleted.
+ * @param db - The database instance to use for the deletion.
+ * @returns A promise that resolves to the ID of the deleted todo.
+ */
 export const powerSyncDeleteTodo = createAsyncThunk<
   string,
   {todoId: string; db: any},
@@ -81,17 +104,35 @@ export const powerSyncDeleteTodo = createAsyncThunk<
   }
 });
 
+/**
+ * Create the todo slice using Redux Toolkit.
+ */
 const todoSlice = createSlice({
   name: 'todos',
   initialState,
   reducers: {
+    /**
+     * Reducer to add a new todo to the state.
+     * @param state - The current state.
+     * @param action - The action containing the new todo.
+     */
     addTodo: (state, action) => {
       state.todos.push(action.payload);
     },
+    /**
+     * Reducer to update an existing todo in the state.
+     * @param state - The current state.
+     * @param action - The action containing the updated todo.
+     */
     updateTodo: (state, action) => {
       const index = state.todos.findIndex(todo => todo.id === action.payload.id);
       if (index !== -1) state.todos[index] = action.payload;
     },
+    /**
+     * Reducer to delete a todo from the state.
+     * @param state - The current state.
+     * @param action - The action containing the ID of the todo to be deleted.
+     */
     deleteTodo: (state, action) => {
       state.todos = state.todos.filter(todo => todo.id !== action.payload);
     },
@@ -108,7 +149,7 @@ const todoSlice = createSlice({
       })
       .addCase(fetchTodos.rejected, (state, action) => {
         state.loading = false;
-        state.error = (action.payload as string) || 'Failed to fetch todos';
+        state.error = action.payload || 'Failed to fetch todos';
       })
       .addCase(insertTodo.pending, state => {
         state.loading = true;
@@ -120,7 +161,7 @@ const todoSlice = createSlice({
       })
       .addCase(insertTodo.rejected, (state, action) => {
         state.loading = false;
-        state.error = (action.payload as string) || 'Failed to insert todo';
+        state.error = action.payload || 'Failed to insert todo';
       })
       .addCase(powerSyncUpdateTodo.pending, state => {
         state.loading = true;
@@ -134,7 +175,7 @@ const todoSlice = createSlice({
       })
       .addCase(powerSyncUpdateTodo.rejected, (state, action) => {
         state.loading = false;
-        state.error = (action.payload as string) || 'Failed to update todos';
+        state.error = action.payload || 'Failed to update todos';
       })
       .addCase(powerSyncDeleteTodo.pending, state => {
         state.loading = true;
@@ -142,14 +183,21 @@ const todoSlice = createSlice({
       })
       .addCase(powerSyncDeleteTodo.fulfilled, (state, action) => {
         state.loading = false;
-        state.todos = state.todos.filter(todo => !action.payload.includes(todo.id!));
+        state.todos = state.todos.filter(todo => todo.id !== action.payload);
       })
       .addCase(powerSyncDeleteTodo.rejected, (state, action) => {
         state.loading = false;
-        state.error = (action.payload as string) || 'Failed to delete todos';
+        state.error = action.payload || 'Failed to delete todos';
       });
   },
 });
 
+/**
+ * Export the actions generated by the slice.
+ */
 export const {addTodo, updateTodo, deleteTodo} = todoSlice.actions;
+
+/**
+ * Export the reducer for the todo slice.
+ */
 export default todoSlice.reducer;

@@ -153,7 +153,7 @@ export default function Register() {
           onSubmitEditing={() => {
             if (passwordRef.current) passwordRef.current.focus();
           }}
-          autoFocus
+          blurOnSubmit={false}
         />
         {!!emailError && (
           <HelperText type="error" style={getHelperTextStyle(!emailError)} visible={!!emailError}>
@@ -185,6 +185,7 @@ export default function Register() {
               onPress={() => setIsPasswordHidden(prev => !prev)}
             />
           }
+          blurOnSubmit={false}
         />
         {password.length > 0 &&
           (!isLengthValid || !hasUppercase || !hasLowercase || !hasNumber || !hasSpecialChar) && (

@@ -14,6 +14,7 @@ import {Section, Todo} from '@/powersync/AppSchema';
 interface State {
   items?: Record<string, Todo[]>;
   isAddTodoModalVisible: boolean;
+  parentId: string;
 }
 
 interface Props {
@@ -35,6 +36,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
   state: State = {
     items: {},
     isAddTodoModalVisible: false,
+    parentId: '',
   };
 
   toggleAddTodoModal = (isVisible: boolean) => {
@@ -75,12 +77,43 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
     }
   }, 800); // Adjust the delay (in milliseconds) as needed
 
-  openEditBottomSheet = (item: Todo) => {
+  openEditBottomSheet = async (item: Todo) => {
     if (this.editBottomSheetRef.current) {
-      this.editBottomSheetRef.current.present(item);
+      await new Promise(resolve => {
+        this.editBottomSheetRef.current?.close();
+
+        // Resolve after a short delay to ensure it closes properly
+        setTimeout(resolve, 300); // Adjust the delay if needed
+      });
+
+      const subItems: Todo[] = [];
+
+      Object.values(this.props.monthlyTodoRecord).forEach(todos => {
+        todos.forEach(subItem => {
+          if (subItem.parent_id === item.id) {
+            subItems.push(subItem);
+          }
+        });
+      });
+
+      const subItemsCount = subItems.length;
+
+      // Prepare the new item to show
+      const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
+
+      this.editBottomSheetRef.current.present(itemToPresent);
     } else {
       console.warn('editBottomSheetRef is null');
     }
+  };
+
+  handleAddSubTodo = async (parent_id: string) => {
+    if (!parent_id) return;
+
+    this.setState({parentId: parent_id}, () => {
+      // This callback runs after the state has been updated
+      this.showAddTodoModal();
+    });
   };
 
   getSectionNameById = (id: string) => {
@@ -135,6 +168,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
             sections={this.props.sections}
             propSelectedStartDate={dayjs(this.props.selectedDate).startOf('day').toDate()}
             propSelectedDueDate={dayjs(this.props.selectedDate).endOf('day').toDate()}
+            propParentId={this.state.parentId}
           />
           <EditTodoModal
             ref={this.editBottomSheetRef}
@@ -146,6 +180,9 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
                 sections={this.props.sections}
                 colors={this.props.colors}
                 deleteTodo={this.props.deleteTodo}
+                toggleCompleteTodo={this.props.toggleCompleteTodo}
+                openEditBottomSheet={this.openEditBottomSheet}
+                onPress={this.handleAddSubTodo}
               />
             )}
           </EditTodoModal>

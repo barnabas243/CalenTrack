@@ -5102,10 +5102,10 @@ expo-modules-core@1.12.21:
   dependencies:
     invariant "^2.2.4"
 
-expo-notifications@~0.28.15:
-  version "0.28.15"
-  resolved "https://registry.npmjs.org/expo-notifications/-/expo-notifications-0.28.15.tgz"
-  integrity sha512-T303dw2akcG4w8HBKI7+Y1v5kFxYy53DjlBSLBMo5f22vnLTHWaa8oOhmpwGRGU4uiX56Bw4q0wywCTSgbEamQ==
+expo-notifications@~0.28.16:
+  version "0.28.16"
+  resolved "https://registry.yarnpkg.com/expo-notifications/-/expo-notifications-0.28.16.tgz#2c712a1634c707945eb6c9f31af593c5939f87dc"
+  integrity sha512-sj4oDip+uFNmxieGHkfS2Usrwbw2jfOTfQ22a7z5tdSo/vD6jWMlCHOnJifqYLjPxyqf9SLTsQWO3bmk7MY2Yg==
   dependencies:
     "@expo/image-utils" "^0.5.0"
     "@ide/backoff" "^1.0.0"
@@ -5166,10 +5166,10 @@ expo-updates-interface@~0.16.2:
   resolved "https://registry.npmjs.org/expo-updates-interface/-/expo-updates-interface-0.16.2.tgz"
   integrity sha512-929XBU70q5ELxkKADj1xL0UIm3HvhYhNAOZv5DSk7rrKvLo7QDdPyl+JVnwZm9LrkNbH4wuE2rLoKu1KMgZ+9A==
 
-expo-updates@~0.25.22:
-  version "0.25.22"
-  resolved "https://registry.npmjs.org/expo-updates/-/expo-updates-0.25.22.tgz"
-  integrity sha512-ebu+wPnISzJ/H70CFAJAybS4ZZrACxRbgr9SMqOI/h84CwXGmdxzLmgxoNhy5q/Fa1u7JBmSr6x9a7psBDT4Cw==
+expo-updates@~0.25.23:
+  version "0.25.23"
+  resolved "https://registry.yarnpkg.com/expo-updates/-/expo-updates-0.25.23.tgz#899612b50014dea39da40c03ba183ad1c1173185"
+  integrity sha512-MNEexYa2vnK3gSDCfUwKl2xz75Pm43hohscqvgs+Q/gYPLW6E8mDfElfkJGf92T5VCNJB+YbBLrgWBIex44vqg==
   dependencies:
     "@expo/code-signing-certificates" "0.0.5"
     "@expo/config" "~9.0.0-beta.0"
@@ -6557,10 +6557,10 @@ jest-environment-node@^29.6.3, jest-environment-node@^29.7.0:
     jest-mock "^29.7.0"
     jest-util "^29.7.0"
 
-jest-expo@~51.0.3:
-  version "51.0.3"
-  resolved "https://registry.npmjs.org/jest-expo/-/jest-expo-51.0.3.tgz"
-  integrity sha512-r49OuS9X2S/dH+lSfNmarBS2L/tgvBhzOgKHYFyDJWo+Bb5uVs7Rg/GZal/RD/NDkKFJuByGAaW1F6zHYnjZnw==
+jest-expo@~51.0.4:
+  version "51.0.4"
+  resolved "https://registry.yarnpkg.com/jest-expo/-/jest-expo-51.0.4.tgz#a780e5a2f7d3c54534f799666fd00a5a11de0ac7"
+  integrity sha512-WmlR4rUur1TNF/F14brKCmPdX3TWf7Bno/6A1PuxnflN79LEIXpXuPKMlMWwCCChTohGB5FRniknRibblWu1ug==
   dependencies:
     "@expo/config" "~9.0.0-beta.0"
     "@expo/json-file" "^8.3.0"
@@ -8727,6 +8727,11 @@ react-native-collapsible-tab-view@^8.0.0:
   dependencies:
     use-deep-compare "^1.1.0"
 
+react-native-date-picker@^5.0.4:
+  version "5.0.4"
+  resolved "https://registry.yarnpkg.com/react-native-date-picker/-/react-native-date-picker-5.0.4.tgz#5965141617463bc11ebe0b16e2b0ea7239758e37"
+  integrity sha512-UycNfXGd4ipgdU2a+oZGj7h1nvp8Gz49f/Ko+YdWh6nrBKB49MEp0n9eF1QngbxMKqdK0AdY4udb4IdVVWji4g==
+
 react-native-draggable-flatlist@^4.0.1:
   version "4.0.1"
   resolved "https://registry.npmjs.org/react-native-draggable-flatlist/-/react-native-draggable-flatlist-4.0.1.tgz"
@@ -8794,6 +8799,11 @@ react-native-paper@^5.12.3:
     "@callstack/react-theme-provider" "^3.0.9"
     color "^3.1.2"
     use-latest-callback "^0.1.5"
+
+react-native-portalize@^1.0.7:
+  version "1.0.7"
+  resolved "https://registry.yarnpkg.com/react-native-portalize/-/react-native-portalize-1.0.7.tgz#8b3c742a06f863654d526ea1075a8596625f8482"
+  integrity sha512-icqopPh9ZSV+I8C5LlZN9pQJ0OMeBDNqHhP80+qDx0hOGEcsDC09wgjogbEMfJE0GcMDM7PDYtyQkqa9gIqd1g==
 
 react-native-reanimated@~3.10.1:
   version "3.10.1"

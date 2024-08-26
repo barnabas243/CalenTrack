@@ -1,4 +1,4 @@
-import {useState, useEffect} from 'react';
+import {useState} from 'react';
 import {StyleSheet, View, Alert} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {useSystem} from '@/powersync/system';
@@ -18,29 +18,6 @@ export default function Avatar({url, size = 150, onUpload}: Props) {
   const avatarSize = {height: size, width: size};
 
   const {supabaseConnector} = useSystem();
-
-  useEffect(() => {
-    async function downloadImage(path: string) {
-      try {
-        const {data, error} = await supabaseConnector.client.storage.from('avatars').download(path);
-
-        if (error) {
-          throw error;
-        }
-
-        const fr = new FileReader();
-        fr.readAsDataURL(data);
-        fr.onload = () => {
-          setAvatarUrl(fr.result as string);
-        };
-      } catch (error) {
-        if (error instanceof Error) {
-          console.log('Error downloading image: ', error.message);
-        }
-      }
-    }
-    if (url) downloadImage(url);
-  }, [supabaseConnector.client.storage, url]);
 
   async function uploadAvatar() {
     try {
@@ -63,14 +40,14 @@ export default function Avatar({url, size = 150, onUpload}: Props) {
       console.log('Got image', image);
 
       if (!image.uri) {
-        throw new Error('No image uri!'); // Realistically, this should never happen, but just in case...
+        throw new Error('No image uri!'); // This should never happen
       }
 
       const arraybuffer = await fetch(image.uri).then(res => res.arrayBuffer());
 
       const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpeg';
       const path = `${Date.now()}.${fileExt}`;
-      const {data, error: uploadError} = await supabaseConnector.client.storage
+      const {data: uploadData, error: uploadError} = await supabaseConnector.client.storage
         .from('avatars')
         .upload(path, arraybuffer, {
           contentType: image.mimeType ?? 'image/jpeg',
@@ -79,7 +56,18 @@ export default function Avatar({url, size = 150, onUpload}: Props) {
       if (uploadError) {
         throw uploadError;
       }
-      onUpload(data.path);
+
+      console.log('Uploaded image:', uploadData.path);
+
+      // Get the public URL of the uploaded image
+      const {data: urlData} = supabaseConnector.client.storage
+        .from('avatars')
+        .getPublicUrl(uploadData.path);
+
+      if (urlData) {
+        setAvatarUrl(urlData.publicUrl);
+        onUpload(urlData.publicUrl);
+      }
     } catch (error) {
       if (error instanceof Error) {
         Alert.alert(error.message);
@@ -91,7 +79,6 @@ export default function Avatar({url, size = 150, onUpload}: Props) {
     }
   }
 
-  console.log('Avatar URL:', avatarUrl);
   return (
     <View>
       {avatarUrl ? (

@@ -45,6 +45,8 @@ import {
   SortDirectionType,
 } from '@/utils/settingUtils';
 import AlertSnackbar from '@/components/AlertSnackbar';
+import {useNotification} from '@/contexts/NotificationContext';
+import {Host} from 'react-native-portalize';
 
 export type sortByType = 'date' | 'title' | 'section' | 'priority';
 export type sortDirectionType = 'asc' | 'desc';
@@ -120,6 +122,8 @@ const HomeScreen = () => {
   const {todos, sections, deleteExistingTodos, updateExistingTodos, addNewSection, addNewTodo} =
     useTodo();
 
+  const {updateTodoWithNotification, scheduleTodoNotification} = useNotification();
+
   const [isLoading, setIsLoading] = useState(true);
 
   const [overdueTodos, setOverdueTodos] = useState<Todo[]>([]);
@@ -143,6 +147,8 @@ const HomeScreen = () => {
   const [sortBy, setSortBy] = useState<sortByType>('date');
   const [sortDirection, setSortDirection] = useState<sortDirectionType>('asc');
   const [hideCompleted, setHideCompleted] = useState(false);
+
+  const [parentId, setParentId] = useState('');
 
   const sortedTodos = useMemo(() => {
     return sortTodos(todos, sortBy, sortDirection);
@@ -365,9 +371,25 @@ const HomeScreen = () => {
     }
   };
 
-  const openEditBottomSheet = (item: Todo) => {
+  const openEditBottomSheet = async (item: Todo) => {
     if (editBottomSheetRef.current) {
-      editBottomSheetRef.current.present(item);
+      // Close the bottom sheet
+      await new Promise(resolve => {
+        editBottomSheetRef.current?.close();
+        setIsFABVisible(false);
+        // Resolve after a short delay to ensure it closes properly
+        setTimeout(resolve, 300); // Adjust the delay if needed
+      });
+
+      // Get the sub-items of the todo
+      const subItems = todos.filter(todo => todo.parent_id === item.id);
+      const subItemsCount = subItems.length;
+
+      // Prepare the new item to show
+      const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
+
+      // Present the updated item
+      editBottomSheetRef.current.present(itemToPresent);
     }
   };
 
@@ -460,63 +482,80 @@ const HomeScreen = () => {
 
   const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
     editBottomSheetRef.current?.close();
+
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
-      await updateExistingTodos(updatedTodo)
-        .then(result => {
-          if (result) {
-            showAlertSnackbar('Todo updated successfully');
-          }
-        })
-        .catch(error => {
-          showAlertSnackbar(`Failed to update todo: ${error.message}`);
-        });
+      const message = await updateTodoWithNotification(selectedTodo, updatedTodo);
+
+      showAlertSnackbar(message.message);
     }
+
+    setIsFABVisible(true);
+  };
+
+  const handleAddSubTodo = async (parent_id: string) => {
+    if (!parent_id) return;
+    setParentId(parent_id);
+    setTimeout(() => showAddTodoModal(), 100);
   };
 
   const handleSubmitEditing = async (newTodo: Todo, selectedSection = 'Inbox') => {
     if (!newTodo) return;
 
     try {
-      if (
-        selectedSection.trim().length > 0 &&
-        selectedSection.trim() !== 'Inbox' &&
-        !newTodo.section_id
-      ) {
-        // Create a new section if it doesn't exist
-        const newSection = {name: selectedSection.trim(), user_id: user!.id};
+      // Trim the selected section name
+      const trimmedSection = selectedSection.trim();
 
-        // Assuming addNewSection returns the created section or an identifier
-        const result = await addNewSection(newSection);
-        if (!result || !result.id) {
+      const findSection = sections.find(section => section.name === trimmedSection);
+
+      // Check if a new section needs to be created
+      if (!findSection) {
+        const newSection = {name: trimmedSection, user_id: user!.id};
+
+        // Create a new section
+        const sectionResult = await addNewSection(newSection);
+        if (!sectionResult || !sectionResult.id) {
           showAlertSnackbar('Failed to create new section');
-          // Alert.alert('Error', 'Failed to create new section');
           return;
         }
 
-        // Add section ID to newTodo and then add the todo
-        const updatedTodo = {...newTodo, section_id: result.id};
-        const todoResult = await addNewTodo(updatedTodo);
-
-        if (!todoResult) {
-          showAlertSnackbar('Failed to add new todo');
-          // Alert.alert('Error', 'Failed to add new todo');
-        }
+        // Add the new section ID to the todo
+        newTodo = {...newTodo, section_id: sectionResult.id};
       } else {
-        // If section_id is present or selectedSection is 'Inbox', directly add the todo
-        const todoResult = await addNewTodo(newTodo);
+        // Add the existing section ID to the todo
+        newTodo = {...newTodo, section_id: findSection.id};
+      }
 
-        if (!todoResult) {
-          showAlertSnackbar('Failed to add new todo');
-          // Alert.alert('Error', 'Failed to add new todo');
-        } else {
-          showAlertSnackbar('Todo added successfully');
+      // Add the todo item
+      const todoResult = await addNewTodo(newTodo);
+      if (!todoResult) {
+        showAlertSnackbar('Failed to add new todo');
+        return;
+      }
+
+      // Handle notification scheduling if a reminder option is set
+      if (todoResult.reminder_option && !todoResult.notification_id) {
+        const notificationId = await scheduleTodoNotification(todoResult);
+        if (!notificationId) {
+          showAlertSnackbar('Failed to schedule notification');
+          return;
         }
+
+        // Update the todo with the notification ID
+        const updatedTodoWithNotification = {...todoResult, notification_id: notificationId};
+        const updateResult = await updateExistingTodos(updatedTodoWithNotification);
+        if (!updateResult) {
+          showAlertSnackbar('Failed to update todo with notification');
+          return;
+        }
+
+        showAlertSnackbar('Todo added successfully with notification');
+      } else {
+        showAlertSnackbar('Todo added successfully');
       }
     } catch (error) {
       console.error('An error occurred while handling submit editing:', error);
       showAlertSnackbar('An unexpected error occurred');
-      // Alert.alert('Error', 'An unexpected error occurred');
     }
   };
 
@@ -525,234 +564,240 @@ const HomeScreen = () => {
   };
 
   return (
-    <View style={[styles.container, {backgroundColor: colors.background}]}>
-      <StatusBar style="auto" />
-      <Appbar.Header elevated>
-        <Appbar.Content title="Today" />
-        <Menu
-          anchorPosition="bottom"
-          visible={isMenuVisible}
-          onDismiss={closeMenu}
-          anchor={
-            <Appbar.Action icon="dots-vertical" color={colors.onSurface} onPress={showMenu} />
-          }>
-          <Menu.Item onPress={handleSort} title="Sort" />
-          <Menu.Item onPress={() => {}} title="Select tasks" />
-          <Menu.Item
-            onPress={() => saveHideCompleted(!hideCompleted)}
-            title={!hideCompleted ? 'hide Completed' : 'unhide Completed'}
-          />
-          <Divider />
-          <Menu.Item onPress={() => {}} title="Activity log" />
-          <Divider />
-          <Menu.Item
-            onPress={() => {
-              closeMenu();
-              router.push('/_feature-feedback');
-            }}
-            title="CalenTrack Feedback"
-          />
-        </Menu>
-      </Appbar.Header>
-      {overdueTodos.length === 0 &&
-        todayTodos.length === 0 &&
-        (completedTodos.length === 0 || hideCompleted) && (
-          <View style={styles.emptyContainer}>
-            <TimeOfDayImage />
-          </View>
-        )}
-
-      <NestableScrollContainer stickyHeaderIndices={[0, 2, 4]} style={styles.scrollContainer}>
-        <Header title={'Overdue'} />
-        <Animated.View style={animatedOverdueStyle} exiting={FadeInUp}>
-          <NestableDraggableFlatList
-            initialNumToRender={7}
-            onContentSizeChange={(w, h) => changeHeight(h, 'overdue')}
-            data={overdueTodos}
-            renderItem={renderTodoItem}
-            keyExtractor={keyExtractor}
-            onDragEnd={({data}) => handleEndDrag(data, 'overdue')}
-            activationDistance={20}
-            dragItemOverflow={true}
-            tabIndex={0}
-            renderPlaceholder={() => <DraggableItemPlaceholder />}
-          />
-        </Animated.View>
-
-        <Header title={'Today'} />
-        <Animated.View style={animatedTodayStyle} exiting={FadeInUp}>
-          <NestableDraggableFlatList
-            data={todayTodos}
-            initialNumToRender={7}
-            onContentSizeChange={(w, h) => changeHeight(h, 'today')}
-            renderItem={renderTodoItem}
-            keyExtractor={keyExtractor}
-            onDragEnd={({data}) => {
-              handleEndDrag(data, 'today');
-            }}
-            activationDistance={20}
-            dragItemOverflow={true}
-            renderPlaceholder={() => <DraggableItemPlaceholder />}
-          />
-        </Animated.View>
-
-        {!hideCompleted && (
-          <>
-            <Header title={'Completed'} />
-            <Animated.View style={animatedCompletedStyle} exiting={FadeInUp}>
-              <NestableDraggableFlatList
-                data={completedTodos}
-                initialNumToRender={7}
-                onContentSizeChange={(w, h) => changeHeight(h, 'completed')}
-                renderItem={renderTodoItem}
-                keyExtractor={keyExtractor}
-                onDragEnd={({data}) => {
-                  handleEndDrag(data, 'completed');
-                }}
-                activationDistance={20}
-                dragItemOverflow={true}
-                renderPlaceholder={() => <DraggableItemPlaceholder />}
-              />
-            </Animated.View>
-          </>
-        )}
-      </NestableScrollContainer>
-
-      <BottomSheetModalProvider>
-        <AddTodoModal
-          isVisible={isAddTodoModalVisible}
-          setIsVisible={setIsAddTodoModalVisible}
-          onBackdropPress={hideAddTodoModal}
-          onSubmitEditing={handleSubmitEditing}
-          sections={sections}
-        />
-        <BottomSheetModal
-          backdropComponent={backdropComponent}
-          handleComponent={null}
-          enableContentPanningGesture={false}
-          ref={sortBottomSheetRef}
-          index={1}
-          snapPoints={snapPoints}
-          stackBehavior={'push'}
-          onDismiss={() => setIsFABVisible(true)}>
-          <View style={[styles.contentContainer, {backgroundColor: colors.secondaryContainer}]}>
-            <View style={styles.section}>
-              <Text style={{fontSize: 14, color: colors.onSurfaceVariant}}>Sort By</Text>
-              <View style={styles.buttonGrid}>
-                <Button
-                  mode={sortBy === 'date' ? 'contained' : 'outlined'}
-                  style={[
-                    styles.button,
-                    {
-                      backgroundColor:
-                        sortBy === 'date' ? colors.primary : colors.secondaryContainer,
-                    },
-                  ]}
-                  onPress={() => {
-                    saveSortBy('date');
-                  }}>
-                  Date
-                </Button>
-                <Button
-                  mode={sortBy === 'title' ? 'contained' : 'outlined'}
-                  style={[
-                    styles.button,
-                    {
-                      backgroundColor:
-                        sortBy === 'title' ? colors.primary : colors.secondaryContainer,
-                    },
-                  ]}
-                  onPress={() => {
-                    saveSortBy('title');
-                  }}>
-                  Title
-                </Button>
-                <Button
-                  mode={sortBy === 'section' ? 'contained' : 'outlined'}
-                  style={[
-                    styles.button,
-                    {
-                      backgroundColor:
-                        sortBy === 'section' ? colors.primary : colors.secondaryContainer,
-                    },
-                  ]}
-                  onPress={() => {
-                    saveSortBy('section');
-                  }}>
-                  Section
-                </Button>
-                <Button
-                  mode={sortBy === 'priority' ? 'contained' : 'outlined'}
-                  style={[
-                    styles.button,
-                    {
-                      backgroundColor:
-                        sortBy === 'priority' ? colors.primary : colors.secondaryContainer,
-                    },
-                  ]}
-                  onPress={() => {
-                    saveSortBy('priority');
-                  }}>
-                  Priority
-                </Button>
-              </View>
-            </View>
-            <Divider />
-            <View style={styles.section}>
-              <Text style={{fontSize: 14, color: colors.onSurfaceVariant}}>Sort Direction</Text>
-              <View style={[styles.buttonGrid, {backgroundColor: colors.secondaryContainer}]}>
-                <Button
-                  mode={sortDirection === 'asc' ? 'contained' : 'outlined'}
-                  style={[
-                    styles.button,
-                    {
-                      backgroundColor:
-                        sortDirection === 'asc' ? colors.primary : colors.secondaryContainer,
-                    },
-                  ]}
-                  onPress={() => {
-                    saveSortDirection('asc');
-                  }}>
-                  Ascending
-                </Button>
-                <Button
-                  mode={sortDirection === 'desc' ? 'contained' : 'outlined'}
-                  style={[
-                    styles.button,
-                    {
-                      backgroundColor:
-                        sortDirection === 'desc' ? colors.primary : colors.secondaryContainer,
-                    },
-                  ]}
-                  onPress={() => {
-                    saveSortDirection('desc');
-                  }}>
-                  Descending
-                </Button>
-              </View>
-            </View>
-          </View>
-        </BottomSheetModal>
-
-        <EditTodoModal ref={editBottomSheetRef} onDismiss={onDismiss}>
-          {data => (
-            <EditTodoModalContent
-              todo={data.data}
-              onDismiss={handleEditModalDismiss}
-              sections={sections}
-              colors={colors}
-              deleteTodo={deleteTodo}
+    <Host>
+      <View style={[styles.container, {backgroundColor: colors.background}]}>
+        <StatusBar style="auto" />
+        <Appbar.Header elevated>
+          <Appbar.Content title="Today" />
+          <Menu
+            anchorPosition="bottom"
+            visible={isMenuVisible}
+            onDismiss={closeMenu}
+            anchor={
+              <Appbar.Action icon="dots-vertical" color={colors.onSurface} onPress={showMenu} />
+            }>
+            <Menu.Item onPress={handleSort} title="Sort" />
+            <Menu.Item onPress={() => {}} title="Select tasks" />
+            <Menu.Item
+              onPress={() => saveHideCompleted(!hideCompleted)}
+              title={!hideCompleted ? 'hide Completed' : 'unhide Completed'}
             />
+            <Divider />
+            <Menu.Item onPress={() => {}} title="Activity log" />
+            <Divider />
+            <Menu.Item
+              onPress={() => {
+                closeMenu();
+                router.push('/_prototype-feedback');
+              }}
+              title="CalenTrack Feedback"
+            />
+          </Menu>
+        </Appbar.Header>
+        {overdueTodos.length === 0 &&
+          todayTodos.length === 0 &&
+          (completedTodos.length === 0 || hideCompleted) && (
+            <View style={styles.emptyContainer}>
+              <TimeOfDayImage />
+            </View>
           )}
-        </EditTodoModal>
-      </BottomSheetModalProvider>
-      {isFABVisible && <AddTodoFAB onPress={showAddTodoModal} />}
-      <AlertSnackbar
-        visible={isAlertSnackbarVisible}
-        message={alertMessage}
-        onDismiss={hideAlertSnackbar}
-      />
-    </View>
+
+        <NestableScrollContainer stickyHeaderIndices={[0, 2, 4]} style={styles.scrollContainer}>
+          <Header title={'Overdue'} />
+          <Animated.View style={animatedOverdueStyle} exiting={FadeInUp}>
+            <NestableDraggableFlatList
+              initialNumToRender={8}
+              onContentSizeChange={(w, h) => changeHeight(h, 'overdue')}
+              data={overdueTodos}
+              renderItem={renderTodoItem}
+              keyExtractor={keyExtractor}
+              onDragEnd={({data}) => handleEndDrag(data, 'overdue')}
+              activationDistance={20}
+              dragItemOverflow={true}
+              tabIndex={0}
+              renderPlaceholder={() => <DraggableItemPlaceholder />}
+            />
+          </Animated.View>
+
+          <Header title={'Today'} />
+          <Animated.View style={animatedTodayStyle} exiting={FadeInUp}>
+            <NestableDraggableFlatList
+              data={todayTodos}
+              initialNumToRender={8}
+              onContentSizeChange={(w, h) => changeHeight(h, 'today')}
+              renderItem={renderTodoItem}
+              keyExtractor={keyExtractor}
+              onDragEnd={({data}) => {
+                handleEndDrag(data, 'today');
+              }}
+              activationDistance={20}
+              dragItemOverflow={true}
+              renderPlaceholder={() => <DraggableItemPlaceholder />}
+            />
+          </Animated.View>
+
+          {!hideCompleted && (
+            <>
+              <Header title={'Completed'} />
+              <Animated.View style={animatedCompletedStyle} exiting={FadeInUp}>
+                <NestableDraggableFlatList
+                  data={completedTodos}
+                  initialNumToRender={8}
+                  onContentSizeChange={(w, h) => changeHeight(h, 'completed')}
+                  renderItem={renderTodoItem}
+                  keyExtractor={keyExtractor}
+                  onDragEnd={({data}) => {
+                    handleEndDrag(data, 'completed');
+                  }}
+                  activationDistance={20}
+                  dragItemOverflow={true}
+                  renderPlaceholder={() => <DraggableItemPlaceholder />}
+                />
+              </Animated.View>
+            </>
+          )}
+        </NestableScrollContainer>
+
+        <BottomSheetModalProvider>
+          <AddTodoModal
+            isVisible={isAddTodoModalVisible}
+            setIsVisible={setIsAddTodoModalVisible}
+            onBackdropPress={hideAddTodoModal}
+            onSubmitEditing={handleSubmitEditing}
+            sections={sections}
+            propParentId={parentId}
+          />
+          <BottomSheetModal
+            backdropComponent={backdropComponent}
+            handleComponent={null}
+            enableContentPanningGesture={false}
+            ref={sortBottomSheetRef}
+            index={1}
+            snapPoints={snapPoints}
+            stackBehavior={'push'}
+            onDismiss={() => setIsFABVisible(true)}>
+            <View style={[styles.contentContainer, {backgroundColor: colors.secondaryContainer}]}>
+              <View style={styles.section}>
+                <Text style={{fontSize: 14, color: colors.onSurfaceVariant}}>Sort By</Text>
+                <View style={styles.buttonGrid}>
+                  <Button
+                    mode={sortBy === 'date' ? 'contained' : 'outlined'}
+                    style={[
+                      styles.button,
+                      {
+                        backgroundColor:
+                          sortBy === 'date' ? colors.primary : colors.secondaryContainer,
+                      },
+                    ]}
+                    onPress={() => {
+                      saveSortBy('date');
+                    }}>
+                    Date
+                  </Button>
+                  <Button
+                    mode={sortBy === 'title' ? 'contained' : 'outlined'}
+                    style={[
+                      styles.button,
+                      {
+                        backgroundColor:
+                          sortBy === 'title' ? colors.primary : colors.secondaryContainer,
+                      },
+                    ]}
+                    onPress={() => {
+                      saveSortBy('title');
+                    }}>
+                    Title
+                  </Button>
+                  <Button
+                    mode={sortBy === 'section' ? 'contained' : 'outlined'}
+                    style={[
+                      styles.button,
+                      {
+                        backgroundColor:
+                          sortBy === 'section' ? colors.primary : colors.secondaryContainer,
+                      },
+                    ]}
+                    onPress={() => {
+                      saveSortBy('section');
+                    }}>
+                    Section
+                  </Button>
+                  <Button
+                    mode={sortBy === 'priority' ? 'contained' : 'outlined'}
+                    style={[
+                      styles.button,
+                      {
+                        backgroundColor:
+                          sortBy === 'priority' ? colors.primary : colors.secondaryContainer,
+                      },
+                    ]}
+                    onPress={() => {
+                      saveSortBy('priority');
+                    }}>
+                    Priority
+                  </Button>
+                </View>
+              </View>
+              <Divider />
+              <View style={styles.section}>
+                <Text style={{fontSize: 14, color: colors.onSurfaceVariant}}>Sort Direction</Text>
+                <View style={[styles.buttonGrid, {backgroundColor: colors.secondaryContainer}]}>
+                  <Button
+                    mode={sortDirection === 'asc' ? 'contained' : 'outlined'}
+                    style={[
+                      styles.button,
+                      {
+                        backgroundColor:
+                          sortDirection === 'asc' ? colors.primary : colors.secondaryContainer,
+                      },
+                    ]}
+                    onPress={() => {
+                      saveSortDirection('asc');
+                    }}>
+                    Ascending
+                  </Button>
+                  <Button
+                    mode={sortDirection === 'desc' ? 'contained' : 'outlined'}
+                    style={[
+                      styles.button,
+                      {
+                        backgroundColor:
+                          sortDirection === 'desc' ? colors.primary : colors.secondaryContainer,
+                      },
+                    ]}
+                    onPress={() => {
+                      saveSortDirection('desc');
+                    }}>
+                    Descending
+                  </Button>
+                </View>
+              </View>
+            </View>
+          </BottomSheetModal>
+
+          <EditTodoModal ref={editBottomSheetRef} onDismiss={onDismiss}>
+            {data => (
+              <EditTodoModalContent
+                todo={data.data}
+                onDismiss={handleEditModalDismiss}
+                sections={sections}
+                colors={colors}
+                deleteTodo={deleteTodo}
+                openEditBottomSheet={openEditBottomSheet}
+                onPress={handleAddSubTodo}
+                toggleCompleteTodo={toggleCompleteTodo}
+              />
+            )}
+          </EditTodoModal>
+        </BottomSheetModalProvider>
+        {isFABVisible && <AddTodoFAB onPress={showAddTodoModal} />}
+        <AlertSnackbar
+          visible={isAlertSnackbarVisible}
+          message={alertMessage}
+          onDismiss={hideAlertSnackbar}
+        />
+      </View>
+    </Host>
   );
 };
 

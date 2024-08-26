@@ -1,6 +1,6 @@
 # CalenTrack
 
-CalenTRACK is a mobile task management app that puts the calendar view at the center of your productivity journey. It's designed to help you stay organized, manage tasks efficiently, and keep track of your emotions effortlessly.
+CalenTRACK is a mobile task management app that puts the calendar view at the center of your productivity journey. It's designed to help you stay organized, manage tasks efficiently.
 
 ## Features
 

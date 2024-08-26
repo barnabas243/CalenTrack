@@ -1,11 +1,11 @@
 import React from 'react';
 import {render, fireEvent, waitFor, act} from '@testing-library/react-native';
 import {MD3Colors, MD3ElevationColors} from 'react-native-paper/lib/typescript/types';
-import {TodoItem, PriorityType} from '@/store/todo/types';
-import ToDoItem, {ToDoItemProps} from '../ToDoItem';
-import {SectionItem} from '@/store/section/types';
+import {PriorityType} from '@/store/todo/types';
 import {Dimensions} from 'react-native';
 import {OpenDirection} from 'react-native-swipeable-item';
+import {Section, Todo} from '@/powersync/AppSchema';
+import ToDoItem, {ToDoProps} from '../ToDoItem';
 
 const mockColors: MD3Colors = {
   primary: '#000',
@@ -43,33 +43,38 @@ const mockColors: MD3Colors = {
   elevation: {} as MD3ElevationColors,
 };
 
-const mockTodoItem: TodoItem = {
+const mockTodoItem: Todo = {
   id: '1',
   title: 'Test Todo',
   summary: 'This is a test todo item',
   priority: '1' as PriorityType,
-  completed: false,
+  completed: 0,
   due_date: '2024-08-12',
-  section_id: 1,
+  section_id: '1',
   created_by: '1',
+  created_at: null,
+  completed_at: null,
+  start_date: null,
+  recurrence: null,
+  parent_id: null,
 };
 
-const mockSections: SectionItem[] = [
+const mockSections: Section[] = [
   {
-    id: 1,
+    id: '1',
     name: 'Inbox',
     user_id: '',
     created_at: '',
   },
   {
-    id: 2,
+    id: '2',
     name: 'Work',
     user_id: '',
     created_at: '',
   },
 ];
 
-const defaultProps: ToDoItemProps = {
+const defaultProps: ToDoProps = {
   item: mockTodoItem,
   getIndex: jest.fn(),
   drag: jest.fn(),

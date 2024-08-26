@@ -1,0 +1,16 @@
+appId: com.barnabas243.CalenTrack
+---
+- launchApp
+- tapOn: 'Continue with Email'
+- tapOn: 'Register'
+
+- tapOn: 'Email'
+- inputText: 'test1234@gmail.com'
+
+- tapOn: 'Password'
+- inputText: 'TheTest1234@'
+
+- tapOn: 'Confirm Password'
+- inputText: 'TheTest1234@'
+
+- tapOn: 'Register'
