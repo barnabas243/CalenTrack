@@ -1,7 +1,7 @@
 import '@azure/core-asynciterator-polyfill';
 import 'react-native-url-polyfill/auto';
 
-import {Stack} from 'expo-router';
+import {router, Stack} from 'expo-router';
 import 'react-native-reanimated';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {DefaultTheme, MD3DarkTheme, PaperProvider} from 'react-native-paper';
@@ -13,6 +13,7 @@ import {
   AppStateStatus,
   BackHandler,
   ColorSchemeName,
+  Linking,
 } from 'react-native';
 import {Provider} from 'react-redux';
 import store from './store';
@@ -23,9 +24,12 @@ import {PowerSyncProvider} from '@/powersync/PowerSyncProvider';
 import React, {useEffect} from 'react';
 import {useSystem} from '@/powersync/system';
 import {getSetting, SETTINGS} from '@/utils/settingUtils';
+import {NotificationProvider} from '@/contexts/NotificationContext';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 
 export default function RootLayout() {
   const colorScheme = Appearance.getColorScheme();
+
   const [theme, setTheme] = React.useState(colorScheme === 'dark' ? MD3DarkTheme : DefaultTheme);
 
   const {supabaseConnector} = useSystem();
@@ -98,9 +102,13 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <AuthProvider>
             <PowerSyncProvider>
-              <AutocompleteDropdownContextProvider>
-                <Stack screenOptions={{headerShown: false}} />
-              </AutocompleteDropdownContextProvider>
+              <NotificationProvider>
+                <GestureHandlerRootView>
+                  <AutocompleteDropdownContextProvider>
+                    <Stack screenOptions={{headerShown: false}} />
+                  </AutocompleteDropdownContextProvider>
+                </GestureHandlerRootView>
+              </NotificationProvider>
             </PowerSyncProvider>
           </AuthProvider>
         </SafeAreaProvider>

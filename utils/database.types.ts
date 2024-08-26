@@ -3,27 +3,71 @@ export type Json = string | number | boolean | null | {[key: string]: Json | und
 export type Database = {
   public: {
     Tables: {
+      notifications: {
+        Row: {
+          body: string | null;
+          created_at: string;
+          data: Json | null;
+          id: string;
+          sound: boolean | null;
+          status: Database['public']['Enums']['notification_status'] | null;
+          title: string | null;
+          todo_id: string | null;
+          trigger_time: string | null;
+        };
+        Insert: {
+          body?: string | null;
+          created_at?: string;
+          data?: Json | null;
+          id: string;
+          sound?: boolean | null;
+          status?: Database['public']['Enums']['notification_status'] | null;
+          title?: string | null;
+          todo_id?: string | null;
+          trigger_time?: string | null;
+        };
+        Update: {
+          body?: string | null;
+          created_at?: string;
+          data?: Json | null;
+          id?: string;
+          sound?: boolean | null;
+          status?: Database['public']['Enums']['notification_status'] | null;
+          title?: string | null;
+          todo_id?: string | null;
+          trigger_time?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notifications_todo_id_fkey';
+            columns: ['todo_id'];
+            isOneToOne: false;
+            referencedRelation: 'todos';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
+          expoPushToken: string | null;
           full_name: string | null;
           id: string;
           updated_at: string | null;
-          expoPushToken: string | null;
         };
         Insert: {
           avatar_url?: string | null;
+          expoPushToken?: string | null;
           full_name?: string | null;
           id: string;
           updated_at?: string | null;
-          expoPushToken: string | null;
         };
         Update: {
           avatar_url?: string | null;
+          expoPushToken?: string | null;
           full_name?: string | null;
           id?: string;
           updated_at?: string | null;
-          expoPushToken: string | null;
         };
         Relationships: [
           {
@@ -38,19 +82,19 @@ export type Database = {
       sections: {
         Row: {
           created_at: string;
-          id: number;
+          id: string;
           name: string;
           user_id: string | null;
         };
         Insert: {
           created_at?: string;
-          id?: never;
+          id?: string;
           name: string;
           user_id?: string | null;
         };
         Update: {
           created_at?: string;
-          id?: never;
+          id?: string;
           name?: string;
           user_id?: string | null;
         };
@@ -72,10 +116,12 @@ export type Database = {
           created_by: string;
           due_date: string | null;
           id: string;
+          notification_id: string | null;
           parent_id: string | null;
           priority: Database['public']['Enums']['priority_enum'];
           recurrence: string | null;
-          section_id: number | null;
+          reminder_option: Database['public']['Enums']['reminder_option'] | null;
+          section_id: string;
           start_date: string | null;
           summary: string;
           title: string;
@@ -87,10 +133,12 @@ export type Database = {
           created_by: string;
           due_date?: string | null;
           id?: string;
+          notification_id?: string | null;
           parent_id?: string | null;
           priority?: Database['public']['Enums']['priority_enum'];
           recurrence?: string | null;
-          section_id?: number | null;
+          reminder_option?: Database['public']['Enums']['reminder_option'] | null;
+          section_id?: string;
           start_date?: string | null;
           summary: string;
           title: string;
@@ -102,10 +150,12 @@ export type Database = {
           created_by?: string;
           due_date?: string | null;
           id?: string;
+          notification_id?: string | null;
           parent_id?: string | null;
           priority?: Database['public']['Enums']['priority_enum'];
           recurrence?: string | null;
-          section_id?: number | null;
+          reminder_option?: Database['public']['Enums']['reminder_option'] | null;
+          section_id?: string;
           start_date?: string | null;
           summary?: string;
           title?: string;
@@ -116,6 +166,13 @@ export type Database = {
             columns: ['created_by'];
             isOneToOne: false;
             referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'todos_notification_id_fkey';
+            columns: ['notification_id'];
+            isOneToOne: false;
+            referencedRelation: 'notifications';
             referencedColumns: ['id'];
           },
           {
@@ -135,7 +192,9 @@ export type Database = {
       [_ in never]: never;
     };
     Enums: {
+      notification_status: 'scheduled' | 'sent' | 'cancelled';
       priority_enum: '1' | '2' | '3' | '4';
+      reminder_option: 'At Time of Event' | '10 Minutes Before' | '1 Hour Before' | '1 Day Before';
     };
     CompositeTypes: {
       [_ in never]: never;

@@ -1,5 +1,5 @@
 import React, {forwardRef, useMemo, useCallback, useEffect} from 'react';
-import {BottomSheetBackdrop, BottomSheetModal, BottomSheetView} from '@gorhom/bottom-sheet';
+import {BottomSheetBackdrop, BottomSheetModal, BottomSheetScrollView} from '@gorhom/bottom-sheet';
 import {BackHandler, StyleSheet} from 'react-native';
 import {useTheme} from 'react-native-paper';
 import {BottomSheetModalMethods} from '@gorhom/bottom-sheet/lib/typescript/types';
@@ -16,7 +16,7 @@ const EditTodoModal = forwardRef<BottomSheetModalMethods, EditTodoModalProps>(
   ({children, ...props}, ref) => {
     const {colors} = useTheme();
 
-    const snapPoints = useMemo(() => ['80%'], []);
+    const snapPoints = useMemo(() => ['60%', '85%'], []);
 
     const handleBackPress = useCallback(() => {
       if (ref) {
@@ -51,16 +51,16 @@ const EditTodoModal = forwardRef<BottomSheetModalMethods, EditTodoModalProps>(
         enableContentPanningGesture={false}
         ref={ref}
         {...props}
-        index={0}
+        index={1}
         snapPoints={snapPoints}
         backgroundStyle={{backgroundColor: colors.background}}
-        // handleIndicatorStyle={{backgroundColor: colors.onSurface}}
+        handleIndicatorStyle={{backgroundColor: colors.onSurface}}
         onDismiss={props.onDismiss}
         stackBehavior="replace">
         {(data: Todo) => (
-          <BottomSheetView style={styles.contentContainer}>
+          <BottomSheetScrollView style={styles.contentContainer}>
             {typeof children === 'function' ? children(data) : children}
-          </BottomSheetView>
+          </BottomSheetScrollView>
         )}
       </BottomSheetModal>
     );
@@ -76,7 +76,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    padding: 20,
   },
   inputContainer: {
     flexDirection: 'row',

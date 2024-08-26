@@ -1,5 +1,6 @@
-import {Stack} from 'expo-router';
+import {router} from 'expo-router';
 import React from 'react';
+import {Appbar} from 'react-native-paper';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {WebView} from 'react-native-webview';
 
@@ -23,7 +24,10 @@ const htmlContent = `
 const PrototypeFeedbackWebView = () => {
   return (
     <>
-      <Stack.Screen options={{title: 'CalenTrack Prototype feedback'}} />
+      <Appbar.Header mode="small" elevated>
+        <Appbar.BackAction onPress={() => router.back()} />
+        <Appbar.Content title="CalenTrack Prototype feedback" />
+      </Appbar.Header>
       <SafeAreaView style={{flex: 1}}>
         <WebView originWhitelist={['*']} source={{html: htmlContent}} style={{flex: 1}} />
       </SafeAreaView>

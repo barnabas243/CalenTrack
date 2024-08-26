@@ -12,7 +12,7 @@ interface AlertSnackbarProps {
   duration?: number;
   actionText?: string;
   onAction?: () => void;
-  position?: 'top' | 'bottom'; // New prop for position
+  position?: 'top' | 'bottom';
 }
 
 const AlertSnackbar = ({
@@ -27,16 +27,16 @@ const AlertSnackbar = ({
   const {colors} = useTheme();
   const [textWidth, setTextWidth] = useState(0);
 
-  const MAX_WIDTH = width; // Maximum width for the Snackbar
+  const MAX_WIDTH = width - 20; // Maximum width for the Snackbar
   const MIN_WIDTH = width / 1.5; // Minimum width for the Snackbar
 
   const getPositionStyle = (): ViewStyle => {
     switch (position) {
       case 'top':
-        return {top: 30};
+        return {top: 20};
       case 'bottom':
       default:
-        return {bottom: 50};
+        return {bottom: 20};
     }
   };
 
@@ -61,15 +61,16 @@ const AlertSnackbar = ({
   const snackbarWidth = clamp(textWidth, MIN_WIDTH, MAX_WIDTH);
 
   return (
-    <View style={styles.container}>
+    <>
       <Snackbar
+        testID="alert-snackbar"
         visible={visible}
         onDismiss={onDismiss}
         duration={duration}
         style={[
           styles.snackbar,
           getPositionStyle(),
-          {backgroundColor: 'grey', width: snackbarWidth},
+          {backgroundColor: colors.inverseOnSurface, width: snackbarWidth},
         ]}
         action={
           actionText && onAction
@@ -80,11 +81,15 @@ const AlertSnackbar = ({
               }
             : undefined
         }>
-        <Text variant="bodyMedium" style={{textAlign: 'center'}} onTextLayout={handleTextLayout}>
+        <Text
+          testID="snackbar-message"
+          variant="bodyMedium"
+          style={{textAlign: 'center'}}
+          onTextLayout={handleTextLayout}>
           {message}
         </Text>
       </Snackbar>
-    </View>
+    </>
   );
 };
 

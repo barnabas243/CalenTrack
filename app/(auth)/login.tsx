@@ -95,6 +95,7 @@ export default function LoginScreen() {
           }}
           style={styles.input}
           error={email.length > 0 && !isValidEmail(email)} // Display error if the email is invalid
+          blurOnSubmit={false}
         />
         <HelperText
           type="error"
@@ -122,6 +123,7 @@ export default function LoginScreen() {
               onPress={() => setIsPasswordHidden(prev => !prev)}
             />
           }
+          blurOnSubmit={false}
         />
         <Button
           loading={isLoading}
@@ -132,6 +134,19 @@ export default function LoginScreen() {
           style={styles.button}>
           Sign in
         </Button>
+        <Text
+          variant="bodyMedium"
+          style={{
+            marginTop: 20,
+            textDecorationLine: 'underline',
+            color: colors.onSurfaceVariant,
+            alignSelf: 'center',
+          }}
+          onPress={() => {
+            router.push('/forgot-password');
+          }}>
+          Forgot password?
+        </Text>
       </View>
       <AlertSnackbar visible={isSnackbarVisible} message={message} onDismiss={closeSnackbar} />
     </View>

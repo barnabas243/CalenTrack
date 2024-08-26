@@ -10,7 +10,7 @@ import {
 } from '@/store/section/slice';
 import {useAuth} from './useAuth';
 import {useSystem} from '@/powersync/system';
-import {Section, Todo} from '@/powersync/AppSchema';
+import {Section, SECTION_TABLE, Todo, TODO_TABLE} from '@/powersync/AppSchema';
 import {generateUUID} from '@/powersync/uuid';
 
 export const useTodo = () => {
@@ -19,7 +19,7 @@ export const useTodo = () => {
   const todos = useSelector((state: RootState) => state.todos.todos); // Access todos array
   const sections = useSelector((state: RootState) => state.sections.sections); // Access sections array
 
-  const {db} = useSystem();
+  const {db, supabaseConnector} = useSystem();
 
   useEffect(() => {
     if (user) {
@@ -27,6 +27,67 @@ export const useTodo = () => {
       dispatch(fetchSections({userId: user.id, db})).unwrap();
     }
   }, [user, dispatch, db]);
+
+  useEffect(() => {
+    const todoChannel = supabaseConnector.client
+      .channel(TODO_TABLE)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+        },
+        payload => console.log('received todo insert event: ', payload),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+        },
+        payload => console.log('received todo update event: ', payload),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+        },
+        payload => console.log('received todo delete event: ', payload),
+      )
+      .subscribe();
+
+    const sectionChannel = supabaseConnector.client
+      .channel(SECTION_TABLE)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+        },
+        payload => console.log('received section insert event: ', payload),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+        },
+        payload => console.log('received section update event: ', payload),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+        },
+        payload => console.log('received section delete event: ', payload),
+      );
+    return () => {
+      todoChannel.unsubscribe();
+      sectionChannel.unsubscribe();
+    };
+  }, [supabaseConnector]);
 
   // Todo actions
   const addNewTodo = async (todo: Todo) => {

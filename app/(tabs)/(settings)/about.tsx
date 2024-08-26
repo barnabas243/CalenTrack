@@ -9,6 +9,7 @@ import {router} from 'expo-router';
 const githubUrl = 'https://github.com/barnabas243/CalenTrack.git';
 
 const {width, height} = Dimensions.get('window');
+
 export default function AboutScreen() {
   const {colors} = useTheme();
 
@@ -49,14 +50,12 @@ export default function AboutScreen() {
               await openBrowserAsync(githubUrl);
             }
           }}>
-          View CalenTrack on Github
+          View CalenTrack on GitHub
         </Button>
 
         <View style={styles.section}>
-          <Text variant="titleLarge" style={styles.bold}>
-            About CalenTrack
-          </Text>
-          <Text variant="bodyMedium">
+          <Text style={styles.title}>About CalenTrack</Text>
+          <Text style={styles.text}>
             CalenTRACK is a mobile task management app designed to enhance your productivity. By
             placing the calendar at the heart of your task management, it helps you stay organized,
             efficiently manage your tasks, and track your emotions seamlessly.
@@ -64,10 +63,8 @@ export default function AboutScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text variant="titleLarge" style={styles.bold}>
-            Features
-          </Text>
-          <Text variant="bodyMedium">
+          <Text style={styles.title}>Features</Text>
+          <Text style={styles.text}>
             - <Text style={styles.bold}>Calendar Views</Text>: Customizable views tailored to your
             needs, whether daily, weekly, or monthly.
             {'\n'}- <Text style={styles.bold}>NLP-based Task Creation</Text>: Create tasks
@@ -79,20 +76,16 @@ export default function AboutScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text variant="titleLarge" style={styles.bold}>
-            Contact Us
-          </Text>
-          <Text variant="bodyMedium">
+          <Text style={styles.title}>Contact Us</Text>
+          <Text style={styles.text}>
             If you have any questions, feedback, or need support, please reach out at
             bttf243@gmail.com.
           </Text>
         </View>
 
         <View style={styles.section}>
-          <Text variant="titleLarge" style={styles.bold}>
-            Acknowledgments
-          </Text>
-          <Text variant="bodyMedium">
+          <Text style={styles.title}>Acknowledgments</Text>
+          <Text style={styles.text}>
             Special thanks to React Native, Expo, Supabase, and PowerSync for providing the tools
             and libraries that made this app possible.
           </Text>
@@ -111,34 +104,29 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
+    marginBottom: 20,
   },
   logo: {
     width: width * 0.5,
     height: height * 0.3,
+    resizeMode: 'contain',
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
+    marginBottom: 10,
   },
   bold: {
     fontWeight: 'bold',
-  },
-  subtitle: {
-    fontSize: 16,
-  },
-  section: {
-    marginVertical: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
   },
   text: {
     fontSize: 16,
     lineHeight: 24,
   },
+  section: {
+    marginVertical: 20,
+  },
   button: {
-    marginTop: 20,
+    marginBottom: 20,
   },
 });

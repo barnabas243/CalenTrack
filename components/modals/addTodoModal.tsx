@@ -13,9 +13,17 @@ import {
 import Modal from 'react-native-modal';
 import {AddTodoModalProps, HighlightedElementType} from './addTodoModal.types';
 import * as chrono from 'chrono-node';
-import {Text, useTheme, Chip, Divider, Icon, IconButton, Button} from 'react-native-paper';
+import {
+  Text,
+  useTheme,
+  Chip,
+  Divider,
+  Icon,
+  IconButton,
+  List,
+  RadioButton,
+} from 'react-native-paper';
 import BottomSheet, {BottomSheetBackdrop, BottomSheetScrollView} from '@gorhom/bottom-sheet';
-import DateTimePickerCommunity from '@react-native-community/datetimepicker';
 import DateTimePickerUI, {DateType} from 'react-native-ui-datepicker';
 import dayjs from 'dayjs';
 import calendar from 'dayjs/plugin/calendar';
@@ -26,7 +34,10 @@ import {getBorderColor} from '../ToDoItem';
 import {PriorityType} from '@/store/todo/types';
 import {useAuth} from '@/hooks/useAuth';
 import {generateUUID} from '@/powersync/uuid';
-import {Section} from '@/powersync/AppSchema';
+import {ReminderOption, Section} from '@/powersync/AppSchema';
+import DatePicker from 'react-native-date-picker';
+import {getFormattedDate} from './EditTodoModalContent';
+import {Portal} from 'react-native-portalize';
 
 dayjs.extend(isBetween);
 dayjs.extend(calendar);
@@ -40,6 +51,7 @@ const AddTodoModal = ({
   propSelectedSection = undefined,
   propSelectedStartDate = undefined,
   propSelectedDueDate = undefined,
+  propParentId = undefined,
 }: AddTodoModalProps) => {
   const {colors} = useTheme();
   const {user} = useAuth();
@@ -56,12 +68,10 @@ const AddTodoModal = ({
   );
 
   const [selectedSection, setSelectedSection] = useState(propSelectedSection?.name ?? 'Inbox');
-  const [sectionId, setSectionId] = useState<string | null>(sections[0].id);
 
   useEffect(() => {
     if (!propSelectedSection) return;
     handleTextChange(`@${propSelectedSection.name} `);
-    setSectionId(propSelectedSection.id);
   }, [propSelectedSection]);
   // Initialize state only once
   useEffect(() => {
@@ -86,9 +96,6 @@ const AddTodoModal = ({
     );
   }, [propSelectedDueDate, propSelectedStartDate]); // Empty dependency array
 
-  const [showDueDatePicker, setShowDueDatePicker] = useState(false);
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-
   const [recurrenceRule, setRecurrenceRule] = useState<RRule | null>(null);
 
   const [todoPriority, setTodoPriority] = useState<PriorityType>('4');
@@ -105,6 +112,8 @@ const AddTodoModal = ({
   const screenWidth = Dimensions.get('window').width;
 
   const [shortcut, setShortcut] = useState('');
+
+  const [reminder_option, setReminderOption] = useState<ReminderOption | null>(null);
 
   const dueDateBottomSheetRef = useRef<BottomSheet>(null);
 
@@ -160,9 +169,9 @@ const AddTodoModal = ({
     setRange({startDate: undefined, endDate: undefined});
     setDueDateTitle(dayjs(new Date()).endOf('day').format('h:mm A'));
     setShortcut('');
-    setSelectedSection('');
-    setSectionId('');
+    setSelectedSection('Inbox');
     setRecurrenceRule(null);
+    setReminderOption(null);
   };
 
   const handleTextChange = (text: string) => {
@@ -343,6 +352,7 @@ const AddTodoModal = ({
     updateTextIfSymbolIsLastChar('@', label);
   }
   const handleSubmitEditing = () => {
+    console.log('reminder_option', reminder_option);
     onSubmitEditing(
       {
         title: todoName.trim(),
@@ -356,12 +366,14 @@ const AddTodoModal = ({
           null,
         recurrence: recurrenceRule?.toString() || null,
         priority: todoPriority,
-        section_id: selectedSection ? sectionId : null, // Logic looks correct
+        section_id: null, // Logic looks correct
         created_by: user!.id,
-        parent_id: null,
+        parent_id: propParentId ?? '23f34f97-6090-4df9-ba65-1bad614ddf60',
         created_at: null,
         completed_at: null,
         id: generateUUID(),
+        reminder_option: reminder_option,
+        notification_id: null,
       },
       selectedSection,
     );
@@ -449,7 +461,6 @@ const AddTodoModal = ({
     setTooltipVisible(false);
 
     if (typeof label !== 'string') {
-      setSectionId(label.id);
       setSelectedSection(label.name!);
     }
   };
@@ -475,7 +486,6 @@ const AddTodoModal = ({
       newHighlightedText.splice(existingIndex, 2); // Remove the existing symbol
 
       if (symbol === '@') {
-        setSectionId('');
         setSelectedSection('');
       } else if (symbol === '!') {
         setTodoPriority('4');
@@ -538,7 +548,7 @@ const AddTodoModal = ({
     return dateObj.format('DD/MM/YYYY h:mm A');
   }
 
-  const handleDateChange = ({
+  const handleCalendarDateChange = ({
     newStartDate,
     newEndDate,
   }: {
@@ -565,6 +575,119 @@ const AddTodoModal = ({
     }));
   };
 
+  const handleDateChange = (date: Date, type: 'start' | 'end') => {
+    const newDate = dayjs(date);
+    const currentStartDate = dayjs(range.startDate);
+    const currentDueDate = dayjs(range.endDate);
+
+    console.log('currentStartDate', currentStartDate);
+    console.log('currentDueDate', currentDueDate);
+
+    if (type === 'start') {
+      if (newDate.isAfter(currentDueDate) && newDate.hour() < currentDueDate.hour()) {
+        const newDueDate = newDate
+          .set('hour', currentDueDate.hour())
+          .set('minute', currentDueDate.minute())
+          .set('second', currentDueDate.second());
+
+        console.log('newDueDate', newDueDate);
+        setRange(prev => ({
+          ...prev,
+          startDate: newDate,
+          endDate: newDueDate,
+        }));
+
+        // Check if newStartDate is defined, otherwise set the title to an empty string
+        const formattedStartDate = newDate ? getCustomFormattedDate(dayjs(newDate)) : '';
+
+        // Check if newEndDate is defined, otherwise set the title to an empty string
+        const formattedEndDate = newDueDate ? getCustomFormattedDate(dayjs(newDueDate)) : '';
+
+        setStartDateTitle(formattedStartDate);
+        setDueDateTitle(formattedEndDate);
+      } else if (newDate.isAfter(currentDueDate) && newDate.hour() > currentDueDate.hour()) {
+        const newDueDate = newDate
+          .add(1, 'day')
+          .set('hour', currentDueDate.hour())
+          .set('minute', currentDueDate.minute())
+          .set('second', currentDueDate.second());
+
+        setRange(prev => ({
+          ...prev,
+          startDate: newDate,
+          endDate: newDueDate,
+        }));
+
+        const formattedStartDate = newDate ? getCustomFormattedDate(dayjs(newDate)) : '';
+        const formattedEndDate = newDueDate ? getCustomFormattedDate(dayjs(newDueDate)) : '';
+
+        setStartDateTitle(formattedStartDate);
+        setDueDateTitle(formattedEndDate);
+        // setStartDateTitle(newDate.format('YYYY-MM-DD HH:mm:ss'));
+        // setDueDateTitle(newDueDate.format('YYYY-MM-DD HH:mm:ss'));
+      } else {
+        // Update only the start date
+        setRange(prev => ({
+          ...prev,
+          startDate: newDate,
+        }));
+
+        const formattedStartDate = newDate ? getCustomFormattedDate(dayjs(newDate)) : '';
+        setStartDateTitle(formattedStartDate);
+      }
+    } else if (type === 'end') {
+      if (newDate.isBefore(currentStartDate) && newDate.hour() > currentStartDate.hour()) {
+        // If the new due date is before the current start date, set start date to be one day before the new due date
+        const newStartDate = newDate
+          .set('hour', currentStartDate.hour())
+          .set('minute', currentStartDate.minute())
+          .set('second', currentStartDate.second());
+
+        setRange(prev => ({
+          startDate: newStartDate,
+          endDate: newDate,
+        }));
+
+        const formattedStartDate = newStartDate ? getCustomFormattedDate(dayjs(newStartDate)) : '';
+        const formattedEndDate = newDate ? getCustomFormattedDate(dayjs(newDate)) : '';
+
+        setStartDateTitle(formattedStartDate);
+        setDueDateTitle(formattedEndDate);
+        // setStartDateTitle(newStartDate.format('YYYY-MM-DD HH:mm:ss'));
+        // setDueDateTitle(newDate.format('YYYY-MM-DD HH:mm:ss'));
+      } else if (newDate.isBefore(currentStartDate) && newDate.hour() < currentStartDate.hour()) {
+        const newStartDate = newDate
+          .subtract(1, 'day')
+          .set('hour', currentStartDate.hour())
+          .set('minute', currentStartDate.minute())
+          .set('second', currentStartDate.second());
+
+        setRange(prev => ({
+          endDate: newDate,
+          startDate: newStartDate,
+        }));
+
+        const formattedStartDate = newStartDate ? getCustomFormattedDate(dayjs(newStartDate)) : '';
+        const formattedEndDate = newDate ? getCustomFormattedDate(dayjs(newDate)) : '';
+
+        setStartDateTitle(formattedStartDate);
+        setDueDateTitle(formattedEndDate);
+        // setStartDateTitle(newStartDate.format('YYYY-MM-DD HH:mm:ss'));
+        // setDueDateTitle(newDate.format('YYYY-MM-DD HH:mm:ss'));
+      } else {
+        // Update only the due date
+        setRange(prev => ({
+          ...prev,
+          endDate: newDate,
+        }));
+
+        const formattedEndDate = newDate ? getCustomFormattedDate(dayjs(newDate)) : '';
+        setDueDateTitle(formattedEndDate);
+        // setDueDateTitle(newDate.format('YYYY-MM-DD HH:mm:ss'));
+      }
+    }
+  };
+
   const handleSheetChanges = useCallback(
     (index: number) => {
       if (index === -1) {
@@ -573,13 +696,15 @@ const AddTodoModal = ({
     },
     [setIsVisible],
   );
-  const snapPoints = useMemo(() => ['50%', '75%'], []);
+  const snapPoints = useMemo(() => ['50%', '85%'], []);
   return (
     <>
       <Modal
         isVisible={isVisible}
         onBackdropPress={onBackdropPress}
+        // onTouchEnd={onBackdropPress}
         onBackButtonPress={onBackdropPress}
+        onDismiss={onBackdropPress}
         style={{margin: 0}}
         animationIn="fadeInUp">
         <KeyboardAvoidingView
@@ -598,7 +723,7 @@ const AddTodoModal = ({
               }}>
               <TextInput
                 ref={inputRef}
-                placeholder="Task Name"
+                placeholder="Eg, Schedule a meeting at 10am"
                 placeholderTextColor={colors.secondary}
                 onChangeText={handleTextChange}
                 onSelectionChange={e => {
@@ -659,111 +784,154 @@ const AddTodoModal = ({
           </View>
         </KeyboardAvoidingView>
       </Modal>
-      <BottomSheet
-        ref={dueDateBottomSheetRef}
-        index={-1}
-        snapPoints={snapPoints}
-        onChange={handleSheetChanges}
-        enableContentPanningGesture={false}
-        enablePanDownToClose={true}
-        backgroundStyle={{backgroundColor: colors.inverseOnSurface, flex: 1}}
-        backdropComponent={props => (
-          <BottomSheetBackdrop
-            {...props}
-            opacity={0.5}
-            enableTouchThrough={false}
-            appearsOnIndex={0}
-            disappearsOnIndex={-1}
-            style={[{backgroundColor: 'rgba(0, 0, 0, 1)'}, StyleSheet.absoluteFillObject]}
-          />
-        )}>
-        <BottomSheetScrollView
-          style={[styles.container, {backgroundColor: colors.inverseOnSurface}]}>
-          <View style={{flexDirection: 'row', marginVertical: 20}}>
-            <MaterialCommunityIcons name="pen" size={24} color={colors.onSurface} />
-            <Text style={{color: colors.onSurface, marginLeft: 10}}>
-              {startDateTitle} - {dueDateTitle}
-            </Text>
-          </View>
-          <Divider style={{backgroundColor: colors.secondary}} />
-          <View style={{marginVertical: 20}}>
-            <View style={{marginVertical: 20}}>
-              <DateTimePickerUI
-                mode="range"
-                //minDate={dayjs().toDate()}
-                startDate={range.startDate}
-                endDate={range.endDate}
-                displayFullDays
-                weekDaysTextStyle={{color: colors.onSurface}}
-                headerTextStyle={{color: colors.onSurface}}
-                calendarTextStyle={{color: colors.onSurface}}
-                yearContainerStyle={{backgroundColor: colors.inverseOnSurface}}
-                monthContainerStyle={{backgroundColor: colors.inverseOnSurface}}
-                onChange={params => {
-                  handleDateChange({
-                    newStartDate: params.startDate,
-                    newEndDate: params.endDate,
-                  });
-                }}
-              />
+      <Portal>
+        <BottomSheet
+          ref={dueDateBottomSheetRef}
+          index={-1}
+          snapPoints={snapPoints}
+          onChange={handleSheetChanges}
+          enableContentPanningGesture={false}
+          enablePanDownToClose={true}
+          backgroundStyle={{backgroundColor: colors.inverseOnSurface, flex: 1}}
+          backdropComponent={props => (
+            <BottomSheetBackdrop
+              {...props}
+              opacity={0.5}
+              enableTouchThrough={false}
+              appearsOnIndex={0}
+              disappearsOnIndex={-1}
+              style={[{backgroundColor: 'rgba(0, 0, 0, 1)'}, StyleSheet.absoluteFillObject]}
+            />
+          )}>
+          <BottomSheetScrollView
+            style={[styles.container, {backgroundColor: colors.inverseOnSurface}]}>
+            <View style={{flexDirection: 'row', marginVertical: 20}}>
+              <MaterialCommunityIcons name="pen" size={24} color={colors.onSurface} />
+              <Text style={{color: colors.onSurface, marginLeft: 10}}>
+                {startDateTitle} - {dueDateTitle}
+              </Text>
             </View>
-          </View>
-          <View style={{flex: 1, flexDirection: 'column'}}>
-            <Button mode="contained" onPress={() => setShowStartDatePicker(true)}>
-              Start Time: {dayjs(range.startDate).format('HH:mm:ss')}
-            </Button>
-            <Button mode="contained" onPress={() => setShowDueDatePicker(true)}>
-              End Time: {dayjs(range.endDate).format('HH:mm:ss')}
-            </Button>
-          </View>
-          {showStartDatePicker && (
-            <DateTimePickerCommunity
-              value={
-                range.startDate
-                  ? dayjs(range.startDate).toDate()
-                  : dayjs(range.endDate).startOf('day').toDate()
-              }
-              mode={'time'}
-              is24Hour={true}
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowStartDatePicker(false);
-                if (selectedDate) {
-                  handleDateChange({
-                    newStartDate: selectedDate,
-                    newEndDate: range.endDate,
-                  });
-                }
-              }}
-            />
-          )}
-          {showDueDatePicker && (
-            <DateTimePickerCommunity
-              value={dayjs(range.endDate).toDate() ?? new Date()}
-              mode={'time'}
-              is24Hour={true}
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowDueDatePicker(false);
-                if (selectedDate) {
-                  handleDateChange({
-                    newStartDate: range.startDate,
-                    newEndDate: selectedDate,
-                  });
-                }
-              }}
-            />
-          )}
-          {/* Add the recurrence options here */}
-        </BottomSheetScrollView>
-      </BottomSheet>
+            <Divider style={{backgroundColor: colors.secondary}} />
+            <View>
+              <View style={{marginVertical: 20}}>
+                <DateTimePickerUI
+                  mode="range"
+                  minDate={dayjs().startOf('day').toDate()}
+                  startDate={range.startDate}
+                  endDate={range.endDate}
+                  displayFullDays
+                  weekDaysTextStyle={{color: colors.onSurface}}
+                  headerTextStyle={{color: colors.onSurface}}
+                  calendarTextStyle={{color: colors.onSurface}}
+                  yearContainerStyle={{backgroundColor: colors.inverseOnSurface}}
+                  monthContainerStyle={{backgroundColor: colors.inverseOnSurface}}
+                  onChange={params => {
+                    handleCalendarDateChange({
+                      newStartDate: params.startDate,
+                      newEndDate: params.endDate,
+                    });
+                  }}
+                />
+              </View>
+            </View>
+
+            <Divider />
+            <List.AccordionGroup>
+              <List.Accordion
+                left={props => <List.Icon {...props} icon="calendar-start" />}
+                right={() => <></>}
+                style={{backgroundColor: colors.inverseOnSurface}}
+                titleStyle={{alignSelf: 'flex-end'}}
+                title={getFormattedDate(
+                  range.startDate?.toString() || '',
+                  range.startDate?.toString() || '',
+                  'start',
+                )}
+                id="1">
+                <List.Item
+                  title=""
+                  right={() => (
+                    <DatePicker
+                      minimumDate={dayjs().startOf('day').toDate()}
+                      date={dayjs(range.startDate).toDate()}
+                      onDateChange={date => handleDateChange(date, 'start')}
+                      dividerColor={colors.primary}
+                    />
+                  )}
+                />
+              </List.Accordion>
+              <Divider />
+              <List.Accordion
+                left={props => <List.Icon {...props} icon="calendar-end" />}
+                right={() => <></>}
+                titleStyle={{alignSelf: 'flex-end'}}
+                style={{backgroundColor: colors.inverseOnSurface}}
+                title={getFormattedDate(
+                  range.startDate?.toString() || '',
+                  range.endDate?.toString() || '',
+                  'end',
+                )}
+                id="2">
+                <List.Item
+                  title=""
+                  right={() => (
+                    <DatePicker
+                      minimumDate={dayjs().startOf('day').toDate()}
+                      date={dayjs(range.endDate).toDate()}
+                      onDateChange={date => handleDateChange(date, 'end')}
+                      dividerColor={colors.primary}
+                    />
+                  )}
+                />
+              </List.Accordion>
+              <Divider />
+              <List.Accordion
+                id="3"
+                title={reminder_option ?? 'Reminder'}
+                left={props => <List.Icon {...props} icon="bell" />}
+                titleStyle={{alignSelf: 'flex-end'}}
+                style={{backgroundColor: colors.inverseOnSurface}}
+                right={() => <></>}>
+                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                  <RadioButton.Group
+                    onValueChange={value => setReminderOption(value as ReminderOption | null)}
+                    value={reminder_option ?? ''}>
+                    <View style={styles.radioContainer}>
+                      <RadioButton value="At Time of Event" />
+                      <Text>At Time of Event</Text>
+                    </View>
+                    <View style={styles.radioContainer}>
+                      <RadioButton value="10 Minutes Before" />
+                      <Text>10 Minutes Before</Text>
+                    </View>
+                    <View style={styles.radioContainer}>
+                      <RadioButton value="1 Hour Before" />
+                      <Text>1 Hour Before</Text>
+                    </View>
+                    <View style={styles.radioContainer}>
+                      <RadioButton value="1 Day Before" />
+                      <Text>1 Day Before</Text>
+                    </View>
+                    <View style={styles.radioContainer}>
+                      <RadioButton value="custom" />
+                      <Text>Custom</Text>
+                    </View>
+                  </RadioButton.Group>
+                </View>
+              </List.Accordion>
+            </List.AccordionGroup>
+            <Divider />
+            {/* Add the recurrence options here */}
+          </BottomSheetScrollView>
+        </BottomSheet>
+      </Portal>
     </>
   );
 };
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 8,
+    paddingHorizontal: 8,
   },
   contentContainer: {
     flex: 1,
@@ -782,7 +950,6 @@ const styles = StyleSheet.create({
   inputModal: {
     padding: 20,
     width: '100%',
-    marginBottom: 40,
   },
   textInput: {
     marginBottom: 10,
@@ -846,6 +1013,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  radioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
   },
 });
 export default AddTodoModal;

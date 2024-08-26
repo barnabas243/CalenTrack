@@ -43,6 +43,7 @@ interface MonthCalendarState {
   currentDate: string;
   isAddTodoModalVisible: boolean;
   isDarkMode: boolean;
+  parentId: string;
 }
 
 class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState> {
@@ -57,6 +58,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
       currentDate: props.selectedDate,
       isAddTodoModalVisible: false,
       isDarkMode: Appearance.getColorScheme() === 'dark',
+      parentId: '',
     };
     this.todoItemRefs = {
       current: new Map<string, SwipeableItemImperativeRef>(),
@@ -91,23 +93,15 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
             item.data.map(async todo => {
               // Convert to dayjs object with time zone
               const startDate = dayjs.tz(todo.start_date);
-              let endDate = dayjs.tz(todo.due_date);
+              const endDate = dayjs.tz(todo.due_date);
               const color = todo.section_id
                 ? await getColorForSection(todo.section_id, this.state.isDarkMode)
                 : '';
 
-              // Ensure endDate is inclusive by adding one day
-              if (startDate.isAfter(endDate)) {
-                endDate = startDate;
-              }
-
-              console.log('startDate', startDate);
-              console.log('endDate', endDate);
-
               let currentDate = startDate;
 
               // Iterate through the range of dates from startDate to endDate (inclusive)
-              while (currentDate.isBefore(endDate.add(1, 'day'))) {
+              while (currentDate.isSame(endDate, 'day') || currentDate.isBefore(endDate)) {
                 const dateStr = currentDate.format('YYYY-MM-DD'); // Convert dayjs object to YYYY-MM-DD string
 
                 // Initialize the entry for the current date if it does not exist
@@ -170,9 +164,26 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
     }
   };
 
-  openEditBottomSheet = (item: Todo) => {
+  openEditBottomSheet = async (item: Todo) => {
     if (this.editBottomSheetRef.current) {
-      this.editBottomSheetRef.current.present(item);
+      await new Promise(resolve => {
+        this.editBottomSheetRef.current?.close();
+
+        // Resolve after a short delay to ensure it closes properly
+        setTimeout(resolve, 300); // Adjust the delay if needed
+      });
+
+      const subItems: Todo[] = this.props.monthlyTodoArray.reduce((acc: Todo[], todo) => {
+        const filteredSubItems = todo.data.filter(subItem => subItem.parent_id === item.id);
+        return acc.concat(filteredSubItems);
+      }, []);
+
+      const subItemsCount = subItems.length;
+
+      // Prepare the new item to show
+      const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
+
+      this.editBottomSheetRef.current.present(itemToPresent);
     } else {
       console.warn('editBottomSheetRef is null');
     }
@@ -209,6 +220,15 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
 
   setIsAddTodoModalVisible = (isVisible: boolean) => {
     this.setState({isAddTodoModalVisible: isVisible});
+  };
+
+  handleAddSubTodo = async (parent_id: string) => {
+    if (!parent_id) return;
+
+    this.setState({parentId: parent_id}, () => {
+      // This callback runs after the state has been updated
+      this.showAddTodoModal();
+    });
   };
 
   render() {
@@ -277,6 +297,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
             onSubmitEditing={this.props.onSubmitEditing}
             sections={this.props.sections}
             propSelectedDueDate={dayjs(selectedDate).toDate()}
+            propParentId={this.state.parentId}
           />
           <EditTodoModal
             ref={this.editBottomSheetRef}
@@ -288,6 +309,9 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
                 sections={this.props.sections}
                 colors={colors}
                 deleteTodo={this.props.deleteTodo}
+                toggleCompleteTodo={this.props.toggleCompleteTodo}
+                openEditBottomSheet={this.openEditBottomSheet}
+                onPress={this.handleAddSubTodo}
               />
             )}
           </EditTodoModal>

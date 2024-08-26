@@ -1,4 +1,4 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {Alert, SectionList, View, StyleSheet, ColorSchemeName, Appearance} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {
@@ -21,6 +21,7 @@ import {AuthError} from '@supabase/supabase-js';
 import {useSystem} from '@/powersync/system';
 import {router} from 'expo-router';
 import {saveSetting, SETTINGS} from '@/utils/settingUtils';
+import {Profile} from '@/powersync/AppSchema';
 
 export type Theme = 'system' | 'dark' | 'light';
 
@@ -33,6 +34,11 @@ const iconMapping: Record<string, string> = {
   terms: 'file-document-outline',
   logout: 'logout',
 };
+
+GoogleSignin.configure({
+  scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+  webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com',
+});
 
 export default function SettingsPage() {
   const {user, isLoading} = useAuth();
@@ -49,6 +55,23 @@ export default function SettingsPage() {
   const showModal = useCallback(() => setVisible(true), []);
   const hideModal = useCallback(() => setVisible(false), []);
 
+  const [profile, setProfile] = useState<Profile | null | undefined>();
+
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const profile = await supabaseConnector.fetchProfile(user!.id);
+        setProfile(profile);
+      } catch (error) {
+        if (error instanceof AuthError) {
+          Alert.alert('Error Fetching Profile', error.message);
+        }
+      }
+    }
+
+    fetchProfile();
+  }, [supabaseConnector, user]);
+
   const handleThemeChange = useCallback(async (value: string) => {
     setTheme(value as Theme);
 
@@ -59,6 +82,7 @@ export default function SettingsPage() {
   const handleLogout = useCallback(async () => {
     try {
       // Sign out of Google
+      console.log(user?.app_metadata.providers);
       if (user?.app_metadata.providers.includes('google')) {
         await GoogleSignin.signOut();
       }
@@ -148,13 +172,17 @@ export default function SettingsPage() {
         contentContainerStyle={styles.contentContainer}
         ListHeaderComponent={() => (
           <View style={styles.header}>
-            <Card onPress={() => router.push('/details')}>
+            <Card
+              onPress={() =>
+                router.push({
+                  pathname: '/details',
+                  params: {variable: JSON.stringify(profile)},
+                })
+              }>
               <Card.Title
-                title={user?.user_metadata.full_name}
+                title={profile?.full_name}
                 subtitle={user?.user_metadata.email}
-                left={props => (
-                  <Avatar.Image {...props} source={{uri: user?.user_metadata.avatar_url}} />
-                )}
+                left={() => <Avatar.Image size={50} source={{uri: profile?.avatar_url ?? ''}} />}
               />
             </Card>
           </View>
@@ -164,6 +192,8 @@ export default function SettingsPage() {
           <View style={styles.logoutButtonContainer}>
             <Button
               mode="contained"
+              buttonColor={colors.secondaryContainer}
+              textColor={colors.secondary}
               onPress={handleLogout}
               icon={iconMapping['logout']}
               style={styles.logoutButton}>
@@ -234,9 +264,9 @@ const styles = StyleSheet.create({
   },
   logoutButtonContainer: {
     marginTop: 20,
-    marginHorizontal: 20,
   },
   logoutButton: {
     width: '100%',
+    borderRadius: 10,
   },
 });
