@@ -125,6 +125,7 @@ export type Database = {
           start_date: string | null;
           summary: string;
           title: string;
+          type: string | null;
         };
         Insert: {
           completed?: boolean;
@@ -142,6 +143,7 @@ export type Database = {
           start_date?: string | null;
           summary: string;
           title: string;
+          type?: string | null;
         };
         Update: {
           completed?: boolean;
@@ -159,6 +161,7 @@ export type Database = {
           start_date?: string | null;
           summary?: string;
           title?: string;
+          type?: string | null;
         };
         Relationships: [
           {
@@ -189,7 +192,12 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      confirm_current_user_password: {
+        Args: {
+          current_plain_password: string;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       notification_status: 'scheduled' | 'sent' | 'cancelled';

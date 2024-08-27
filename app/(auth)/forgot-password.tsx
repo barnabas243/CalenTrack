@@ -1,4 +1,5 @@
 import {useSystem} from '@/powersync/system';
+import {isValidEmail} from '@/utils/validationUtils';
 import {router} from 'expo-router';
 import React, {useRef, useState, useEffect} from 'react';
 import {View, StyleSheet} from 'react-native';
@@ -14,11 +15,6 @@ export default function ForgetPasswordScreen() {
   const {colors} = useTheme();
 
   const emailRef = useRef(null);
-
-  const isValidEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
 
   const sendResetEmail = async () => {
     if (!email || !isValidEmail(email)) {

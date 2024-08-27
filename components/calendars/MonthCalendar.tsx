@@ -191,6 +191,11 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
 
   handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
     this.editBottomSheetRef.current?.dismiss();
+
+    if (selectedTodo.type === 'google') {
+      console.log('Google Calendar event cannot be edited yet');
+      return;
+    }
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
       this.props.updateExistingTodos(updatedTodo);

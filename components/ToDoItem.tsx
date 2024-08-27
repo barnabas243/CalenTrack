@@ -16,6 +16,22 @@ import {Section, Todo} from '@/powersync/AppSchema';
 
 const OVERSWIPE_DIST = 20;
 
+/**
+ * Props for ToDoItem component
+ * @property {Todo} item - The todo item
+ * @property {() => number | undefined} getIndex - Function to get the index of the item
+ * @property {() => void} drag - Function to handle drag event
+ * @property {boolean} isActive - Indicates if the item is active
+ * @property {MD3Colors} colors - The color theme for the item
+ * @property {boolean} enableSwipe - Indicates if swipe is enabled
+ * @property {React.MutableRefObject<Map<string, SwipeableItemImperativeRef>>} itemRefs - Ref for the swipeable item
+ * @property {(id: string) => void} onToggleComplete - Function to toggle the completion status of the item
+ * @property {(item: Todo) => void} openEditBottomSheet - Function to open the edit bottom sheet
+ * @property {(id: string) => void} deleteTodo - Function to delete the todo item
+ * @property {Section[]} sections - The list of sections
+ * @property {Todo[]} subItems - The list of sub-todo items
+ * @returns {React.ReactElement} A React component
+ */
 export interface ToDoProps {
   item: Todo;
   getIndex?: () => number | undefined;
@@ -28,8 +44,14 @@ export interface ToDoProps {
   openEditBottomSheet: (item: Todo) => void;
   deleteTodo: (id: string) => void;
   sections: Section[];
+  subItems?: Todo[];
 }
 
+/**
+ * Get the border color based on the priority level
+ * @param {PriorityType} priority - The priority level
+ * @returns {string} The border color
+ */
 export const getBorderColor = (priority: PriorityType) => {
   switch (priority) {
     case '1':
@@ -44,20 +66,18 @@ export const getBorderColor = (priority: PriorityType) => {
 };
 
 export interface UnderlayLeftProps {
-  handleDelete: (id: string) => void;
   deleteTodo: (id: string) => void;
-  todoId: string;
+  todo: Todo;
 }
 
 export interface UnderlayRightProps {
-  handleComplete: (id: string) => void;
   onToggleComplete: (id: string) => void;
   todo: Todo;
 }
 
 const WIDTH = Dimensions.get('window').width;
 
-const UnderlayLeft = ({handleDelete, todoId}: UnderlayLeftProps) => {
+const UnderlayLeft = ({deleteTodo, todo}: UnderlayLeftProps) => {
   const {percentOpen} = useSwipeableItemParams();
   const animStyle = useAnimatedStyle(
     () => ({
@@ -70,7 +90,8 @@ const UnderlayLeft = ({handleDelete, todoId}: UnderlayLeftProps) => {
     <Animated.View style={[styles.row, styles.underlayLeft, animStyle]}>
       <TouchableOpacity
         testID="delete-touchableOpacity"
-        onPressIn={() => handleDelete(todoId)}
+        onPressIn={() => deleteTodo(todo.id)}
+        disabled={todo.type !== 'todo'}
         style={styles.deleteButton}>
         <Icon source="delete" size={24} color="white" />
         <Text style={styles.text}>delete</Text>
@@ -79,7 +100,7 @@ const UnderlayLeft = ({handleDelete, todoId}: UnderlayLeftProps) => {
   );
 };
 
-const UnderlayRight = ({handleComplete, todo}: UnderlayRightProps) => {
+const UnderlayRight = ({onToggleComplete, todo}: UnderlayRightProps) => {
   const {percentOpen} = useSwipeableItemParams();
   const animStyle = useAnimatedStyle(
     () => ({
@@ -90,7 +111,10 @@ const UnderlayRight = ({handleComplete, todo}: UnderlayRightProps) => {
 
   return (
     <Animated.View style={[styles.row, styles.underlayRight, animStyle]}>
-      <TouchableOpacity onPress={() => handleComplete(todo.id)} style={styles.deleteButton}>
+      <TouchableOpacity
+        onPress={() => onToggleComplete(todo.id)}
+        style={styles.deleteButton}
+        disabled={todo.type !== 'todo'}>
         {!todo.completed ? (
           <>
             <Icon source="check-circle" size={24} color="white" />
@@ -118,6 +142,7 @@ const ToDoItem = ({
   openEditBottomSheet,
   deleteTodo,
   sections,
+  subItems = [],
 }: ToDoProps) => {
   const {title, priority, id, completed, summary, due_date, section_id} = item;
   const [toggleCheckBox, setToggleCheckBox] = useState<0 | 1>(completed as 0 | 1);
@@ -224,7 +249,7 @@ const ToDoItem = ({
         }}
         swipeEnabled={enableSwipe}
         overSwipe={OVERSWIPE_DIST}
-        renderUnderlayLeft={() => <UnderlayLeft deleteTodo={handleDelete} todoId={item.id!} />}
+        renderUnderlayLeft={() => <UnderlayLeft deleteTodo={handleDelete} todo={item} />}
         renderUnderlayRight={() => <UnderlayRight onToggleComplete={handleComplete} todo={item} />}
         snapPointsRight={[130, WIDTH]}
         snapPointsLeft={[100, WIDTH]}>
@@ -234,19 +259,21 @@ const ToDoItem = ({
             animatedStyle,
             {backgroundColor: colors.inverseOnSurface},
           ]}>
-          <CheckBox
-            role="checkbox"
-            testID="todo-checkbox"
-            disabled={false}
-            value={toggleCheckBox === 1} // Use boolean value for checkbox
-            onValueChange={() => {
-              const newValue = toggleCheckBox === 1 ? 0 : 1; // Toggle between 0 and 1
-              setToggleCheckBox(newValue);
-              onToggleComplete(id);
-            }}
-            style={{borderColor: getBorderColor(priority as PriorityType)}}
-            color={toggleCheckBox ? '#CCCCCC' : undefined}
-          />
+          {item.type === 'todo' ? (
+            <CheckBox
+              role="checkbox"
+              testID="todo-checkbox"
+              disabled={item.type !== 'todo'}
+              value={toggleCheckBox === 1} // Use boolean value for checkbox
+              onValueChange={() => {
+                const newValue = toggleCheckBox === 1 ? 0 : 1; // Toggle between 0 and 1
+                setToggleCheckBox(newValue);
+                onToggleComplete(id);
+              }}
+              style={{borderColor: getBorderColor(priority as PriorityType)}}
+              color={toggleCheckBox ? '#CCCCCC' : undefined}
+            />
+          ) : null}
           <View style={styles.textContainer}>
             <Text
               variant="titleSmall"
@@ -276,8 +303,24 @@ const ToDoItem = ({
                 {dayjs(due_date).format('DD MMMM')}
               </Text>
             </View>
+            {subItems.length > 0 && (
+              <>
+                <View style={styles.dueDateContainer}>
+                  <MaterialCommunityIcons
+                    name="transit-connection-horizontal"
+                    size={14}
+                    color={colors.error}
+                    style={styles.icon}
+                  />
+                  <Text variant="bodySmall" style={[styles.dueDateText, {color: colors.error}]}>
+                    {subItems.filter(subItem => subItem.completed).length}/{subItems.length}
+                  </Text>
+                </View>
+              </>
+            )}
+
             <Text variant="bodySmall" style={styles.bottomRightText}>
-              {getSectionNameById(section_id as string)}
+              {item.type === 'todo' ? getSectionNameById(section_id as string) : 'google calendar'}
             </Text>
           </View>
         </Animated.View>

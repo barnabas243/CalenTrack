@@ -364,7 +364,7 @@ const InboxScreen = () => {
         editBottomSheetRef.current?.close();
         setShowFAB(false);
         // Resolve after a short delay to ensure it closes properly
-        setTimeout(resolve, 200); // Adjust the delay if needed
+        setTimeout(resolve, 300); // Adjust the delay if needed
       });
 
       // Get the sub-items of the todo
@@ -389,6 +389,10 @@ const InboxScreen = () => {
       });
   };
 
+  const getSubItems = useCallback(
+    (itemId: string) => todos.filter(todo => todo.parent_id === itemId),
+    [todos],
+  );
   const renderTodoItem = (params: RenderItemParams<Todo>) => (
     <ScaleDecorator>
       <ToDoItem
@@ -399,6 +403,7 @@ const InboxScreen = () => {
         openEditBottomSheet={openEditBottomSheet}
         deleteTodo={deleteTodo}
         sections={sections}
+        subItems={getSubItems(params.item.id)}
       />
     </ScaleDecorator>
   );
@@ -426,7 +431,11 @@ const InboxScreen = () => {
   const renderEmptyComponent = (item: SectionWithTodos) =>
     item.key === 'new_section' ? (
       <View style={styles.centerContainer}>
-        <Button mode="contained-tonal" icon={'plus'} onPress={showAddSectionModal}>
+        <Button
+          testID="add-section-button"
+          mode="contained-tonal"
+          icon={'plus'}
+          onPress={showAddSectionModal}>
           Create New Section
         </Button>
       </View>
@@ -496,7 +505,11 @@ const InboxScreen = () => {
         <Appbar.Header mode="small" elevated>
           <Appbar.Content title="Inbox" style={{flex: 1}} titleStyle={{margin: 0, padding: 0}} />
           <View style={styles.searchContainer}>
-            <AutoCompleteDropDown data={autoCompleteItems} onSelectItem={handleSelectItem} />
+            <AutoCompleteDropDown
+              testID="autocomplete-dropdown"
+              data={autoCompleteItems}
+              onSelectItem={handleSelectItem}
+            />
           </View>
           <Menu
             anchorPosition="bottom"
@@ -573,6 +586,7 @@ const InboxScreen = () => {
               }}>
               <View style={[styles.modalContent, {backgroundColor: colors.surface}]}>
                 <TextInput
+                  testID="section-name-input"
                   style={styles.textInput}
                   label="Section Name"
                   value={newSectionName}
@@ -581,6 +595,7 @@ const InboxScreen = () => {
                   autoFocus
                   right={
                     <TextInput.Icon
+                      testID="section-name-send-button"
                       icon="send"
                       color={isSectionNameInvalid ? colors.error : colors.primary}
                       disabled={isSectionNameInvalid}

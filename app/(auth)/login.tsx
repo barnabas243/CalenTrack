@@ -5,12 +5,7 @@ import {useSystem} from '@/powersync/system';
 import {AuthError} from '@supabase/supabase-js';
 import AlertSnackbar from '@/components/AlertSnackbar';
 import {router} from 'expo-router';
-
-// Function to validate email format
-const isValidEmail = (email: string) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+import {isValidEmail} from '@/utils/validationUtils';
 
 export default function LoginScreen() {
   const {colors} = useTheme();
@@ -40,7 +35,11 @@ export default function LoginScreen() {
     return () => backHandler.remove();
   }, []);
 
-  async function signInWithPassword() {
+  /**
+   * Signs in the user with email and password
+   * @returns {void} - Signs in the user with email and password
+   */
+  async function signInWithPassword(): Promise<void> {
     setIsLoading(true);
     if (!email || !password || !isValidEmail(email)) {
       setIsSnackbarVisible(true);
@@ -62,10 +61,6 @@ export default function LoginScreen() {
 
     setIsLoading(false);
   }
-
-  // if (isLoading) {
-  //   return <PageLoadingActivityIndicator />;
-  // }
 
   return (
     <View style={[styles.container, {backgroundColor: colors.background}]}>

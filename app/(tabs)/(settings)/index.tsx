@@ -36,8 +36,11 @@ const iconMapping: Record<string, string> = {
 };
 
 GoogleSignin.configure({
-  scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-  webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com',
+  scopes: [
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/calendar.readonly', // scope Google Calendar
+  ],
+  webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com', // your web client ID
 });
 
 export default function SettingsPage() {
@@ -82,7 +85,6 @@ export default function SettingsPage() {
   const handleLogout = useCallback(async () => {
     try {
       // Sign out of Google
-      console.log(user?.app_metadata.providers);
       if (user?.app_metadata.providers.includes('google')) {
         await GoogleSignin.signOut();
       }
@@ -173,6 +175,7 @@ export default function SettingsPage() {
         ListHeaderComponent={() => (
           <View style={styles.header}>
             <Card
+              testID="profile-card"
               onPress={() =>
                 router.push({
                   pathname: '/details',
@@ -180,9 +183,16 @@ export default function SettingsPage() {
                 })
               }>
               <Card.Title
+                testID="profile-card-title"
                 title={profile?.full_name}
                 subtitle={user?.user_metadata.email}
-                left={() => <Avatar.Image size={50} source={{uri: profile?.avatar_url ?? ''}} />}
+                left={() => (
+                  <Avatar.Image
+                    testID="profile-image"
+                    size={50}
+                    source={{uri: profile?.avatar_url ?? ''}}
+                  />
+                )}
               />
             </Card>
           </View>

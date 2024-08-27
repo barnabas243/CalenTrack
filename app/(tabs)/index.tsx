@@ -403,9 +403,15 @@ const HomeScreen = () => {
       });
   };
 
+  const getSubItems = useCallback(
+    (itemId: string) => todos.filter(todo => todo.parent_id === itemId),
+    [todos],
+  );
+
   const renderTodoItem = (params: RenderItemParams<Todo>) => (
     <ScaleDecorator>
       <ToDoItem
+        subItems={getSubItems(params.item.id)}
         {...params}
         colors={colors}
         itemRefs={itemRefs}
@@ -499,6 +505,30 @@ const HomeScreen = () => {
     setTimeout(() => showAddTodoModal(), 100);
   };
 
+  /**
+   * Handles the submission of a new to-do item, ensuring it is assigned to the appropriate section.
+   *
+   * This function performs several tasks:
+   * - Verifies the provided `newTodo` item and determines its section.
+   * - If the section does not exist, it creates a new section.
+   * - Associates the to-do item with the correct section (new or existing).
+   * - Adds the to-do item to the database.
+   * - If a reminder option is set, schedules a notification and updates the to-do item with the notification ID.
+   *
+   * @param {Todo} newTodo The new to-do item to be added.
+   * @param {string} [selectedSection='Inbox'] The name of the section to which the to-do item should be assigned.
+   *                                              Defaults to 'Inbox' if not specified.
+   *
+   * @returns {Promise<void>} A promise that resolves when the operation is complete.
+   *
+   * @throws {Error} Handles any errors that occur during the process, including:
+   *   - Failure to create a new section.
+   *   - Failure to add the to-do item.
+   *   - Failure to schedule a notification.
+   *   - Failure to update the to-do item with the notification ID.
+   *
+   * The function provides feedback to the user through snackbar alerts, indicating the success or failure of each operation.
+   */
   const handleSubmitEditing = async (newTodo: Todo, selectedSection = 'Inbox') => {
     if (!newTodo) return;
 

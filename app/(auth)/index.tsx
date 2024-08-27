@@ -15,8 +15,11 @@ const checklistSource = require('@/assets/images/plan-list.svg');
 const {width} = Dimensions.get('window');
 
 GoogleSignin.configure({
-  scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-  webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com',
+  scopes: [
+    'https://www.googleapis.com/auth/drive.readonly', // existing scope
+    'https://www.googleapis.com/auth/calendar.readonly', // new scope for Google Calendar
+  ],
+  webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com', // your web client ID
 });
 
 export default function Index() {
@@ -30,21 +33,51 @@ export default function Index() {
 
   const [isSnackbarVisible, setIsSnackbarVisible] = React.useState(false);
   const [snackbarMessage, setSnackbarMessage] = React.useState('');
+
   const showSnackbar = (message: string) => {
     setSnackbarMessage(message);
     setIsSnackbarVisible(true);
   };
+
   const closeSnackbar = () => {
     setSnackbarMessage('');
     setIsSnackbarVisible(false);
   };
 
+  /**
+   * Handles the selection of a menu option, closes the menu, and navigates to the appropriate screen.
+   *
+   * @param {('login' | 'register')} option - The selected menu option, which determines the navigation target.
+   *   - `'login'`: Navigates to the login screen.
+   *   - `'register'`: Navigates to the registration screen.
+   *
+   * This function first closes the menu and then uses the router to navigate to the screen corresponding
+   * to the selected menu option.
+   */
   const handleMenuPress = (option: 'login' | 'register') => {
     closeMenu();
-    router.push(option);
+    router.push({pathname: `/${option}`});
   };
 
-  async function signInWithGoogle() {
+  /**
+   * Initiates the Google sign-in process and authenticates the user with Supabase.
+   *
+   * This function checks for Google Play services, prompts the user to sign in with their Google account,
+   * and then attempts to authenticate the user with Supabase using the obtained ID token.
+   *
+   * @returns {Promise<void>} - A promise that resolves when the sign-in process is complete.
+   *
+   * @throws {Error} - Throws an error if the Google sign-in process fails due to:
+   *   - Missing ID token: If the sign-in process completes without retrieving an ID token.
+   *   - Sign-in cancellation: If the user cancels the sign-in process.
+   *   - In-progress operation: If another sign-in operation is already in progress.
+   *   - Play services not available: If Google Play services are unavailable or outdated.
+   *   - Any other errors encountered during the sign-in or authentication process.
+   *
+   * The function also handles different error scenarios by logging messages and showing a snackbar notification
+   * to inform the user of the specific issue encountered.
+   */
+  async function signInWithGoogle(): Promise<void> {
     try {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();

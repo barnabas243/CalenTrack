@@ -43,22 +43,27 @@ export type ReminderOption =
   | '1 Day Before';
 
 /**
- * Todos table schema
- * @property {string} created_at - Timestamp of creation
- * @property {string} completed_at - Timestamp of completion
- * @property {string} title - Title of the todo
- * @property {string} summary - Summary of the todo
- * @property {number} completed - Completion status (0 or 1). powersync does not support boolean types
- * @property {string} start_date - Start date of the todo
- * @property {string} due_date - Due date of the todo
- * @property {string} recurrence - Recurrence pattern
- * @property {string} priority - Priority level
- * @property {string} parent_id - ID of the parent todo
- * @property {string} section_id - ID of the section the todo belongs to
- * @property {string} created_by - ID of the user who created the todo
- * @property {string} reminder_option - Reminder option for the todo
- * @property {string} notification_id - ID of the scheduled notification
- */
+ * Represents the schema for the Todos table.
+ *
+ * This schema defines the structure and properties of todo items stored in the database.
+ * Note that Google Calendar events are not stored in this schema; only todo items are supported.
+ *
+ * @property {string} created_at - Timestamp indicating when the todo was created.
+ * @property {string} completed_at - Timestamp indicating when the todo was completed.
+ * @property {string} title - Title of the todo item.
+ * @property {string} summary - Summary or brief description of the todo item.
+ * @property {number} completed - Indicates the completion status of the todo (0 for incomplete, 1 for complete). Note: Powersync does not support boolean types, so a number is used instead.
+ * @property {string} start_date - Start date of the todo item.
+ * @property {string} due_date - Due date by which the todo item is expected to be completed.
+ * @property {string} recurrence - Recurrence pattern for the todo item, if applicable (e.g., daily, weekly).
+ * @property {string} priority - Priority level of the todo item (e.g., low, medium, high).
+ * @property {string} parent_id - ID of the parent todo item, if this todo is a sub-task.
+ * @property {string} section_id - ID of the section or category the todo item belongs to.
+ * @property {string} created_by - ID of the user who created the todo item.
+ * @property {string} reminder_option - Reminder option for the todo item (e.g., time-based, location-based).
+ * @property {string} notification_id - ID of the scheduled notification related to this todo item.
+ * @property {string} type - Type of the item (e.g., 'todo'). This schema only supports todo items; Google Calendar events are not stored in this database.
+ * */
 const todos = new TableV2(
   {
     created_at: column.text,
@@ -75,6 +80,7 @@ const todos = new TableV2(
     created_by: column.text,
     reminder_option: column.text,
     notification_id: column.text,
+    type: column.text,
   },
   {indexes: {section: ['section_id'], notification: ['notification_id']}},
 );

@@ -11,6 +11,8 @@ import EditTodoModalContent from '../modals/EditTodoModalContent';
 import AddTodoFAB from '../addTodoFAB';
 import AddTodoModal from '../modals/addTodoModal';
 import {Section, Todo} from '@/powersync/AppSchema';
+import {getBorderColor} from '../ToDoItem';
+import {PriorityType} from '@/store/todo/types';
 interface State {
   items?: Record<string, Todo[]>;
   isAddTodoModalVisible: boolean;
@@ -217,8 +219,8 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
   };
 
   renderItem = (reservation: Todo, isFirst: boolean) => {
-    const color = isFirst ? this.props.colors.primary : this.props.colors.inversePrimary;
-    const borderColor = isFirst ? this.props.colors.primary : this.props.colors.outline;
+    const color = this.props.colors.primary;
+    const borderColor = getBorderColor(reservation.priority as PriorityType);
 
     const startDate = dayjs(reservation.start_date);
     const dueDate = dayjs(reservation.due_date);
@@ -229,19 +231,22 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
       : dueDate.startOf('day').format('h:mm A');
     const dueTime = dueDate.isValid() ? dueDate.format('h:mm A') : 'No Due Date';
 
+    console.log('reservation type ', reservation.type);
     return (
       <TouchableOpacity
         key={reservation.id}
         style={[styles.item, {backgroundColor: this.props.colors.background, borderColor}]}
         onPress={() => this.openEditBottomSheet(reservation)}>
         <View style={styles.itemContent}>
-          <TouchableOpacity onPress={() => this.props.toggleCompleteTodo(reservation.id!)}>
-            <Icon
-              source={reservation.completed ? 'check-circle' : 'checkbox-blank-circle-outline'}
-              size={24}
-              color={color}
-            />
-          </TouchableOpacity>
+          {reservation.type === 'todo' ? (
+            <TouchableOpacity onPress={() => this.props.toggleCompleteTodo(reservation.id!)}>
+              <Icon
+                source={reservation.completed ? 'check-circle' : 'checkbox-blank-circle-outline'}
+                size={24}
+                color={color}
+              />
+            </TouchableOpacity>
+          ) : null}
           <View style={styles.textContainer}>
             {reservation.due_date && (
               <Text variant="labelLarge" style={{color: this.props.colors.secondary}}>
@@ -252,18 +257,22 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
               {reservation.title}
             </Text>
             {reservation.summary && (
-              <Text variant="labelLarge" style={{color: this.props.colors.secondary}}>
+              <Text
+                variant="labelLarge"
+                numberOfLines={1}
+                style={{color: this.props.colors.secondary, marginBottom: 20}}>
                 {reservation.summary}
               </Text>
             )}
           </View>
-          {reservation.section_id && (
-            <Text
-              variant="labelSmall"
-              style={[styles.sectionName, {color: this.props.colors.outline}]}>
-              {this.getSectionNameById(reservation.section_id)}
-            </Text>
-          )}
+
+          <Text
+            variant="labelSmall"
+            style={[styles.sectionName, {color: this.props.colors.outline}]}>
+            {reservation.type === 'todo'
+              ? this.getSectionNameById(reservation?.section_id)
+              : reservation.type}
+          </Text>
         </View>
       </TouchableOpacity>
     );

@@ -1,0 +1,13 @@
+# addTodo.yaml
+
+appId: com.barnabas243.CalenTrack
+---
+- launchApp
+- tapOn: 'fab-button'
+- inputText: 'Test Event today from 1 to 2pm'
+
+- tapOn:
+    id: 'send-button'
+
+- assertVisible: 'Test Event today from 1 to 2pm'
+- takeScreenshot: AddTaskToday

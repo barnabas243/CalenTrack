@@ -10,20 +10,21 @@ const ItemSeparatorComponent = () => <Divider />;
 export interface AutoCompleteDropDownProps {
   data: AutocompleteDropdownItem[];
   onSelectItem: (item: AutocompleteDropdownItem) => void;
+  testID?: string;
 }
 export const AutoCompleteDropDown = memo(function AutoCompleteDropDown({
   data,
   onSelectItem,
+  testID,
 }: AutoCompleteDropDownProps) {
   const {colors} = useTheme();
   const renderItem = (item: AutocompleteDropdownItem, text: string) => (
     <Text style={[styles.item]}>{item.title}</Text>
   );
   return (
-    <View testID="autocomplete-dropdown" style={{backgroundColor: colors.background}}>
+    <View testID={testID} style={{backgroundColor: colors.background}}>
       <AutocompleteDropdown
         trimSearchText
-        // suggestionsListContainerStyle={{backgroundColor: colors.background}}
         clearOnFocus={false}
         closeOnBlur={true}
         showClear={true}

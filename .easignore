@@ -1,3 +1,5 @@
+# .easignore
+
 # Ignore node_modules directory
 node_modules/
 
@@ -32,10 +34,10 @@ yarn.lock
 *~
 
 # Ensure the .eas/build directory and specific file are tracked
-!.eas/
-!.eas/build/
-!.eas/build/build-and-maestro-test.yml
+# !.eas/
+# !.eas/build/
+# !.eas/build/build-and-maestro-test.yml
 
 # Ignore hidden files and directories
-.*
+# .*
 

@@ -10,9 +10,10 @@ interface Props {
   size: number;
   url: string | null;
   onUpload: (filePath: string) => void;
+  testID?: string;
 }
 
-export default function Avatar({url, size = 150, onUpload}: Props) {
+export default function Avatar({url, size = 150, onUpload, testID}: Props) {
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(url);
   const avatarSize = {height: size, width: size};
@@ -83,6 +84,7 @@ export default function Avatar({url, size = 150, onUpload}: Props) {
     <View>
       {avatarUrl ? (
         <Image
+          testID={testID}
           source={{uri: avatarUrl}}
           accessibilityLabel="Avatar"
           style={[avatarSize, styles.avatar, styles.image]}

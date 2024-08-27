@@ -1,0 +1,12 @@
+# swipe.yaml
+
+AppId: com.barnabas243.CalenTrack
+---
+- launchApp
+
+- tapOn: 'Inbox.*'
+- swipe:
+    direction: LEFT
+
+- assertVisible: 'new_section'
+- takeScreenshot: Swipe

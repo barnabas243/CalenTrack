@@ -352,7 +352,6 @@ const AddTodoModal = ({
     updateTextIfSymbolIsLastChar('@', label);
   }
   const handleSubmitEditing = () => {
-    console.log('reminder_option', reminder_option);
     onSubmitEditing(
       {
         title: todoName.trim(),
@@ -374,6 +373,7 @@ const AddTodoModal = ({
         id: generateUUID(),
         reminder_option: reminder_option,
         notification_id: null,
+        type: 'todo',
       },
       selectedSection,
     );
@@ -580,9 +580,6 @@ const AddTodoModal = ({
     const currentStartDate = dayjs(range.startDate);
     const currentDueDate = dayjs(range.endDate);
 
-    console.log('currentStartDate', currentStartDate);
-    console.log('currentDueDate', currentDueDate);
-
     if (type === 'start') {
       if (newDate.isAfter(currentDueDate) && newDate.hour() < currentDueDate.hour()) {
         const newDueDate = newDate
@@ -590,7 +587,6 @@ const AddTodoModal = ({
           .set('minute', currentDueDate.minute())
           .set('second', currentDueDate.second());
 
-        console.log('newDueDate', newDueDate);
         setRange(prev => ({
           ...prev,
           startDate: newDate,
@@ -739,6 +735,8 @@ const AddTodoModal = ({
                 <Text style={[styles.highlightContainer]}>{highlightedText}</Text>
               </TextInput>
               <IconButton
+                id="send-button"
+                testID="send-button"
                 icon="send"
                 size={24}
                 iconColor={todoName.trim() ? colors.primary : colors.surfaceDisabled}
