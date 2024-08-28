@@ -77,9 +77,6 @@ export const AuthProvider = ({children}: UserProviderProps) => {
   // Derive user from session
   const user = useMemo(() => session?.user ?? null, [session]);
 
-  console.log('session: ', session);
-  console.log('user: ', user);
-
   return (
     <UserContext.Provider value={{user, session, setSession, isLoading}}>
       {children}

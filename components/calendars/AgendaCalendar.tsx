@@ -28,7 +28,7 @@ interface Props {
   onDismiss: (selectedTodo: Todo, updatedTodo: Todo) => void;
   sections: Section[];
   toggleCompleteTodo: (id: string) => void;
-  deleteTodo: (id: string) => void;
+  deleteTodo: (item: Todo) => void;
   onSubmitEditing: (todo: Todo) => void;
 }
 export default class AgendaCalendar extends PureComponent<Props, State> {
@@ -172,9 +172,7 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
             propSelectedDueDate={dayjs(this.props.selectedDate).endOf('day').toDate()}
             propParentId={this.state.parentId}
           />
-          <EditTodoModal
-            ref={this.editBottomSheetRef}
-            onDismiss={() => console.log('dismissed modal')}>
+          <EditTodoModal ref={this.editBottomSheetRef}>
             {data => (
               <EditTodoModalContent
                 todo={data.data}

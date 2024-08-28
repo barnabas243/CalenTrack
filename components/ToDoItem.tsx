@@ -27,9 +27,10 @@ const OVERSWIPE_DIST = 20;
  * @property {React.MutableRefObject<Map<string, SwipeableItemImperativeRef>>} itemRefs - Ref for the swipeable item
  * @property {(id: string) => void} onToggleComplete - Function to toggle the completion status of the item
  * @property {(item: Todo) => void} openEditBottomSheet - Function to open the edit bottom sheet
- * @property {(id: string) => void} deleteTodo - Function to delete the todo item
+ * @property {(item: Todo) => void} deleteTodo - Function to delete the todo item
  * @property {Section[]} sections - The list of sections
  * @property {Todo[]} subItems - The list of sub-todo items
+ * @property {string} key - The key for the item
  * @returns {React.ReactElement} A React component
  */
 export interface ToDoProps {
@@ -42,9 +43,10 @@ export interface ToDoProps {
   itemRefs?: React.MutableRefObject<Map<string, SwipeableItemImperativeRef>>;
   onToggleComplete: (id: string) => void;
   openEditBottomSheet: (item: Todo) => void;
-  deleteTodo: (id: string) => void;
+  deleteTodo: (item: Todo) => void;
   sections: Section[];
   subItems?: Todo[];
+  key?: string;
 }
 
 /**
@@ -66,7 +68,7 @@ export const getBorderColor = (priority: PriorityType) => {
 };
 
 export interface UnderlayLeftProps {
-  deleteTodo: (id: string) => void;
+  deleteTodo: (item: Todo) => void;
   todo: Todo;
 }
 
@@ -90,7 +92,7 @@ const UnderlayLeft = ({deleteTodo, todo}: UnderlayLeftProps) => {
     <Animated.View style={[styles.row, styles.underlayLeft, animStyle]}>
       <TouchableOpacity
         testID="delete-touchableOpacity"
-        onPressIn={() => deleteTodo(todo.id)}
+        onPressIn={() => deleteTodo(todo)}
         disabled={todo.type !== 'todo'}
         style={styles.deleteButton}>
         <Icon source="delete" size={24} color="white" />
@@ -143,6 +145,7 @@ const ToDoItem = ({
   deleteTodo,
   sections,
   subItems = [],
+  key = item.id,
 }: ToDoProps) => {
   const {title, priority, id, completed, summary, due_date, section_id} = item;
   const [toggleCheckBox, setToggleCheckBox] = useState<0 | 1>(completed as 0 | 1);
@@ -191,9 +194,9 @@ const ToDoItem = ({
     onToggleComplete(id);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (item: Todo) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-    deleteTodo(id);
+    deleteTodo(item);
   };
 
   const getSectionNameById = useCallback(
@@ -216,13 +219,14 @@ const ToDoItem = ({
 
   return (
     <TouchableOpacity
+      key={key}
       testID="todo-item"
       activeOpacity={1}
       onLongPress={drag}
       onPress={() => openEditTodoModal(item)}
       style={contentStyle}>
       <SwipeableItem
-        key={id}
+        // key={id}
         item={item}
         ref={ref => {
           if (!id || !itemRefs) return;
@@ -241,7 +245,7 @@ const ToDoItem = ({
 
           if (snapPoint === WIDTH) {
             if (openDirection === OpenDirection.LEFT) {
-              handleDelete(id);
+              handleDelete(item);
             } else {
               handleComplete(id);
             }
@@ -270,13 +274,13 @@ const ToDoItem = ({
                 setToggleCheckBox(newValue);
                 onToggleComplete(id);
               }}
-              style={{borderColor: getBorderColor(priority as PriorityType)}}
+              style={{marginTop: 5, borderColor: getBorderColor(priority as PriorityType)}}
               color={toggleCheckBox ? '#CCCCCC' : undefined}
             />
           ) : null}
           <View style={styles.textContainer}>
             <Text
-              variant="titleSmall"
+              variant="titleMedium"
               numberOfLines={2}
               style={{
                 marginLeft: 10,

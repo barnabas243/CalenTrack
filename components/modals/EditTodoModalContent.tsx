@@ -21,12 +21,13 @@ import DatePicker from 'react-native-date-picker';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone'; // For timezone handling
 import utc from 'dayjs/plugin/utc'; // For UTC handling
+import {BottomSheetFlatList} from '@gorhom/bottom-sheet';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 export const getFormattedDate = (start_date: string, dateString: string, type: string) => {
-  const date = dayjs(dateString);
+  const date = dayjs(dateString && dateString !== '' ? dateString : new Date());
 
   // Format parts of the date
   const dayOfWeek = date.format('ddd'); // Abbreviated weekday
@@ -51,7 +52,7 @@ export interface EditTodoModalContentProps {
   onDismiss: (oldTodo: Todo, newTodo: Todo) => void;
   sections: Section[];
   colors: MD3Colors;
-  deleteTodo: (id: string) => void;
+  deleteTodo: (item: Todo) => void;
   openEditBottomSheet: (item: Todo) => void;
   toggleCompleteTodo: (id: string) => void;
   onPress: (parentId: string) => void;
@@ -118,18 +119,17 @@ const EditTodoModalContent = ({
   // Effect to handle unmount logic
   useEffect(() => {
     return () => {
-      console.log('EditTodoModalContent unmounted');
       onDismiss(todoWithoutSubtasks, latestNewTodo.current);
     };
   }, []); // Empty dependency array ensures it runs only on mount and unmount
 
-  const handleSubTodoDelete = (id: string) => {
+  const handleSubTodoDelete = (item: Todo) => {
     // Remove the subtodo from the list
-    const newSubItems = subItems?.filter(subItem => subItem.id !== id);
+    const newSubItems = subItems?.filter(subItem => subItem.id !== item.id);
     setSubTodos(newSubItems);
 
     // Update the todo object in database
-    deleteTodo(id);
+    deleteTodo(item);
   };
   const handleDateChange = (date: Date, type: 'start' | 'end') => {
     const newDate = dayjs(date);
@@ -260,7 +260,7 @@ const EditTodoModalContent = ({
               setIsMenuVisible(false);
               setTimeout(() => {
                 onDismiss(todoWithoutSubtasks, newTodo);
-                deleteTodo(todo.id);
+                deleteTodo(todo);
               }, 1000);
             }}
             title="delete"
@@ -305,7 +305,7 @@ const EditTodoModalContent = ({
           disabled={todo.type !== 'todo'}
         />
       </View>
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, {paddingLeft: 8}]}>
         <Icon source="playlist-edit" size={30} color={colors.onBackground} />
         <TextInput
           ref={summaryRef}
@@ -403,10 +403,14 @@ const EditTodoModalContent = ({
       </List.AccordionGroup>
       <Divider bold />
 
-      {subTodos &&
-        subTodos?.map(subItem => (
+      <BottomSheetFlatList
+        data={subTodos}
+        scrollEnabled={false}
+        keyExtractor={item => `subtodo-${item.id}`}
+        initialNumToRender={2}
+        renderItem={({item}) => (
           <ToDoItem
-            item={subItem}
+            item={item}
             colors={colors}
             onToggleComplete={toggleCompleteTodo}
             openEditBottomSheet={openEditBottomSheet}
@@ -414,8 +418,8 @@ const EditTodoModalContent = ({
             sections={sections}
             enableSwipe={false}
           />
-        ))}
-
+        )}
+      />
       <Button
         mode="contained-tonal"
         icon={icon => (

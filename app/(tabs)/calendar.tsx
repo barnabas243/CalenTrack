@@ -14,7 +14,7 @@ import {TimelineEventProps} from 'react-native-calendars';
 import {isEqual} from 'lodash';
 import {useAuth} from '@/hooks/useAuth';
 import {ICustomCalendarEvent} from '@/components/calendars/WeekCalendar';
-import {Todo} from '@/powersync/AppSchema';
+import {action_type, ActivityLog, entity_type, Todo} from '@/powersync/AppSchema';
 import {useNotification} from '@/contexts/NotificationContext';
 import {Host} from 'react-native-portalize';
 import {getGoogleCalendarEvents} from '@/utils/calendarEvents';
@@ -35,8 +35,15 @@ const POLL_INTERVAL_MS = 5 * 60 * 1000; // Poll every 5 minutes
 const CalendarPage = () => {
   const {colors} = useTheme();
 
-  const {todos, sections, deleteExistingTodos, updateExistingTodos, addNewSection, addNewTodo} =
-    useTodo();
+  const {
+    todos,
+    sections,
+    deleteExistingTodos,
+    updateExistingTodos,
+    addNewSection,
+    addNewTodo,
+    createActivityLog,
+  } = useTodo();
 
   const {user} = useAuth();
 
@@ -354,11 +361,31 @@ const CalendarPage = () => {
           // Create a new section
           const sectionResult = await addNewSection(newSection);
           if (!sectionResult || !sectionResult.id) {
+            console.warn('Section not created');
             return;
           }
 
           // Add the new section ID to the todo
           newTodo = {...newTodo, section_id: sectionResult.id};
+
+          const log: ActivityLog = {
+            id: '',
+            action_type: 'CREATE',
+            action_date: new Date().toISOString(),
+            section_id: sectionResult.id,
+            before_data: '',
+            after_data: JSON.stringify(sectionResult),
+            entity_type: 'section',
+            todo_id: '',
+            user_id: user!.id,
+          };
+
+          const newLog = await createActivityLog(log);
+
+          if (!newLog) {
+            console.warn('Activity log not created');
+            return;
+          }
         } else {
           // Add the existing section ID to the todo
           newTodo = {...newTodo, section_id: findSection.id};
@@ -382,18 +409,75 @@ const CalendarPage = () => {
           if (!updateResult) {
             return;
           }
+        }
+        const log: ActivityLog = {
+          id: '',
+          action_type: 'CREATE',
+          action_date: new Date().toISOString(),
+          section_id: null,
+          before_data: '',
+          after_data: JSON.stringify(todoResult),
+          entity_type: 'todo',
+          todo_id: todoResult.id,
+          user_id: user!.id,
+        };
+
+        const newLog = await createActivityLog(log);
+
+        if (!newLog) {
+          console.warn('Activity log not created');
+          return;
         } else {
+          console.log('Activity log created successfully');
         }
       } catch (error) {
         console.error('An error occurred while handling submit editing:', error);
       }
     },
-    [addNewSection, addNewTodo, scheduleTodoNotification, updateExistingTodos, sections, user],
+    [
+      sections,
+      addNewTodo,
+      user,
+      createActivityLog,
+      addNewSection,
+      scheduleTodoNotification,
+      updateExistingTodos,
+    ],
   );
 
   const renderCalendarComponent = useMemo(() => {
-    const deleteTodo = (id: string) => {
-      deleteExistingTodos(id);
+    const deleteTodo = async (item: Todo) => {
+      await deleteExistingTodos(item.id)
+        .then(async result => {
+          if (result) {
+            console.log('Todo deleted successfully');
+
+            const log: ActivityLog = {
+              id: '',
+              action_type: 'DELETED' as action_type,
+              action_date: new Date().toISOString(),
+              section_id: null,
+              before_data: JSON.stringify(item),
+              after_data: '',
+              entity_type: 'todo' as entity_type,
+              todo_id: item.id,
+              user_id: user!.id,
+            };
+
+            const newLog = await createActivityLog(log);
+
+            if (!newLog) {
+              console.warn('Activity log not created');
+            } else {
+              console.log('Activity log created successfully');
+            }
+          } else {
+            console.warn('Todo not deleted');
+          }
+        })
+        .catch(error => {
+          console.error('An error occurred while deleting todo:', error);
+        });
     };
 
     const toggleCompleteTodo = (id: string) => {
@@ -403,7 +487,41 @@ const CalendarPage = () => {
           ...todo,
           completed: todo.completed === 1 ? 0 : 1,
           completed_at: todo.completed === 1 ? null : new Date().toString(),
-        });
+        })
+          .then(result => {
+            if (result) {
+              console.log('Todo updated successfully');
+
+              const log = {
+                id: '',
+                action_type: 'UPDATED' as action_type,
+                action_date: new Date().toISOString(),
+                section_id: null,
+                before_data: JSON.stringify(todo),
+                after_data: JSON.stringify(result),
+                entity_type: 'todo' as entity_type,
+                todo_id: id,
+                user_id: user!.id,
+              };
+
+              createActivityLog(log)
+                .then(newLog => {
+                  if (!newLog) {
+                    console.warn('Activity log not created');
+                  } else {
+                    console.log('Activity log created successfully');
+                  }
+                })
+                .catch(error => {
+                  console.error('An error occurred while creating activity log:', error);
+                });
+            } else {
+              console.warn('Todo not updated');
+            }
+          })
+          .catch(error => {
+            console.error('An error occurred while updating todo:', error);
+          });
       }
     };
     const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
@@ -415,7 +533,27 @@ const CalendarPage = () => {
       if (!isEqual(updatedTodo, selectedTodo)) {
         const message = await updateTodoWithNotification(selectedTodo, updatedTodo);
 
-        console.log('handleEditModalDismiss:', message);
+        if (message.status === 'error') return Alert.alert('Error', message.message);
+
+        const log = {
+          id: '',
+          action_type: 'UPDATED' as action_type,
+          action_date: new Date().toISOString(),
+          section_id: null,
+          before_data: JSON.stringify(selectedTodo),
+          after_data: JSON.stringify(updatedTodo),
+          entity_type: 'todo' as entity_type,
+          todo_id: selectedTodo.id,
+          user_id: user!.id,
+        };
+
+        const newLog = await createActivityLog(log);
+
+        if (!newLog) {
+          console.warn('Activity log not created');
+        } else {
+          console.log('Activity log created successfully');
+        }
       }
     };
 
@@ -480,6 +618,8 @@ const CalendarPage = () => {
   }, [
     mode,
     deleteExistingTodos,
+    user,
+    createActivityLog,
     todos,
     updateExistingTodos,
     updateTodoWithNotification,

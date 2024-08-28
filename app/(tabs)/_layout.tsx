@@ -6,13 +6,29 @@ import {MaterialBottomTabs} from '@/layouts/material-bottom-tabs';
 import {MaterialCommunityIcons} from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import advancedFormat from 'dayjs/plugin/advancedFormat';
-import {Alert, BackHandler} from 'react-native';
+import {BackHandler} from 'react-native';
+import {router} from 'expo-router';
+import {Easing} from 'react-native-reanimated';
 
 dayjs.extend(advancedFormat);
 
-export default function Layout() {
+export default function TabsIndexScreen() {
   const {colors} = useTheme();
   const [currentTime, setCurrentTime] = useState(dayjs());
+
+  const handleBackButton = () => {
+    console.log('Back action');
+    if (router.canGoBack()) {
+      console.log('Can go back');
+
+      router.back();
+    } else {
+      console.log('Cannot go back');
+      // Handle the case where there is no screen to go back to
+      BackHandler.exitApp();
+    }
+    return true;
+  };
 
   // Update current time every hour
   useEffect(() => {
@@ -22,23 +38,6 @@ export default function Layout() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const backAction = () => {
-      Alert.alert('Hold on!', 'Are you sure you want to exit?', [
-        {
-          text: 'Cancel',
-          onPress: () => null,
-          style: 'cancel',
-        },
-        {text: 'YES', onPress: () => BackHandler.exitApp()},
-      ]);
-      return true;
-    };
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-
-    return () => backHandler.remove();
-  }, []);
   // Function to convert hour number to text representation
   const hourToText = (hour: number) => {
     const hoursText = [
@@ -62,65 +61,71 @@ export default function Layout() {
   const currentHourText = hourToText(currentTime.hour());
   const clockIcon = `clock-time-${currentHourText}` as 'clock'; // Example icons: clock-time-one, clock-time-two, ..., clock-time-twelve
   return (
-    <MaterialBottomTabs
-      safeAreaInsets={{bottom: 0}}
-      activeColor={colors.primary}
-      barStyle={{backgroundColor: colors.background}}
-      activeIndicatorStyle={{backgroundColor: colors.primaryContainer}}
-      initialRouteName="index">
-      <MaterialBottomTabs.Screen
-        name="index"
-        options={{
-          title: 'Today',
-          tabBarLabel: `Today (${currentTime.format('Do')})`, // Include current day in label. Example: Today (23rd)
-          tabBarIcon: ({color, focused}) => (
-            <MaterialCommunityIcons
-              color={color}
-              size={24}
-              name={focused ? clockIcon : `${clockIcon}-outline`}
-            />
-          ),
+    <>
+      <MaterialBottomTabs
+        safeAreaInsets={{bottom: 0}}
+        activeColor={colors.primary}
+        barStyle={{backgroundColor: colors.background}}
+        activeIndicatorStyle={{backgroundColor: colors.primaryContainer}}
+        screenListeners={{
+          focus: () => BackHandler.addEventListener('hardwareBackPress', handleBackButton),
+          blur: () => BackHandler.removeEventListener('hardwareBackPress', handleBackButton),
         }}
-      />
-      <MaterialBottomTabs.Screen
-        name="inbox"
-        options={{
-          tabBarLabel: 'Inbox',
-          tabBarIcon: ({color, focused}) => (
-            <MaterialCommunityIcons
-              color={color}
-              size={24}
-              name={focused ? 'inbox' : 'inbox-outline'}
-            />
-          ),
-        }}
-      />
-      <MaterialBottomTabs.Screen
-        name="calendar"
-        options={{
-          tabBarLabel: 'calendar',
-          tabBarIcon: ({color, focused}) => (
-            <MaterialCommunityIcons
-              color={color}
-              size={24}
-              name={focused ? 'calendar-clock' : 'calendar-clock-outline'}
-            />
-          ),
-        }}
-      />
-      <MaterialBottomTabs.Screen
-        name="(settings)"
-        options={{
-          tabBarLabel: 'settings',
-          tabBarIcon: ({color, focused}) => (
-            <MaterialCommunityIcons
-              color={color}
-              size={24}
-              name={focused ? 'cog' : 'cog-outline'}
-            />
-          ),
-        }}
-      />
-    </MaterialBottomTabs>
+        initialRouteName="index">
+        <MaterialBottomTabs.Screen
+          name="index"
+          options={{
+            title: 'Today',
+            tabBarLabel: `Today (${currentTime.format('Do')})`, // Include current day in label. Example: Today (23rd)
+            tabBarIcon: ({color, focused}) => (
+              <MaterialCommunityIcons
+                color={color}
+                size={24}
+                name={focused ? clockIcon : `${clockIcon}-outline`}
+              />
+            ),
+          }}
+        />
+        <MaterialBottomTabs.Screen
+          name="inbox"
+          options={{
+            tabBarLabel: 'Inbox',
+            tabBarIcon: ({color, focused}) => (
+              <MaterialCommunityIcons
+                color={color}
+                size={24}
+                name={focused ? 'inbox' : 'inbox-outline'}
+              />
+            ),
+          }}
+        />
+        <MaterialBottomTabs.Screen
+          name="calendar"
+          options={{
+            tabBarLabel: 'calendar',
+            tabBarIcon: ({color, focused}) => (
+              <MaterialCommunityIcons
+                color={color}
+                size={24}
+                name={focused ? 'calendar-clock' : 'calendar-clock-outline'}
+              />
+            ),
+          }}
+        />
+        <MaterialBottomTabs.Screen
+          name="(settings)"
+          options={{
+            tabBarLabel: 'settings',
+            tabBarIcon: ({color, focused}) => (
+              <MaterialCommunityIcons
+                color={color}
+                size={24}
+                name={focused ? 'cog' : 'cog-outline'}
+              />
+            ),
+          }}
+        />
+      </MaterialBottomTabs>
+    </>
   );
 }

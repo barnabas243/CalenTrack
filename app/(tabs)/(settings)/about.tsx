@@ -13,17 +13,6 @@ const {width, height} = Dimensions.get('window');
 export default function AboutScreen() {
   const {colors} = useTheme();
 
-  useEffect(() => {
-    const backAction = () => {
-      router.back();
-      return true; // Indicate that we've handled the back press
-    };
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-
-    return () => backHandler.remove();
-  }, []);
-
   return (
     <View style={[styles.container, {backgroundColor: colors.background}]}>
       <StatusBar style="auto" />

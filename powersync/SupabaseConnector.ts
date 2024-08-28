@@ -31,7 +31,7 @@ const FATAL_RESPONSE_CODES = [
 ];
 
 export interface ConfirmPasswordParams {
-  [key: string]: string;
+  [key: string]: 'confirm_current_user_password';
 }
 
 export interface ConfirmPasswordResponse {
@@ -168,12 +168,9 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   async checkCurrentPassword(
     current_plain_password: string,
   ): Promise<ConfirmPasswordResponse | Error> {
-    const {data, error} = await this.client.rpc<ConfirmPasswordParams, ConfirmPasswordResponse>(
-      'confirm_current_user_password',
-      {
-        current_plain_password,
-      },
-    );
+    const {data, error} = await this.client.rpc('confirm_current_user_password', {
+      current_plain_password,
+    });
 
     if (error) {
       console.error('Error:', error.message);
@@ -182,7 +179,23 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
 
     console.log('Data:', data);
 
-    return data as ConfirmPasswordResponse;
+    return data;
+  }
+
+  async generateUUID() {
+    const {data, error} = await this.client.rpc('gen_random_uuid_rpc');
+    if (error) {
+      throw error;
+    }
+
+    const generatedUUID = data?.toString(); // This will be your new UUID
+    console.log('Generated UUID:', generatedUUID);
+
+    if (!generatedUUID) {
+      throw new Error('Could not generate UUID');
+    }
+
+    return generatedUUID;
   }
 
   /**
@@ -280,7 +293,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         let result: any = null;
         switch (op.op) {
           case UpdateType.PUT:
-            const record = {...op.opData, id: op.id};
+            const record = {...op.opData, id: op.id, parent_id: op.opData?.parent_id || null};
             result = await table.upsert(record);
             break;
           case UpdateType.PATCH:

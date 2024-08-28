@@ -179,6 +179,7 @@ export default function Register() {
             if (passwordRef.current) passwordRef.current.focus();
           }}
           blurOnSubmit={false}
+          autoFocus
         />
         {!!emailError && (
           <HelperText type="error" style={getHelperTextStyle(!emailError)} visible={!!emailError}>

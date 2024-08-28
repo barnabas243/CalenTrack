@@ -166,7 +166,8 @@ const styles = StyleSheet.create({
   contentContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    alignContent: 'center',
+    padding: 30,
   },
   footerContainer: {
     alignItems: 'center',
@@ -187,12 +188,13 @@ const styles = StyleSheet.create({
   buttonContainer: {
     alignItems: 'center',
     marginVertical: 10, // Increased margin for more space below the Google Sign-In button
-    gap: 2, // Add gap between the buttons
+    gap: 3, // Add gap between the buttons
   },
   continueButton: {
     marginTop: 10, // Margin above the "Continue with Email" button
-    borderRadius: 1,
+    borderRadius: 5,
     marginHorizontal: 5, // Add horizontal padding for better button readability
     width: width * 0.9,
+    padding: 5, // Add padding to the button
   },
 });
