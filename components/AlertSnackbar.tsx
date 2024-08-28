@@ -33,10 +33,10 @@ const AlertSnackbar = ({
   const getPositionStyle = (): ViewStyle => {
     switch (position) {
       case 'top':
-        return {top: 60};
+        return {top: 20};
       case 'bottom':
       default:
-        return {bottom: 60};
+        return {bottom: 20};
     }
   };
 
@@ -70,7 +70,7 @@ const AlertSnackbar = ({
         style={[
           styles.snackbar,
           getPositionStyle(),
-          {backgroundColor: colors.primaryContainer, width: snackbarWidth},
+          {backgroundColor: colors.inverseOnSurface, width: snackbarWidth},
         ]}
         action={
           actionText && onAction
@@ -102,7 +102,6 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     position: 'absolute',
     alignSelf: 'center', // Centers the snackbar horizontally
-    zIndex: 9999,
   },
 });
 

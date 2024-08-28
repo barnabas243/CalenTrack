@@ -1,5 +1,5 @@
-import React, {useState, useCallback} from 'react';
-import {View, StyleSheet} from 'react-native';
+import React, {useState, useCallback, useEffect} from 'react';
+import {View, StyleSheet, BackHandler} from 'react-native';
 import {Button, TextInput, Text, useTheme, Appbar, HelperText} from 'react-native-paper';
 import {router} from 'expo-router';
 import {StatusBar} from 'expo-status-bar';
@@ -48,6 +48,17 @@ const ChangePasswordPage = () => {
     setSnackbarMessage('');
     setIsSnackbarVisible(false);
   };
+
+  useEffect(() => {
+    const backAction = () => {
+      router.back();
+      return true; // Indicate that we've handled the back press
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+    return () => backHandler.remove();
+  }, []);
 
   const validatePasswordMatch = useCallback(() => {
     setIsPasswordMatch(newPassword === confirmPassword);

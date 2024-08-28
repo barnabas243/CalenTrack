@@ -3,21 +3,19 @@ import {StyleSheet, View, Alert} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {useSystem} from '@/powersync/system';
 import React from 'react';
-import {Button, useTheme} from 'react-native-paper';
+import {Button} from 'react-native-paper';
 import {Image} from 'expo-image';
 
 interface Props {
   size: number;
   url: string | null;
   onUpload: (filePath: string) => void;
-  testID?: string;
 }
 
-export default function Avatar({url, size = 150, onUpload, testID}: Props) {
+export default function Avatar({url, size = 150, onUpload}: Props) {
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(url);
   const avatarSize = {height: size, width: size};
-  const {colors} = useTheme();
 
   const {supabaseConnector} = useSystem();
 
@@ -85,15 +83,9 @@ export default function Avatar({url, size = 150, onUpload, testID}: Props) {
     <View>
       {avatarUrl ? (
         <Image
-          testID={testID}
           source={{uri: avatarUrl}}
           accessibilityLabel="Avatar"
-          style={[
-            avatarSize,
-            styles.avatar,
-            styles.image,
-            {borderColor: colors.onBackground, borderWidth: 1},
-          ]}
+          style={[avatarSize, styles.avatar, styles.image]}
         />
       ) : (
         <View style={[avatarSize, styles.avatar, styles.noImage]} />

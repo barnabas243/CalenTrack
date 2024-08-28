@@ -95,7 +95,7 @@ describe('ToDoItem Component', () => {
   const priorityLevels = [
     {priority: '1', expectedColor: 'red'},
     {priority: '2', expectedColor: 'orange'},
-    {priority: '3', expectedColor: 'blue'},
+    {priority: '3', expectedColor: 'green'},
     {priority: '4', expectedColor: '#CCCCCC'}, // Default case
   ];
   beforeEach(() => {

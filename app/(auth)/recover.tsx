@@ -61,6 +61,16 @@ export default function RecoverScreen() {
       return;
     }
 
+    // Get the token from the URL
+    // const urlParams = new URLSearchParams(window.location.search);
+    // const accessToken = urlParams.get('access_token');
+
+    // if (!accessToken) {
+    //   setError('Invalid or expired reset link.');
+    //   setIsLoading(false);
+    //   return;
+    // }
+
     try {
       const {error} = await supabaseConnector.client.auth.updateUser({
         password: newPassword,
@@ -72,7 +82,7 @@ export default function RecoverScreen() {
         setSuccess(true);
       }
     } catch (error) {
-      setError(`An error occurred while resetting the password. ${(error as Error).message}`);
+      setError('An error occurred while resetting the password.', error);
     } finally {
       setIsLoading(false);
     }

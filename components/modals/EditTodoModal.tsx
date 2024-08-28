@@ -6,10 +6,10 @@ import {BottomSheetModalMethods} from '@gorhom/bottom-sheet/lib/typescript/types
 
 import {BottomSheetDefaultBackdropProps} from '@gorhom/bottom-sheet/lib/typescript/components/bottomSheetBackdrop/types';
 import {Todo} from '@/powersync/AppSchema';
-import {router} from 'expo-router';
 
 export interface EditTodoModalProps {
   children: (data: Todo) => React.ReactNode;
+  onDismiss: () => void;
 }
 
 const EditTodoModal = forwardRef<BottomSheetModalMethods, EditTodoModalProps>(
@@ -17,27 +17,19 @@ const EditTodoModal = forwardRef<BottomSheetModalMethods, EditTodoModalProps>(
     const {colors} = useTheme();
 
     const snapPoints = useMemo(() => ['60%', '85%'], []);
-    const [index, setIndex] = React.useState(-1);
+
+    const handleBackPress = useCallback(() => {
+      if (ref) {
+        ref.current?.dismiss();
+        return true; // Prevent default back action (exit app)
+      }
+      return false; // Allow default back action (exit app)
+    }, [ref]);
 
     useEffect(() => {
-      const handleBackPress = () => {
-        // Check if the modal is open
-        if (index > 0) {
-          ref.current?.dismiss();
-        } else {
-          if (router.canGoBack()) {
-            console.log('Can go back');
-            router.back();
-          } else {
-            BackHandler.exitApp();
-          }
-        }
-        return true; // Prevent default back action (exit app)
-      };
       const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
-
-      return () => backHandler.remove(); // Cleanup
-    }, [index, ref]);
+      return () => backHandler.remove();
+    }, [handleBackPress]);
 
     const backdropComponent = useCallback(
       (props: React.JSX.IntrinsicAttributes & BottomSheetDefaultBackdropProps) => (
@@ -60,14 +52,10 @@ const EditTodoModal = forwardRef<BottomSheetModalMethods, EditTodoModalProps>(
         ref={ref}
         {...props}
         index={1}
-        onChange={index => {
-          console.log('index: ', index);
-          setIndex(index);
-        }}
         snapPoints={snapPoints}
         backgroundStyle={{backgroundColor: colors.background}}
         handleIndicatorStyle={{backgroundColor: colors.onSurface}}
-        keyboardBehavior="extend"
+        onDismiss={props.onDismiss}
         stackBehavior="replace">
         {(data: Todo) => (
           <BottomSheetScrollView style={styles.contentContainer}>

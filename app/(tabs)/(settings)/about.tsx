@@ -1,6 +1,6 @@
 import {openBrowserAsync} from 'expo-web-browser';
-import React from 'react';
-import {View, StyleSheet, ScrollView, Platform, Dimensions} from 'react-native';
+import React, {useEffect} from 'react';
+import {View, StyleSheet, ScrollView, Platform, Dimensions, BackHandler} from 'react-native';
 import {Text, Button, useTheme, Appbar} from 'react-native-paper';
 import {Image} from 'expo-image';
 import {StatusBar} from 'expo-status-bar';
@@ -12,6 +12,17 @@ const {width, height} = Dimensions.get('window');
 
 export default function AboutScreen() {
   const {colors} = useTheme();
+
+  useEffect(() => {
+    const backAction = () => {
+      router.back();
+      return true; // Indicate that we've handled the back press
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+    return () => backHandler.remove();
+  }, []);
 
   return (
     <View style={[styles.container, {backgroundColor: colors.background}]}>

@@ -1,7 +1,14 @@
 import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
 import {Todo, TODO_TABLE} from '@/powersync/AppSchema';
-import {Kysely} from '@powersync/kysely-driver';
-import {TodoState} from './types';
+
+/**
+ * Define the initial state for the todo slice.
+ */
+interface TodoState {
+  todos: Todo[];
+  loading: boolean;
+  error: string | null;
+}
 
 /**
  * Initial state for the todo slice.
@@ -18,17 +25,18 @@ const initialState: TodoState = {
  * @param db - The database instance to use for the query.
  * @returns A promise that resolves to an array of todos.
  */
-export const fetchTodos = createAsyncThunk<Todo[], {db: Kysely<any>}, {rejectValue: string}>(
-  'todos/fetchTodos',
-  async ({db}, {rejectWithValue}) => {
-    try {
-      const todos = await db.selectFrom(TODO_TABLE).selectAll().execute();
-      return todos as Todo[];
-    } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch todos');
-    }
-  },
-);
+export const fetchTodos = createAsyncThunk<
+  Todo[],
+  {userId: string; db: any},
+  {rejectValue: string}
+>('todos/fetchTodos', async ({userId, db}, {rejectWithValue}) => {
+  try {
+    const todos = await db.selectFrom(TODO_TABLE).selectAll().execute();
+    return todos as Todo[];
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to fetch todos');
+  }
+});
 
 /**
  * Thunk to insert a new todo into the database.
@@ -36,22 +44,21 @@ export const fetchTodos = createAsyncThunk<Todo[], {db: Kysely<any>}, {rejectVal
  * @param db - The database instance to use for the insertion.
  * @returns A promise that resolves to the inserted todo.
  */
-export const insertTodo = createAsyncThunk<
-  Todo,
-  {todo: Todo; db: Kysely<any>},
-  {rejectValue: string}
->('todos/insertTodo', async ({todo, db}, {rejectWithValue}) => {
-  try {
-    const result = await db
-      .insertInto(TODO_TABLE)
-      .values(todo)
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    return result as Todo;
-  } catch (error) {
-    return rejectWithValue(error.message || 'Failed to insert todo');
-  }
-});
+export const insertTodo = createAsyncThunk<Todo, {todo: Todo; db: any}, {rejectValue: string}>(
+  'todos/insertTodo',
+  async ({todo, db}, {rejectWithValue}) => {
+    try {
+      const result = await db
+        .insertInto(TODO_TABLE)
+        .values(todo)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      return result as Todo;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to insert todo');
+    }
+  },
+);
 
 /**
  * Thunk to update an existing todo in the database.
@@ -61,7 +68,7 @@ export const insertTodo = createAsyncThunk<
  */
 export const powerSyncUpdateTodo = createAsyncThunk<
   Todo,
-  {todo: Todo; db: Kysely<any>},
+  {todo: Todo; db: any},
   {rejectValue: string}
 >('todos/powerSyncUpdateTodo', async ({todo, db}, {rejectWithValue}) => {
   try {
@@ -71,7 +78,6 @@ export const powerSyncUpdateTodo = createAsyncThunk<
       .where('id', '=', todo.id)
       .returningAll()
       .executeTakeFirst();
-
     return result as Todo;
   } catch (error) {
     return rejectWithValue(error.message || 'Failed to update todo');
@@ -86,7 +92,7 @@ export const powerSyncUpdateTodo = createAsyncThunk<
  */
 export const powerSyncDeleteTodo = createAsyncThunk<
   string,
-  {todoId: string; db: Kysely<any>},
+  {todoId: string; db: any},
   {rejectValue: string}
 >('todos/powerSyncDeleteTodo', async ({todoId, db}, {rejectWithValue}) => {
   try {

@@ -11,8 +11,6 @@ import EditTodoModalContent from '../modals/EditTodoModalContent';
 import AddTodoFAB from '../addTodoFAB';
 import AddTodoModal from '../modals/addTodoModal';
 import {Section, Todo} from '@/powersync/AppSchema';
-import {getBorderColor} from '../ToDoItem';
-import {PriorityType} from '@/store/todo/types';
 interface State {
   items?: Record<string, Todo[]>;
   isAddTodoModalVisible: boolean;
@@ -28,7 +26,7 @@ interface Props {
   onDismiss: (selectedTodo: Todo, updatedTodo: Todo) => void;
   sections: Section[];
   toggleCompleteTodo: (id: string) => void;
-  deleteTodo: (item: Todo) => void;
+  deleteTodo: (id: string) => void;
   onSubmitEditing: (todo: Todo) => void;
 }
 export default class AgendaCalendar extends PureComponent<Props, State> {
@@ -172,7 +170,9 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
             propSelectedDueDate={dayjs(this.props.selectedDate).endOf('day').toDate()}
             propParentId={this.state.parentId}
           />
-          <EditTodoModal ref={this.editBottomSheetRef}>
+          <EditTodoModal
+            ref={this.editBottomSheetRef}
+            onDismiss={() => console.log('dismissed modal')}>
             {data => (
               <EditTodoModalContent
                 todo={data.data}
@@ -217,8 +217,8 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
   };
 
   renderItem = (reservation: Todo, isFirst: boolean) => {
-    const color = this.props.colors.primary;
-    const borderColor = getBorderColor(reservation.priority as PriorityType);
+    const color = isFirst ? this.props.colors.primary : this.props.colors.inversePrimary;
+    const borderColor = isFirst ? this.props.colors.primary : this.props.colors.outline;
 
     const startDate = dayjs(reservation.start_date);
     const dueDate = dayjs(reservation.due_date);
@@ -229,22 +229,19 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
       : dueDate.startOf('day').format('h:mm A');
     const dueTime = dueDate.isValid() ? dueDate.format('h:mm A') : 'No Due Date';
 
-    console.log('reservation type ', reservation.type);
     return (
       <TouchableOpacity
         key={reservation.id}
         style={[styles.item, {backgroundColor: this.props.colors.background, borderColor}]}
         onPress={() => this.openEditBottomSheet(reservation)}>
         <View style={styles.itemContent}>
-          {reservation.type === 'todo' ? (
-            <TouchableOpacity onPress={() => this.props.toggleCompleteTodo(reservation.id!)}>
-              <Icon
-                source={reservation.completed ? 'check-circle' : 'checkbox-blank-circle-outline'}
-                size={24}
-                color={color}
-              />
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity onPress={() => this.props.toggleCompleteTodo(reservation.id!)}>
+            <Icon
+              source={reservation.completed ? 'check-circle' : 'checkbox-blank-circle-outline'}
+              size={24}
+              color={color}
+            />
+          </TouchableOpacity>
           <View style={styles.textContainer}>
             {reservation.due_date && (
               <Text variant="labelLarge" style={{color: this.props.colors.secondary}}>
@@ -255,22 +252,18 @@ export default class AgendaCalendar extends PureComponent<Props, State> {
               {reservation.title}
             </Text>
             {reservation.summary && (
-              <Text
-                variant="labelLarge"
-                numberOfLines={1}
-                style={{color: this.props.colors.secondary, marginBottom: 20}}>
+              <Text variant="labelLarge" style={{color: this.props.colors.secondary}}>
                 {reservation.summary}
               </Text>
             )}
           </View>
-
-          <Text
-            variant="labelSmall"
-            style={[styles.sectionName, {color: this.props.colors.outline}]}>
-            {reservation.type === 'todo'
-              ? this.getSectionNameById(reservation?.section_id)
-              : reservation.type}
-          </Text>
+          {reservation.section_id && (
+            <Text
+              variant="labelSmall"
+              style={[styles.sectionName, {color: this.props.colors.outline}]}>
+              {this.getSectionNameById(reservation.section_id)}
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
     );

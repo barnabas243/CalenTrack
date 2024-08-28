@@ -6,15 +6,7 @@ export interface AddTodoFABProps {
   onPress: () => void;
 }
 const AddTodoFAB = ({onPress}: AddTodoFABProps) => {
-  return (
-    <FAB
-      id="fab-button"
-      testID="fab-button"
-      icon="plus"
-      style={styles.fabStyle}
-      onPress={onPress}
-    />
-  );
+  return <FAB testID="fab-button" icon="plus" style={styles.fabStyle} onPress={onPress} />;
 };
 
 const styles = StyleSheet.create({

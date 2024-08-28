@@ -12,9 +12,6 @@ import DatePicker from 'react-native-date-picker';
 
 export interface ICustomCalendarEvent extends ICalendarEventBase {
   id: string;
-  type: string;
-  reminder_option: string | null;
-  notification_id: string | null;
 }
 
 export interface WeekCalendarProps {
@@ -186,11 +183,6 @@ const WeekCalendar = ({
 
   const renderEventDetails = () => (
     <View style={[styles.eventDetailsContainer, {backgroundColor: colors.background}]}>
-      <Text
-        variant="titleMedium"
-        style={{marginLeft: 15, color: selectedEvent?.type === 'todo' ? 'blue' : 'orange'}}>
-        {selectedEvent?.type}
-      </Text>
       <View style={{flexDirection: 'row'}}>
         <TextInput
           ref={titleInputRef}
@@ -210,7 +202,6 @@ const WeekCalendar = ({
           onFocus={() => setTitleInputFocus(true)}
           onBlur={() => setTitleInputFocus(false)}
           onContentSizeChange={handleTitleContentSizeChange}
-          disabled={selectedEvent?.type !== 'todo'}
         />
       </View>
 

@@ -31,7 +31,7 @@ interface MonthCalendarProps {
   colors: MD3Colors;
   handleEndDrag: (results: Todo[], name: string | Date) => void;
   updateExistingTodos: (todos: Todo) => void;
-  deleteTodo: (item: Todo) => void;
+  deleteTodo: (id: string) => void;
   toggleCompleteTodo: (id: string) => void;
   sections: Section[];
   onDismiss: (selectedTodo: Todo, updatedTodo: Todo) => void;
@@ -164,52 +164,33 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
     }
   };
 
-  handleDeleteTodo = (item: Todo) => {
-    this.editBottomSheetRef.current?.dismiss();
-    this.props.deleteTodo(item);
-  };
   openEditBottomSheet = async (item: Todo) => {
     if (this.editBottomSheetRef.current) {
-      const waitForClose = () =>
-        new Promise<void>(resolve => {
-          // Using requestAnimationFrame to defer the resolution
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              resolve();
-            });
-          });
-        });
-      try {
-        // Close the bottom sheet
-        this.editBottomSheetRef.current.close();
+      await new Promise(resolve => {
+        this.editBottomSheetRef.current?.close();
 
-        // Wait for the bottom sheet to fully close
-        await waitForClose();
+        // Resolve after a short delay to ensure it closes properly
+        setTimeout(resolve, 300); // Adjust the delay if needed
+      });
 
-        const subItems: Todo[] = this.props.monthlyTodoArray.reduce((acc: Todo[], todo) => {
-          const filteredSubItems = todo.data.filter(subItem => subItem.parent_id === item.id);
-          return acc.concat(filteredSubItems);
-        }, []);
+      const subItems: Todo[] = this.props.monthlyTodoArray.reduce((acc: Todo[], todo) => {
+        const filteredSubItems = todo.data.filter(subItem => subItem.parent_id === item.id);
+        return acc.concat(filteredSubItems);
+      }, []);
 
-        const subItemsCount = subItems.length;
+      const subItemsCount = subItems.length;
 
-        // Prepare the new item to show
-        const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
+      // Prepare the new item to show
+      const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
 
-        this.editBottomSheetRef.current.present(itemToPresent);
-      } catch (error) {
-        console.error('Error handling bottom sheet:', error);
-      }
+      this.editBottomSheetRef.current.present(itemToPresent);
+    } else {
+      console.warn('editBottomSheetRef is null');
     }
   };
 
   handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
     this.editBottomSheetRef.current?.dismiss();
-
-    if (selectedTodo.type === 'google') {
-      console.warn('Google Calendar event cannot be edited yet');
-      return;
-    }
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
       this.props.updateExistingTodos(updatedTodo);
@@ -222,7 +203,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
         {...params}
         onToggleComplete={this.props.toggleCompleteTodo}
         openEditBottomSheet={this.openEditBottomSheet}
-        deleteTodo={this.handleDeleteTodo}
+        deleteTodo={this.props.deleteTodo}
         sections={this.props.sections}
         colors={this.props.colors}
         itemRefs={this.todoItemRefs}
@@ -318,14 +299,16 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
             propSelectedDueDate={dayjs(selectedDate).toDate()}
             propParentId={this.state.parentId}
           />
-          <EditTodoModal ref={this.editBottomSheetRef}>
+          <EditTodoModal
+            ref={this.editBottomSheetRef}
+            onDismiss={() => console.log('dismissed modal')}>
             {data => (
               <EditTodoModalContent
                 todo={data.data}
                 onDismiss={this.props.onDismiss}
                 sections={this.props.sections}
                 colors={colors}
-                deleteTodo={this.handleDeleteTodo}
+                deleteTodo={this.props.deleteTodo}
                 toggleCompleteTodo={this.props.toggleCompleteTodo}
                 openEditBottomSheet={this.openEditBottomSheet}
                 onPress={this.handleAddSubTodo}

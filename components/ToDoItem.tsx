@@ -16,23 +16,6 @@ import {Section, Todo} from '@/powersync/AppSchema';
 
 const OVERSWIPE_DIST = 20;
 
-/**
- * Props for ToDoItem component
- * @property {Todo} item - The todo item
- * @property {() => number | undefined} getIndex - Function to get the index of the item
- * @property {() => void} drag - Function to handle drag event
- * @property {boolean} isActive - Indicates if the item is active
- * @property {MD3Colors} colors - The color theme for the item
- * @property {boolean} enableSwipe - Indicates if swipe is enabled
- * @property {React.MutableRefObject<Map<string, SwipeableItemImperativeRef>>} itemRefs - Ref for the swipeable item
- * @property {(id: string) => void} onToggleComplete - Function to toggle the completion status of the item
- * @property {(item: Todo) => void} openEditBottomSheet - Function to open the edit bottom sheet
- * @property {(item: Todo) => void} deleteTodo - Function to delete the todo item
- * @property {Section[]} sections - The list of sections
- * @property {Todo[]} subItems - The list of sub-todo items
- * @property {string} key - The key for the item
- * @returns {React.ReactElement} A React component
- */
 export interface ToDoProps {
   item: Todo;
   getIndex?: () => number | undefined;
@@ -43,17 +26,10 @@ export interface ToDoProps {
   itemRefs?: React.MutableRefObject<Map<string, SwipeableItemImperativeRef>>;
   onToggleComplete: (id: string) => void;
   openEditBottomSheet: (item: Todo) => void;
-  deleteTodo: (item: Todo) => void;
+  deleteTodo: (id: string) => void;
   sections: Section[];
-  subItems?: Todo[];
-  key?: string;
 }
 
-/**
- * Get the border color based on the priority level
- * @param {PriorityType} priority - The priority level
- * @returns {string} The border color
- */
 export const getBorderColor = (priority: PriorityType) => {
   switch (priority) {
     case '1':
@@ -68,18 +44,20 @@ export const getBorderColor = (priority: PriorityType) => {
 };
 
 export interface UnderlayLeftProps {
-  deleteTodo: (item: Todo) => void;
-  todo: Todo;
+  handleDelete: (id: string) => void;
+  deleteTodo: (id: string) => void;
+  todoId: string;
 }
 
 export interface UnderlayRightProps {
+  handleComplete: (id: string) => void;
   onToggleComplete: (id: string) => void;
   todo: Todo;
 }
 
 const WIDTH = Dimensions.get('window').width;
 
-const UnderlayLeft = ({deleteTodo, todo}: UnderlayLeftProps) => {
+const UnderlayLeft = ({handleDelete, todoId}: UnderlayLeftProps) => {
   const {percentOpen} = useSwipeableItemParams();
   const animStyle = useAnimatedStyle(
     () => ({
@@ -92,8 +70,7 @@ const UnderlayLeft = ({deleteTodo, todo}: UnderlayLeftProps) => {
     <Animated.View style={[styles.row, styles.underlayLeft, animStyle]}>
       <TouchableOpacity
         testID="delete-touchableOpacity"
-        onPressIn={() => deleteTodo(todo)}
-        disabled={todo.type !== 'todo'}
+        onPressIn={() => handleDelete(todoId)}
         style={styles.deleteButton}>
         <Icon source="delete" size={24} color="white" />
         <Text style={styles.text}>delete</Text>
@@ -102,7 +79,7 @@ const UnderlayLeft = ({deleteTodo, todo}: UnderlayLeftProps) => {
   );
 };
 
-const UnderlayRight = ({onToggleComplete, todo}: UnderlayRightProps) => {
+const UnderlayRight = ({handleComplete, todo}: UnderlayRightProps) => {
   const {percentOpen} = useSwipeableItemParams();
   const animStyle = useAnimatedStyle(
     () => ({
@@ -113,10 +90,7 @@ const UnderlayRight = ({onToggleComplete, todo}: UnderlayRightProps) => {
 
   return (
     <Animated.View style={[styles.row, styles.underlayRight, animStyle]}>
-      <TouchableOpacity
-        onPress={() => onToggleComplete(todo.id)}
-        style={styles.deleteButton}
-        disabled={todo.type !== 'todo'}>
+      <TouchableOpacity onPress={() => handleComplete(todo.id)} style={styles.deleteButton}>
         {!todo.completed ? (
           <>
             <Icon source="check-circle" size={24} color="white" />
@@ -144,8 +118,6 @@ const ToDoItem = ({
   openEditBottomSheet,
   deleteTodo,
   sections,
-  subItems = [],
-  key = item.id,
 }: ToDoProps) => {
   const {title, priority, id, completed, summary, due_date, section_id} = item;
   const [toggleCheckBox, setToggleCheckBox] = useState<0 | 1>(completed as 0 | 1);
@@ -194,9 +166,9 @@ const ToDoItem = ({
     onToggleComplete(id);
   };
 
-  const handleDelete = async (item: Todo) => {
+  const handleDelete = async (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-    deleteTodo(item);
+    deleteTodo(id);
   };
 
   const getSectionNameById = useCallback(
@@ -219,14 +191,13 @@ const ToDoItem = ({
 
   return (
     <TouchableOpacity
-      key={key}
       testID="todo-item"
       activeOpacity={1}
       onLongPress={drag}
       onPress={() => openEditTodoModal(item)}
       style={contentStyle}>
       <SwipeableItem
-        // key={id}
+        key={id}
         item={item}
         ref={ref => {
           if (!id || !itemRefs) return;
@@ -245,7 +216,7 @@ const ToDoItem = ({
 
           if (snapPoint === WIDTH) {
             if (openDirection === OpenDirection.LEFT) {
-              handleDelete(item);
+              handleDelete(id);
             } else {
               handleComplete(id);
             }
@@ -253,7 +224,7 @@ const ToDoItem = ({
         }}
         swipeEnabled={enableSwipe}
         overSwipe={OVERSWIPE_DIST}
-        renderUnderlayLeft={() => <UnderlayLeft deleteTodo={handleDelete} todo={item} />}
+        renderUnderlayLeft={() => <UnderlayLeft deleteTodo={handleDelete} todoId={item.id!} />}
         renderUnderlayRight={() => <UnderlayRight onToggleComplete={handleComplete} todo={item} />}
         snapPointsRight={[130, WIDTH]}
         snapPointsLeft={[100, WIDTH]}>
@@ -263,24 +234,22 @@ const ToDoItem = ({
             animatedStyle,
             {backgroundColor: colors.inverseOnSurface},
           ]}>
-          {item.type === 'todo' ? (
-            <CheckBox
-              role="checkbox"
-              testID="todo-checkbox"
-              disabled={item.type !== 'todo'}
-              value={toggleCheckBox === 1} // Use boolean value for checkbox
-              onValueChange={() => {
-                const newValue = toggleCheckBox === 1 ? 0 : 1; // Toggle between 0 and 1
-                setToggleCheckBox(newValue);
-                onToggleComplete(id);
-              }}
-              style={{marginTop: 5, borderColor: getBorderColor(priority as PriorityType)}}
-              color={toggleCheckBox ? '#CCCCCC' : undefined}
-            />
-          ) : null}
+          <CheckBox
+            role="checkbox"
+            testID="todo-checkbox"
+            disabled={false}
+            value={toggleCheckBox === 1} // Use boolean value for checkbox
+            onValueChange={() => {
+              const newValue = toggleCheckBox === 1 ? 0 : 1; // Toggle between 0 and 1
+              setToggleCheckBox(newValue);
+              onToggleComplete(id);
+            }}
+            style={{borderColor: getBorderColor(priority as PriorityType)}}
+            color={toggleCheckBox ? '#CCCCCC' : undefined}
+          />
           <View style={styles.textContainer}>
             <Text
-              variant="titleMedium"
+              variant="titleSmall"
               numberOfLines={2}
               style={{
                 marginLeft: 10,
@@ -307,24 +276,8 @@ const ToDoItem = ({
                 {dayjs(due_date).format('DD MMMM')}
               </Text>
             </View>
-            {subItems.length > 0 && (
-              <>
-                <View style={styles.dueDateContainer}>
-                  <MaterialCommunityIcons
-                    name="transit-connection-horizontal"
-                    size={14}
-                    color={colors.error}
-                    style={styles.icon}
-                  />
-                  <Text variant="bodySmall" style={[styles.dueDateText, {color: colors.error}]}>
-                    {subItems.filter(subItem => subItem.completed).length}/{subItems.length}
-                  </Text>
-                </View>
-              </>
-            )}
-
             <Text variant="bodySmall" style={styles.bottomRightText}>
-              {item.type === 'todo' ? getSectionNameById(section_id as string) : 'google calendar'}
+              {getSectionNameById(section_id as string)}
             </Text>
           </View>
         </Animated.View>

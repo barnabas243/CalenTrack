@@ -1,17 +1,14 @@
-/**
- * Define the schema for the app
- * The schema consists of tables, columns, and indexes
- * please refer to the documentation for more information on types
- * https://docs.powersync.com/usage/sync-rules/types
- */
-
 import {column, Schema, TableV2} from '@powersync/react-native';
 
 // Define table names as constants for easy reference
 export const TODO_TABLE = 'todos';
 export const SECTION_TABLE = 'sections';
 export const PROFILE_TABLE = 'profiles';
-export const ACTIVITY_LOG_TABLE = 'activity_logs';
+
+/**
+ * Define the schema for the app
+ * The schema consists of tables, columns, and indexes
+ */
 
 /**
  * Profiles table schema
@@ -46,27 +43,22 @@ export type ReminderOption =
   | '1 Day Before';
 
 /**
- * Represents the schema for the Todos table.
- *
- * This schema defines the structure and properties of todo items stored in the database.
- * Note that Google Calendar events are not stored in this schema; only todo items are supported.
- *
- * @property {string} created_at - Timestamp indicating when the todo was created.
- * @property {string} completed_at - Timestamp indicating when the todo was completed.
- * @property {string} title - Title of the todo item.
- * @property {string} summary - Summary or brief description of the todo item.
- * @property {number} completed - Indicates the completion status of the todo (0 for incomplete, 1 for complete). Note: Powersync does not support boolean types, so a number is used instead.
- * @property {string} start_date - Start date of the todo item.
- * @property {string} due_date - Due date by which the todo item is expected to be completed.
- * @property {string} recurrence - Recurrence pattern for the todo item, if applicable (e.g., daily, weekly).
- * @property {string} priority - Priority level of the todo item (e.g., low, medium, high).
- * @property {string} parent_id - ID of the parent todo item, if this todo is a sub-task.
- * @property {string} section_id - ID of the section or category the todo item belongs to.
- * @property {string} created_by - ID of the user who created the todo item.
- * @property {string} reminder_option - Reminder option for the todo item (e.g., time-based, location-based).
- * @property {string} notification_id - ID of the scheduled notification related to this todo item.
- * @property {string} type - Type of the item (e.g., 'todo'). This schema only supports todo items; Google Calendar events are not stored in this database.
- * */
+ * Todos table schema
+ * @property {string} created_at - Timestamp of creation
+ * @property {string} completed_at - Timestamp of completion
+ * @property {string} title - Title of the todo
+ * @property {string} summary - Summary of the todo
+ * @property {number} completed - Completion status (0 or 1). powersync does not support boolean types
+ * @property {string} start_date - Start date of the todo
+ * @property {string} due_date - Due date of the todo
+ * @property {string} recurrence - Recurrence pattern
+ * @property {string} priority - Priority level
+ * @property {string} parent_id - ID of the parent todo
+ * @property {string} section_id - ID of the section the todo belongs to
+ * @property {string} created_by - ID of the user who created the todo
+ * @property {string} reminder_option - Reminder option for the todo
+ * @property {string} notification_id - ID of the scheduled notification
+ */
 const todos = new TableV2(
   {
     created_at: column.text,
@@ -78,12 +70,11 @@ const todos = new TableV2(
     due_date: column.text,
     recurrence: column.text,
     priority: column.text,
-    parent_id: column.text || null,
-    section_id: column.text || null,
+    parent_id: column.text,
+    section_id: column.text,
     created_by: column.text,
     reminder_option: column.text,
-    notification_id: column.text || null,
-    type: column.text,
+    notification_id: column.text,
   },
   {indexes: {section: ['section_id'], notification: ['notification_id']}},
 );
@@ -99,37 +90,6 @@ const notification = new TableV2(
   },
   {indexes: {todo: ['todo_id']}},
 );
-
-/**
- * Activity Log table schema
- * @property {string | null} action_date - Timestamp when the action occurred. Can be null.
- * @property {string} action_type - Enum representing the type of action performed, stored as text. Ensure it maps to a valid enum type.
- * @property {string | null} after_data - JSON string representing the state after the action. Can be null.
- * @property {string | null} before_data - JSON string representing the state before the action. Can be null.
- * @property {string} id - Unique identifier for the log entry.
- * @property {string | null} todo_id - ID of the associated todo item. Can be null.
- * @property {string | null} section_id - ID of the associated section. Can be null.
- * @property {string | null} user_id - ID of the user who performed the action. Can be null.
- * @property {string} entity_type - Type of entity the action was performed on (e.g., 'todo', 'section').
- */
-const activity_logs = new TableV2(
-  {
-    action_date: column.text,
-    action_type: column.text, // Enum type stored as text
-    after_data: column.text, // JSON string representation
-    before_data: column.text, // JSON string representation
-    id: column.text,
-    todo_id: column.text || null,
-    section_id: column.text || null,
-    user_id: column.text,
-    entity_type: column.text,
-  },
-  {indexes: {section: ['section_id'], todo: ['todo_id'], user: ['user_id']}},
-);
-
-export type entity_type = 'todo' | 'section';
-export type action_type = 'CREATED' | 'UPDATED' | 'DELETED';
-
 /**
  * AppSchema definition
  * Combines all the tables into a single schema
@@ -139,7 +99,6 @@ export const AppSchema = new Schema({
   sections,
   profiles,
   notification,
-  activity_logs,
 });
 
 /**
@@ -149,5 +108,3 @@ export type Database = (typeof AppSchema)['types'];
 export type Todo = Database['todos'];
 export type Section = Database['sections'];
 export type Profile = Database['profiles'];
-export type Notification = Database['notification'];
-export type ActivityLog = Database['activity_logs'];

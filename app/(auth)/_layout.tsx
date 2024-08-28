@@ -6,7 +6,6 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: 'fade_from_bottom',
       }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />

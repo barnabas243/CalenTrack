@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   FlatList,
-  Keyboard,
 } from 'react-native';
 import Modal from 'react-native-modal';
 import {
@@ -37,7 +36,7 @@ import AddTodoModal from '@/components/modals/addTodoModal';
 import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
 import {AutoCompleteDropDown} from '@/components/AutoCompleteDropDown';
 import {AutocompleteDropdownItem} from 'react-native-autocomplete-dropdown';
-import {Todo, Section, ActivityLog, action_type, entity_type} from '@/powersync/AppSchema';
+import {Todo, Section} from '@/powersync/AppSchema';
 import ToDoItem from '@/components/ToDoItem';
 import {MaterialCommunityIcons} from '@expo/vector-icons';
 import AlertSnackbar from '@/components/AlertSnackbar';
@@ -46,7 +45,6 @@ import {Host} from 'react-native-portalize';
 
 const InboxScreen = () => {
   const {colors} = useTheme();
-
   const {
     todos,
     sections,
@@ -56,7 +54,6 @@ const InboxScreen = () => {
     deleteExistingSection,
     updateExistingTodos,
     deleteExistingTodos,
-    createActivityLog,
   } = useTodo();
 
   const [isLayoutReady, setLayoutReady] = useState(false);
@@ -158,41 +155,19 @@ const InboxScreen = () => {
     }
   }, [section_id, isLayoutReady, sections]);
 
-  const handleAddSection = useCallback(async () => {
+  const handleAddSection = useCallback(() => {
     const trimmedSectionName = newSectionName.trim();
     if (!trimmedSectionName) {
       return;
     }
 
-    Keyboard.dismiss();
+    addNewSection({name: trimmedSectionName, user_id: user!.id}).catch(() => {
+      showAlertSnackbar('Failed to add section');
+    });
+
     setNewSectionName('');
     setSectionModalVisible(false);
-    const newSection = await addNewSection({name: trimmedSectionName, user_id: user!.id}).catch(
-      error => {
-        showAlertSnackbar(error);
-      },
-    );
-
-    const log: ActivityLog = {
-      id: '',
-      action_type: 'CREATED' as action_type,
-      action_date: new Date().toISOString(),
-      section_id: newSection!.id,
-      before_data: '',
-      after_data: JSON.stringify(newSection),
-      entity_type: 'section' as entity_type,
-      todo_id: null,
-      user_id: user!.id,
-    };
-
-    const newLog = await createActivityLog(log);
-
-    if (!newLog) {
-      showAlertSnackbar('Failed to create section activity log');
-    } else {
-      showAlertSnackbar('Activity log created successfully');
-    }
-  }, [newSectionName, addNewSection, user, createActivityLog]);
+  }, [newSectionName, addNewSection, user]);
 
   const handlePress = useCallback(
     (sectionId: string) => {
@@ -217,41 +192,16 @@ const InboxScreen = () => {
     }
 
     try {
-      const oldSection = selectedSection;
       const isDeleted = await deleteExistingSection(selectedSection.id);
-
       if (!isDeleted) {
         showAlertSnackbar('Failed to delete section');
       }
-
       setNewSectionName('');
       setSectionModalVisible(false);
-
-      showAlertSnackbar('Section deleted successfully');
-
-      const log = {
-        id: '',
-        action_type: 'DELETED' as action_type,
-        action_date: new Date().toISOString(),
-        section_id: oldSection.id,
-        before_data: JSON.stringify(oldSection),
-        after_data: '',
-        entity_type: 'section' as entity_type,
-        todo_id: null,
-        user_id: user!.id,
-      };
-
-      const newLog = await createActivityLog(log);
-
-      if (!newLog) {
-        showAlertSnackbar('Failed to create section activity log');
-      } else {
-        showAlertSnackbar('Activity log created successfully');
-      }
     } catch {
       showAlertSnackbar('Failed to delete section');
     }
-  }, [selectedSection, deleteExistingSection, user, createActivityLog]);
+  }, [selectedSection, deleteExistingSection]);
 
   const displayDeleteSectionAlert = useCallback(() => {
     Alert.alert('Delete Section', 'Are you sure you want to delete this section?', [
@@ -266,8 +216,7 @@ const InboxScreen = () => {
     }
 
     try {
-      const oldSection = selectedSection;
-      const updatedSection = {...oldSection, name: newSectionName};
+      const updatedSection = {...selectedSection, name: newSectionName};
       const data = await updateExistingSection(updatedSection).catch(() =>
         console.error('Error updating section'),
       );
@@ -275,34 +224,13 @@ const InboxScreen = () => {
         setNewSectionName('');
         setSelectedSection(null);
         setSectionModalVisible(false);
-        Keyboard.dismiss();
 
         showAlertSnackbar('Section updated successfully');
-
-        const log: ActivityLog = {
-          id: '',
-          action_type: 'UPDATED' as action_type,
-          action_date: new Date().toISOString(),
-          section_id: updatedSection.id,
-          before_data: JSON.stringify(oldSection),
-          after_data: JSON.stringify(updatedSection),
-          entity_type: 'section' as entity_type,
-          todo_id: null,
-          user_id: user!.id,
-        };
-
-        const newLog = await createActivityLog(log);
-
-        if (!newLog) {
-          showAlertSnackbar('Failed to create section activity log');
-        } else {
-          showAlertSnackbar('Activity log created successfully');
-        }
       }
     } catch {
       showAlertSnackbar('Failed to update section');
     }
-  }, [selectedSection, newSectionName, updateExistingSection, user, createActivityLog]);
+  }, [selectedSection, newSectionName, updateExistingSection]);
 
   const isSectionNameInvalid =
     !newSectionName ||
@@ -359,25 +287,6 @@ const InboxScreen = () => {
 
         // Add the new section ID to the todo
         newTodo = {...newTodo, section_id: sectionResult.id};
-
-        const log: ActivityLog = {
-          id: '',
-          action_type: 'CREATED' as action_type,
-          action_date: new Date().toISOString(),
-          section_id: sectionResult.id,
-          before_data: '',
-          after_data: JSON.stringify(sectionResult),
-          entity_type: 'section' as entity_type,
-          todo_id: '',
-          user_id: user!.id,
-        };
-
-        const newLog = await createActivityLog(log);
-
-        if (!newLog) {
-          showAlertSnackbar('Failed to create section activity log');
-          return;
-        }
       } else {
         // Add the existing section ID to the todo
         newTodo = {...newTodo, section_id: findSection.id};
@@ -410,27 +319,6 @@ const InboxScreen = () => {
       } else {
         showAlertSnackbar('Todo added successfully');
       }
-
-      const log: ActivityLog = {
-        id: '',
-        action_type: 'CREATED' as action_type,
-        action_date: new Date().toISOString(),
-        section_id: null,
-        before_data: '',
-        after_data: JSON.stringify(todoResult),
-        entity_type: 'todo' as entity_type,
-        todo_id: todoResult.id,
-        user_id: user!.id,
-      };
-
-      const newLog = await createActivityLog(log);
-
-      if (!newLog) {
-        showAlertSnackbar('Failed to create section activity log');
-        return;
-      } else {
-        showAlertSnackbar('Activity log created successfully');
-      }
     } catch (error) {
       console.error('An error occurred while handling submit editing:', error);
       showAlertSnackbar('An unexpected error occurred');
@@ -452,7 +340,7 @@ const InboxScreen = () => {
     }
   };
 
-  const toggleCompleteTodo = async (id: string) => {
+  const toggleCompleteTodo = (id: string) => {
     const todo = todos.find(todo => todo.id === id);
     if (todo) {
       updateExistingTodos({
@@ -462,26 +350,6 @@ const InboxScreen = () => {
       })
         .then(result => {
           if (result) showAlertSnackbar('Todo updated successfully');
-
-          const log: ActivityLog = {
-            id: '',
-            action_type: 'UPDATED' as action_type,
-            action_date: new Date().toISOString(),
-            section_id: null,
-            before_data: JSON.stringify(todo),
-            after_data: JSON.stringify(result),
-            entity_type: 'todo' as entity_type,
-            todo_id: todo.id,
-            user_id: user!.id,
-          };
-
-          const newLog = createActivityLog(log);
-
-          if (!newLog) {
-            showAlertSnackbar('Failed to create todo activity log');
-          } else {
-            showAlertSnackbar('Activity log created successfully');
-          }
         })
         .catch(error => {
           showAlertSnackbar(`Failed to update todo: ${error.message}`);
@@ -491,65 +359,36 @@ const InboxScreen = () => {
 
   const openEditBottomSheet = async (item: Todo) => {
     if (editBottomSheetRef.current) {
-      // Helper function to wait for the bottom sheet to close
-      try {
-        // Close the bottom sheet
-        await new Promise(resolve => {
-          editBottomSheetRef.current?.close();
-          // Resolve after a short delay to ensure it closes properly
-          setTimeout(resolve, 300); // Adjust the delay if needed
-        });
-
-        // Get the sub-items of the todo
-        const subItems = todos.filter(todo => todo.parent_id === item.id);
-        const subItemsCount = subItems.length;
-
-        // Prepare the new item to show
-        const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
-
+      // Close the bottom sheet
+      await new Promise(resolve => {
+        editBottomSheetRef.current?.close();
         setShowFAB(false);
-        // Present the updated item
-        editBottomSheetRef.current.present(itemToPresent);
-      } catch (error) {
-        console.error('Error handling bottom sheet:', error);
-      }
+        // Resolve after a short delay to ensure it closes properly
+        setTimeout(resolve, 200); // Adjust the delay if needed
+      });
+
+      // Get the sub-items of the todo
+      const subItems = todos.filter(todo => todo.parent_id === item.id);
+      const subItemsCount = subItems.length;
+
+      // Prepare the new item to show
+      const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
+
+      // Present the updated item
+      editBottomSheetRef.current.present(itemToPresent);
     }
   };
 
-  const deleteTodo = async (item: Todo) => {
-    await deleteExistingTodos(item.id)
-      .then(async result => {
+  const deleteTodo = async (id: string) => {
+    await deleteExistingTodos(id)
+      .then(result => {
         if (result) showAlertSnackbar('Todo deleted successfully');
-
-        const log: ActivityLog = {
-          id: '',
-          action_type: 'DELETED' as action_type,
-          action_date: new Date().toISOString(),
-          section_id: null,
-          before_data: JSON.stringify(item),
-          after_data: '',
-          entity_type: 'todo' as entity_type,
-          todo_id: item.id,
-          user_id: user!.id,
-        };
-
-        const newLog = await createActivityLog(log);
-
-        if (!newLog) {
-          showAlertSnackbar('Failed to create todo activity log');
-        } else {
-          showAlertSnackbar('Activity log created successfully');
-        }
       })
       .catch(error => {
         showAlertSnackbar(`Failed to delete todo: ${error.message}`);
       });
   };
 
-  const getSubItems = useCallback(
-    (itemId: string) => todos.filter(todo => todo.parent_id === itemId),
-    [todos],
-  );
   const renderTodoItem = (params: RenderItemParams<Todo>) => (
     <ScaleDecorator>
       <ToDoItem
@@ -560,7 +399,6 @@ const InboxScreen = () => {
         openEditBottomSheet={openEditBottomSheet}
         deleteTodo={deleteTodo}
         sections={sections}
-        subItems={getSubItems(params.item.id)}
       />
     </ScaleDecorator>
   );
@@ -580,15 +418,15 @@ const InboxScreen = () => {
     setShowFAB(true);
   };
 
+  const onDismiss = () => {
+    console.log('EditTodoModal dismissed');
+  };
+
   const renderPlaceholder = () => <DraggableItemPlaceholder />;
   const renderEmptyComponent = (item: SectionWithTodos) =>
     item.key === 'new_section' ? (
       <View style={styles.centerContainer}>
-        <Button
-          testID="add-section-button"
-          mode="contained-tonal"
-          icon={'plus'}
-          onPress={showAddSectionModal}>
+        <Button mode="contained-tonal" icon={'plus'} onPress={showAddSectionModal}>
           Create New Section
         </Button>
       </View>
@@ -645,10 +483,6 @@ const InboxScreen = () => {
         const index = Array.from(flatListRef.props.data).findIndex(todo => todo.id === itemId);
         if (index !== -1) {
           flatListRef.scrollToIndex({index, animated: true, viewPosition: 0.1});
-
-          // Open the edit bottom sheet
-          const todo = flatListRef.props.data[index];
-          openEditBottomSheet(todo);
         }
       }
     }
@@ -662,11 +496,7 @@ const InboxScreen = () => {
         <Appbar.Header mode="small" elevated>
           <Appbar.Content title="Inbox" style={{flex: 1}} titleStyle={{margin: 0, padding: 0}} />
           <View style={styles.searchContainer}>
-            <AutoCompleteDropDown
-              testID="autocomplete-dropdown"
-              data={autoCompleteItems}
-              onSelectItem={handleSelectItem}
-            />
+            <AutoCompleteDropDown data={autoCompleteItems} onSelectItem={handleSelectItem} />
           </View>
           <Menu
             anchorPosition="bottom"
@@ -682,13 +512,7 @@ const InboxScreen = () => {
             <Menu.Item onPress={() => {}} title="Sort" />
             <Menu.Item onPress={() => {}} title="Select tasks" />
             <Divider />
-            <Menu.Item
-              onPress={() => {
-                setIsMenuVisible(false);
-                router.push('/activity_log');
-              }}
-              title="Activity log"
-            />
+            <Menu.Item onPress={() => {}} title="Activity log" />
             <Divider />
             <Menu.Item
               onPress={() => {
@@ -749,7 +573,6 @@ const InboxScreen = () => {
               }}>
               <View style={[styles.modalContent, {backgroundColor: colors.surface}]}>
                 <TextInput
-                  testID="section-name-input"
                   style={styles.textInput}
                   label="Section Name"
                   value={newSectionName}
@@ -758,7 +581,6 @@ const InboxScreen = () => {
                   autoFocus
                   right={
                     <TextInput.Icon
-                      testID="section-name-send-button"
                       icon="send"
                       color={isSectionNameInvalid ? colors.error : colors.primary}
                       disabled={isSectionNameInvalid}
@@ -791,7 +613,7 @@ const InboxScreen = () => {
             propParentId={parentId}
           />
 
-          <EditTodoModal ref={editBottomSheetRef}>
+          <EditTodoModal ref={editBottomSheetRef} onDismiss={onDismiss}>
             {data => (
               <EditTodoModalContent
                 todo={data.data}

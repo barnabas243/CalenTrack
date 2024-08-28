@@ -6,7 +6,14 @@ import 'react-native-reanimated';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {DefaultTheme, MD3DarkTheme, PaperProvider} from 'react-native-paper';
 import 'expo-dev-client';
-import {Appearance, AppState, AppStateStatus, ColorSchemeName} from 'react-native';
+import {
+  Alert,
+  Appearance,
+  AppState,
+  AppStateStatus,
+  BackHandler,
+  ColorSchemeName,
+} from 'react-native';
 import {Provider} from 'react-redux';
 import store from './store';
 import {AuthProvider} from '@/contexts/UserContext'; // Adjust path as needed
@@ -63,6 +70,24 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    const backAction = () => {
+      Alert.alert('Hold on!', 'Are you sure you want to go back?', [
+        {
+          text: 'Cancel',
+          onPress: () => null,
+          style: 'cancel',
+        },
+        {text: 'YES', onPress: () => BackHandler.exitApp()},
+      ]);
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+    return () => backHandler.remove();
+  }, []);
+
+  useEffect(() => {
     const subscription = Appearance.addChangeListener(({colorScheme}) => {
       setTheme(colorScheme === 'dark' ? MD3DarkTheme : DefaultTheme);
     });
@@ -79,7 +104,7 @@ export default function RootLayout() {
               <NotificationProvider>
                 <GestureHandlerRootView>
                   <AutocompleteDropdownContextProvider>
-                    <Stack screenOptions={{headerShown: false, animation: 'fade_from_bottom'}} />
+                    <Stack screenOptions={{headerShown: false}} />
                   </AutocompleteDropdownContextProvider>
                 </GestureHandlerRootView>
               </NotificationProvider>

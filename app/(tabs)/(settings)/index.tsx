@@ -29,7 +29,6 @@ const iconMapping: Record<string, string> = {
   theme: 'theme-light-dark',
   changePassword: 'key',
   manageAccounts: 'account-group',
-  activityLog: 'history',
   about: 'information-outline',
   help: 'help-circle-outline',
   terms: 'file-document-outline',
@@ -37,15 +36,12 @@ const iconMapping: Record<string, string> = {
 };
 
 GoogleSignin.configure({
-  scopes: [
-    'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/calendar.readonly', // scope Google Calendar
-  ],
-  webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com', // your web client ID
+  scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+  webClientId: '34527809788-kc0d5s984psdkad7b3o8s4gf81htfpin.apps.googleusercontent.com',
 });
 
 export default function SettingsPage() {
-  const {user} = useAuth();
+  const {user, isLoading} = useAuth();
 
   const {colors} = useTheme();
 
@@ -56,9 +52,6 @@ export default function SettingsPage() {
   const [visible, setVisible] = useState(false);
 
   const {supabaseConnector, powersync} = useSystem();
-
-  const [isLoading, setIsLoading] = useState(true);
-
   const showModal = useCallback(() => setVisible(true), []);
   const hideModal = useCallback(() => setVisible(false), []);
 
@@ -67,11 +60,8 @@ export default function SettingsPage() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        setIsLoading(true);
         const profile = await supabaseConnector.fetchProfile(user!.id);
         setProfile(profile);
-
-        setIsLoading(false);
       } catch (error) {
         if (error instanceof AuthError) {
           Alert.alert('Error Fetching Profile', error.message);
@@ -83,25 +73,27 @@ export default function SettingsPage() {
   }, [supabaseConnector, user]);
 
   const handleThemeChange = useCallback(async (value: string) => {
-    setIsLoading(true);
     setTheme(value as Theme);
 
     await saveSetting(SETTINGS.THEME, value);
     Appearance.setColorScheme(value === 'system' ? null : (value as ColorSchemeName));
-
-    setIsLoading(false);
   }, []);
 
   const handleLogout = useCallback(async () => {
     try {
-      setIsLoading(true);
-      await Promise.all([await powersync.disconnect(), await supabaseConnector.logout()]);
-      setIsLoading(false);
+      // Sign out of Google
+      console.log(user?.app_metadata.providers);
+      if (user?.app_metadata.providers.includes('google')) {
+        await GoogleSignin.signOut();
+      }
+
+      await powersync.disconnectAndClear();
+      await supabaseConnector.logout();
     } catch (error) {
       if (error instanceof AuthError) Alert.alert('Error Signing Out', error.message);
       if (error instanceof Error) Alert.alert('Error Signing Out', error.message);
     }
-  }, [powersync, supabaseConnector]);
+  }, [powersync, supabaseConnector, user]);
 
   const sections = [
     {
@@ -118,17 +110,6 @@ export default function SettingsPage() {
           onPress: () => router.push('/change_password'),
         },
         {key: 'manageAccounts', title: 'Manage Connected Accounts', type: 'button'},
-      ],
-    },
-    {
-      title: 'Usage',
-      data: [
-        {
-          key: 'activityLog',
-          title: 'Activity Log',
-          type: 'button',
-          onPress: () => router.push('/activity_log'),
-        },
       ],
     },
     {
@@ -175,6 +156,10 @@ export default function SettingsPage() {
     </View>
   );
 
+  if (isLoading) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: colors.background}]}>
       <StatusBar style="auto" />
@@ -188,7 +173,6 @@ export default function SettingsPage() {
         ListHeaderComponent={() => (
           <View style={styles.header}>
             <Card
-              testID="profile-card"
               onPress={() =>
                 router.push({
                   pathname: '/details',
@@ -196,16 +180,9 @@ export default function SettingsPage() {
                 })
               }>
               <Card.Title
-                testID="profile-card-title"
                 title={profile?.full_name}
                 subtitle={user?.user_metadata.email}
-                left={() => (
-                  <Avatar.Image
-                    testID="profile-image"
-                    size={50}
-                    source={{uri: profile?.avatar_url ?? ''}}
-                  />
-                )}
+                left={() => <Avatar.Image size={50} source={{uri: profile?.avatar_url ?? ''}} />}
               />
             </Card>
           </View>
@@ -239,18 +216,6 @@ export default function SettingsPage() {
           <Button onPress={hideModal} style={styles.modalButton}>
             Close
           </Button>
-        </Modal>
-      </Portal>
-      <Portal>
-        <Modal
-          visible={isLoading}
-          contentContainerStyle={[
-            styles.modalContainer,
-            styles.loadingModalContainer,
-            {backgroundColor: colors.background},
-          ]}>
-          <Text variant="titleMedium">Please wait...</Text>
-          <ActivityIndicator />
         </Modal>
       </Portal>
     </SafeAreaView>
@@ -289,11 +254,6 @@ const styles = StyleSheet.create({
     padding: 20,
     margin: 20,
     borderRadius: 10,
-  },
-  loadingModalContainer: {
-    alignContent: 'center',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   modalTitle: {
     fontSize: 18,

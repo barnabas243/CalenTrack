@@ -44,13 +44,7 @@ export default function Register() {
 
     return () => backHandler.remove();
   }, []);
-
-  /**
-   * Validates the password field for length, uppercase, lowercase, number and special character
-   * @param password - The password to validate
-   * @returns {void} - Sets the password validation states
-   */
-  const validatePassword = (password: string): void => {
+  const validatePassword = (password: string) => {
     setIsLengthValid(password.length >= 8);
     setHasUppercase(/[A-Z]/.test(password));
     setHasLowercase(/[a-z]/.test(password));
@@ -67,23 +61,13 @@ export default function Register() {
     }
   };
 
-  /**
-   * Validates the confirm password field
-   * @param confirmPassword checks if the password and confirm password match
-   * @returns {void} - Sets the confirm password error
-   */
-  const validateConfirmPassword = (confirmPassword: string): void => {
+  const validateConfirmPassword = (confirmPassword: string) => {
     setConfirmPasswordError('');
     if (password !== confirmPassword) {
       setConfirmPasswordError('Passwords do not match.');
     }
   };
-
-  /**
-   * submits the registration form
-   * @returns {void} - Registers the user
-   */
-  const handleRegistration = async (): Promise<void> => {
+  const handleRegistration = async () => {
     Keyboard.dismiss();
 
     let isValid = true;
@@ -123,22 +107,13 @@ export default function Register() {
       });
   };
 
-  /**
-   * Returns the style for the helper text
-   * @param isValid
-   * @returns green color if isValid is true, red color if isValid is false
-   */
   const getHelperTextStyle = (isValid: boolean) => ({
     color: isValid ? 'lightgreen' : colors.error,
   });
 
-  /**
-   * checks if the form is valid
-   * @returns {boolean} - Returns true if the form is valid
-   */
-  const isFormValid = (): boolean => {
+  const isFormValid = () => {
     return (
-      !!email && // Ensures email is a non-empty string
+      email &&
       isLengthValid &&
       hasUppercase &&
       hasLowercase &&
@@ -179,7 +154,6 @@ export default function Register() {
             if (passwordRef.current) passwordRef.current.focus();
           }}
           blurOnSubmit={false}
-          autoFocus
         />
         {!!emailError && (
           <HelperText type="error" style={getHelperTextStyle(!emailError)} visible={!!emailError}>

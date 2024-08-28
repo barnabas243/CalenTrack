@@ -3,57 +3,6 @@ export type Json = string | number | boolean | null | {[key: string]: Json | und
 export type Database = {
   public: {
     Tables: {
-      activity_logs: {
-        Row: {
-          action_date: string | null;
-          action_type: Database['public']['Enums']['action_type'];
-          after_data: Json | null;
-          before_data: Json | null;
-          entity_type: Database['public']['Enums']['entity_type'];
-          id: string;
-          section_id: string | null;
-          todo_id: string | null;
-          user_id: string | null;
-        };
-        Insert: {
-          action_date?: string | null;
-          action_type: Database['public']['Enums']['action_type'];
-          after_data?: Json | null;
-          before_data?: Json | null;
-          entity_type?: Database['public']['Enums']['entity_type'];
-          id?: string;
-          section_id?: string | null;
-          todo_id?: string | null;
-          user_id?: string | null;
-        };
-        Update: {
-          action_date?: string | null;
-          action_type?: Database['public']['Enums']['action_type'];
-          after_data?: Json | null;
-          before_data?: Json | null;
-          entity_type?: Database['public']['Enums']['entity_type'];
-          id?: string;
-          section_id?: string | null;
-          todo_id?: string | null;
-          user_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'activity_logs_section_id_fkey';
-            columns: ['section_id'];
-            isOneToOne: false;
-            referencedRelation: 'sections';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'activity_logs_todo_id_fkey';
-            columns: ['todo_id'];
-            isOneToOne: false;
-            referencedRelation: 'todos';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
       notifications: {
         Row: {
           body: string | null;
@@ -176,7 +125,6 @@ export type Database = {
           start_date: string | null;
           summary: string;
           title: string;
-          type: string | null;
         };
         Insert: {
           completed?: boolean;
@@ -194,7 +142,6 @@ export type Database = {
           start_date?: string | null;
           summary: string;
           title: string;
-          type?: string | null;
         };
         Update: {
           completed?: boolean;
@@ -212,7 +159,6 @@ export type Database = {
           start_date?: string | null;
           summary?: string;
           title?: string;
-          type?: string | null;
         };
         Relationships: [
           {
@@ -243,20 +189,9 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      confirm_current_user_password: {
-        Args: {
-          current_plain_password: string;
-        };
-        Returns: Json;
-      };
-      gen_random_uuid_rpc: {
-        Args: Record<PropertyKey, never>;
-        Returns: string;
-      };
+      [_ in never]: never;
     };
     Enums: {
-      action_type: 'CREATED' | 'UPDATED' | 'DELETED';
-      entity_type: 'todo';
       notification_status: 'scheduled' | 'sent' | 'cancelled';
       priority_enum: '1' | '2' | '3' | '4';
       reminder_option: 'At Time of Event' | '10 Minutes Before' | '1 Hour Before' | '1 Day Before';
