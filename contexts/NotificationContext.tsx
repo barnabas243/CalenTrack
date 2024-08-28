@@ -10,6 +10,15 @@ import dayjs from 'dayjs';
 import {Todo} from '@/powersync/AppSchema';
 import {useTodo} from '@/hooks/useTodo';
 
+/**
+ * Context to hold notification-related state
+ * @property {string} expoPushToken - The Expo push token
+ * @property {Notifications.Notification[]} notifications - The list of notifications
+ * @property {string[]} scheduledNotifications - The list of scheduled notification IDs
+ * @property {function} scheduleTodoNotification - Function to schedule a notification for a todo
+ * @property {function} updateTodoWithNotification - Function to update a todo with a notification
+ * @property {function} cancelNotification - Function to cancel a scheduled notification
+ */
 export interface NotificationContextType {
   expoPushToken: string;
   notifications: Notifications.Notification[];
@@ -22,6 +31,9 @@ export interface NotificationContextType {
   cancelNotification: (notificationId: string) => Promise<void>;
 }
 
+/**
+ * Context provider component for managing notification state
+ */
 const NotificationContext = createContext<NotificationContextType>({
   expoPushToken: '',
   notifications: [],
@@ -33,6 +45,11 @@ const NotificationContext = createContext<NotificationContextType>({
   }),
   cancelNotification: async () => {},
 });
+
+/**
+ * Notification provider props
+ * @property {React.ReactNode} children - The children components
+ */
 export interface NotificationProviderProps {
   children: React.ReactNode;
 }
@@ -45,11 +62,20 @@ Notifications.setNotificationHandler({
   }),
 });
 
+/**
+ * Show an alert with the error message and throw an error
+ * @param errorMessage
+ * @throws {Error}
+ */
 function handleRegistrationError(errorMessage: string) {
   alert(errorMessage);
   throw new Error(errorMessage);
 }
 
+/**
+ * This function registers the device for push notifications and returns the Expo push token
+ * @returns The Expo push token
+ */
 async function registerForPushNotificationsAsync() {
   if (Platform.OS === 'android') {
     Notifications.setNotificationChannelAsync('default', {
@@ -82,7 +108,6 @@ async function registerForPushNotificationsAsync() {
           projectId,
         })
       ).data;
-      console.log(pushTokenString);
       return pushTokenString;
     } catch (e: unknown) {
       handleRegistrationError(`${e}`);
@@ -109,11 +134,11 @@ export const NotificationProvider = ({children}: NotificationProviderProps) => {
     let message = {status: 'success', message: 'Notification added successfully'};
 
     try {
-      // Check if the due_date or reminder_option has changed
-      const dueDateChanged = oldTodo.due_date !== newTodo.due_date;
+      // Check if the start_date or reminder_option has changed
+      const startDateChanged = oldTodo.start_date !== newTodo.start_date;
       const reminderOptionChanged = oldTodo.reminder_option !== newTodo.reminder_option;
 
-      if (dueDateChanged || reminderOptionChanged) {
+      if (startDateChanged || reminderOptionChanged) {
         // Cancel the old notification
         if (oldTodo.notification_id) {
           await cancelNotification(oldTodo.notification_id);
@@ -151,27 +176,27 @@ export const NotificationProvider = ({children}: NotificationProviderProps) => {
 
     let trigger: Date | undefined;
 
-    const dueDate = dayjs(todo.due_date);
+    const startDate = dayjs(todo.start_date);
 
     switch (todo.reminder_option) {
       case 'At Time of Event':
-        trigger = dueDate.toDate();
+        trigger = startDate.toDate();
         break;
       case '10 Minutes Before':
-        trigger = dueDate.subtract(10, 'minute').toDate(); // 10 minutes before
+        trigger = startDate.subtract(10, 'minute').toDate(); // 10 minutes before
         break;
       case '1 Hour Before':
-        trigger = dueDate.subtract(1, 'hour').toDate(); // 1 hour before
+        trigger = startDate.subtract(1, 'hour').toDate(); // 1 hour before
         break;
       case '1 Day Before':
-        trigger = dueDate.subtract(1, 'day').toDate(); // 1 day before
+        trigger = startDate.subtract(1, 'day').toDate(); // 1 day before
         break;
       // case 'custom':
       //   // Handle custom logic here, e.g., by opening a date picker or time input
       //   // trigger = customDate;
       //   break;
       default:
-        trigger = dueDate.toDate(); // Default to the event time if no option is selected
+        trigger = startDate.toDate(); // Default to the event time if no option is selected
         break;
     }
 
@@ -190,7 +215,7 @@ export const NotificationProvider = ({children}: NotificationProviderProps) => {
       return notificationID;
     } else {
       throw new Error(
-        'Could not schedule notification. Please check the reminder_option and due_date fields',
+        'Could not schedule notification. Please check the reminder_option and start_date fields',
       );
     }
   };
@@ -208,7 +233,6 @@ export const NotificationProvider = ({children}: NotificationProviderProps) => {
           .then(async token => {
             if (profile.expoPushToken !== token) setExpoPushToken(token ?? '');
 
-            console.log(token);
             if (!token) return;
             await supabaseConnector.updateProfile({id: user.id, expoPushToken: token});
           })
@@ -230,7 +254,6 @@ export const NotificationProvider = ({children}: NotificationProviderProps) => {
     }
 
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log(notification);
       setNotifications(notifications => [...notifications, notification]);
     });
 
@@ -251,19 +274,16 @@ export const NotificationProvider = ({children}: NotificationProviderProps) => {
     };
   }, []);
 
-  return (
-    <NotificationContext.Provider
-      value={{
-        expoPushToken,
-        notifications,
-        scheduledNotifications,
-        scheduleTodoNotification,
-        updateTodoWithNotification,
-        cancelNotification,
-      }}>
-      {children}
-    </NotificationContext.Provider>
-  );
+  const value = {
+    expoPushToken,
+    notifications,
+    scheduledNotifications,
+    scheduleTodoNotification,
+    updateTodoWithNotification,
+    cancelNotification,
+  };
+
+  return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 };
 
 export const useNotification = () => useContext(NotificationContext);

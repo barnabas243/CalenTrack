@@ -21,12 +21,13 @@ import DatePicker from 'react-native-date-picker';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone'; // For timezone handling
 import utc from 'dayjs/plugin/utc'; // For UTC handling
+import {BottomSheetFlatList} from '@gorhom/bottom-sheet';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 export const getFormattedDate = (start_date: string, dateString: string, type: string) => {
-  const date = dayjs(dateString);
+  const date = dayjs(dateString && dateString !== '' ? dateString : new Date());
 
   // Format parts of the date
   const dayOfWeek = date.format('ddd'); // Abbreviated weekday
@@ -51,7 +52,7 @@ export interface EditTodoModalContentProps {
   onDismiss: (oldTodo: Todo, newTodo: Todo) => void;
   sections: Section[];
   colors: MD3Colors;
-  deleteTodo: (id: string) => void;
+  deleteTodo: (item: Todo) => void;
   openEditBottomSheet: (item: Todo) => void;
   toggleCompleteTodo: (id: string) => void;
   onPress: (parentId: string) => void;
@@ -70,7 +71,7 @@ const EditTodoModalContent = ({
   const [isPriorityMenuVisible, setIsPriorityMenuVisible] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const {subItems, ...todoWithoutSubtasks} = todo;
-  console.log('todoWithoutSubtasks', todoWithoutSubtasks);
+
   // Initialize state with the modified todo object
   const [newTodo, setNewTodo] = useState<Todo>(todoWithoutSubtasks);
   const [subTodos, setSubTodos] = useState<Todo[]>(subItems);
@@ -118,19 +119,17 @@ const EditTodoModalContent = ({
   // Effect to handle unmount logic
   useEffect(() => {
     return () => {
-      console.log('EditTodoModalContent unmounted');
-      console.log('latestNewTodo.current', latestNewTodo.current);
       onDismiss(todoWithoutSubtasks, latestNewTodo.current);
     };
   }, []); // Empty dependency array ensures it runs only on mount and unmount
 
-  const handleSubTodoDelete = (id: string) => {
+  const handleSubTodoDelete = (item: Todo) => {
     // Remove the subtodo from the list
-    const newSubItems = subItems?.filter(subItem => subItem.id !== id);
+    const newSubItems = subItems?.filter(subItem => subItem.id !== item.id);
     setSubTodos(newSubItems);
 
     // Update the todo object in database
-    deleteTodo(id);
+    deleteTodo(item);
   };
   const handleDateChange = (date: Date, type: 'start' | 'end') => {
     const newDate = dayjs(date);
@@ -199,21 +198,26 @@ const EditTodoModalContent = ({
     }
   };
 
+  const handleSectionPress = () => {
+    onDismiss(todoWithoutSubtasks, latestNewTodo.current);
+    router.replace(
+      `/inbox?section_id=${newTodo.section_id || '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d'}`,
+    );
+  };
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <Appbar.Header statusBarHeight={0}>
         <Appbar.Content
-          title={findSectionById(newTodo.section_id || '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d')}
+          title={
+            todo.type === 'todo'
+              ? findSectionById(newTodo.section_id || '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d')
+              : 'google calendar'
+          }
           titleStyle={{fontSize: 16}}
-          onPress={() => {
-            console.log('Appbar.Content pressed');
-            onDismiss(todoWithoutSubtasks, latestNewTodo.current);
-            router.replace(
-              `/inbox?section_id=${newTodo.section_id || '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d'}`,
-            );
-          }}
+          onPress={handleSectionPress}
+          disabled={todo.type !== 'todo'}
         />
         <Menu
           anchorPosition="bottom"
@@ -223,6 +227,7 @@ const EditTodoModalContent = ({
             <Appbar.Action
               icon="flag"
               color={getBorderColor(newTodo.priority as PriorityType)}
+              disabled={todo.type !== 'todo'}
               onPress={() => setIsPriorityMenuVisible(true)}
             />
           }>
@@ -246,6 +251,7 @@ const EditTodoModalContent = ({
             <Appbar.Action
               icon="dots-vertical"
               color={colors.onSurfaceVariant}
+              disabled={todo.type !== 'todo'}
               onPress={() => setIsMenuVisible(true)}
             />
           }>
@@ -254,7 +260,7 @@ const EditTodoModalContent = ({
               setIsMenuVisible(false);
               setTimeout(() => {
                 onDismiss(todoWithoutSubtasks, newTodo);
-                deleteTodo(todo.id);
+                deleteTodo(todo);
               }, 1000);
             }}
             title="delete"
@@ -262,10 +268,12 @@ const EditTodoModalContent = ({
         </Menu>
       </Appbar.Header>
       <View style={styles.inputContainer}>
-        <Checkbox
-          status={newTodo.completed ? 'checked' : 'unchecked'}
-          onPress={handleCompletedChange}
-        />
+        {todo.type === 'todo' ? (
+          <Checkbox
+            status={newTodo.completed ? 'checked' : 'unchecked'}
+            onPress={handleCompletedChange}
+          />
+        ) : null}
         <TextInput
           ref={titleInputRef}
           mode="outlined"
@@ -294,9 +302,10 @@ const EditTodoModalContent = ({
               />
             )
           }
+          disabled={todo.type !== 'todo'}
         />
       </View>
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, {paddingLeft: 8}]}>
         <Icon source="playlist-edit" size={30} color={colors.onBackground} />
         <TextInput
           ref={summaryRef}
@@ -316,6 +325,7 @@ const EditTodoModalContent = ({
           }}
           contentStyle={{textAlignVertical: 'top', marginVertical: -13}}
           onContentSizeChange={handleSummaryContentSizeChange}
+          disabled={todo.type !== 'todo'}
         />
       </View>
 
@@ -393,10 +403,14 @@ const EditTodoModalContent = ({
       </List.AccordionGroup>
       <Divider bold />
 
-      {subTodos &&
-        subTodos?.map(subItem => (
+      <BottomSheetFlatList
+        data={subTodos}
+        scrollEnabled={false}
+        keyExtractor={item => `subtodo-${item.id}`}
+        initialNumToRender={2}
+        renderItem={({item}) => (
           <ToDoItem
-            item={subItem}
+            item={item}
             colors={colors}
             onToggleComplete={toggleCompleteTodo}
             openEditBottomSheet={openEditBottomSheet}
@@ -404,14 +418,21 @@ const EditTodoModalContent = ({
             sections={sections}
             enableSwipe={false}
           />
-        ))}
-
+        )}
+      />
       <Button
         mode="contained-tonal"
-        icon={icon => <Icon source="plus" size={24} color={colors.inverseSurface} />}
+        icon={icon => (
+          <Icon
+            source="plus"
+            size={20}
+            color={todo.type === 'todo' ? colors.inverseSurface : colors.surfaceDisabled}
+          />
+        )}
         buttonColor={colors.inverseOnSurface}
         textColor={colors.inverseSurface}
         style={{borderRadius: 5, margin: 12}}
+        disabled={todo.type !== 'todo'}
         onPress={() => onPress(todo.id)}>
         create a subtask
       </Button>

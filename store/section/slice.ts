@@ -1,14 +1,7 @@
 import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
 import {Section, SECTION_TABLE} from '@/powersync/AppSchema';
-
-/**
- * Define the initial state for the section slice.
- */
-export interface SectionState {
-  sections: Section[];
-  loading: boolean;
-  error: string | null;
-}
+import {Kysely} from '@powersync/kysely-driver';
+import {SectionState} from './types';
 
 /**
  * Initial state for the section slice.
@@ -28,18 +21,17 @@ export const initialState: SectionState = {
  * @param db - The database instance to use for the query.
  * @returns A promise that resolves to an array of sections.
  */
-export const fetchSections = createAsyncThunk<
-  Section[],
-  {userId: string; db: any},
-  {rejectValue: string}
->('sections/fetchSections', async ({userId, db}, {rejectWithValue}) => {
-  try {
-    const sections = await db.selectFrom(SECTION_TABLE).selectAll().execute();
-    return sections as Section[];
-  } catch (error) {
-    return rejectWithValue(error.message || 'Failed to fetch sections');
-  }
-});
+export const fetchSections = createAsyncThunk<Section[], {db: Kysely<any>}, {rejectValue: string}>(
+  'sections/fetchSections',
+  async ({db}, {rejectWithValue}) => {
+    try {
+      const sections = await db.selectFrom(SECTION_TABLE).selectAll().execute();
+      return sections as Section[];
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch sections');
+    }
+  },
+);
 
 /**
  * Thunk to insert a new section into the database.
@@ -49,7 +41,7 @@ export const fetchSections = createAsyncThunk<
  */
 export const insertSection = createAsyncThunk<
   Section,
-  {newSection: Section; db: any},
+  {newSection: Section; db: Kysely<any>},
   {rejectValue: string}
 >('sections/insertSection', async ({newSection, db}, {rejectWithValue}) => {
   try {
@@ -72,7 +64,7 @@ export const insertSection = createAsyncThunk<
  */
 export const updateSectionName = createAsyncThunk<
   Section,
-  {updatedSection: Section; db: any},
+  {updatedSection: Section; db: Kysely<any>},
   {rejectValue: string}
 >('sections/updateSectionName', async ({updatedSection, db}, {rejectWithValue}) => {
   const {id, name} = updatedSection;
@@ -97,7 +89,7 @@ export const updateSectionName = createAsyncThunk<
  */
 export const deleteSectionById = createAsyncThunk<
   string,
-  {id: string; db: any},
+  {id: string; db: Kysely<any>},
   {rejectValue: string}
 >('sections/deleteSectionById', async ({id, db}, {rejectWithValue}) => {
   try {

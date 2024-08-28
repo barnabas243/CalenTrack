@@ -9,7 +9,7 @@ export interface AddTodoModalProps {
   propSelectedSection?: Section | undefined;
   propSelectedStartDate?: Date | undefined;
   propSelectedDueDate?: Date | undefined;
-  propParentId?: string | undefined;
+  propParentId?: string | null;
 }
 
 export type HighlightedElementType =

@@ -35,7 +35,7 @@ import DraggableItemPlaceholder from '@/components/DraggableItemPlaceholder';
 import AddTodoModal from '@/components/modals/addTodoModal';
 import {useAuth} from '@/hooks/useAuth';
 import PageLoadingActivityIndicator from '@/components/PageLoadingActivityIndicator';
-import {Todo} from '@/powersync/AppSchema';
+import {action_type, ActivityLog, entity_type, Todo} from '@/powersync/AppSchema';
 import TimeOfDayImage from '@/components/TimeOfDayImage';
 import {
   getSetting,
@@ -115,17 +115,24 @@ const sortTodos = (todos: Todo[], sortBy: sortByType, direction: sortDirectionTy
   return sortedTodos;
 };
 
-const HomeScreen = () => {
+const TodayScreen = () => {
+  // Hooks and Context
   const {colors} = useTheme();
+
   const {user} = useAuth();
-
-  const {todos, sections, deleteExistingTodos, updateExistingTodos, addNewSection, addNewTodo} =
-    useTodo();
-
+  const {
+    todos,
+    sections,
+    deleteExistingTodos,
+    updateExistingTodos,
+    addNewSection,
+    addNewTodo,
+    createActivityLog,
+  } = useTodo();
   const {updateTodoWithNotification, scheduleTodoNotification} = useNotification();
 
+  // State Management
   const [isLoading, setIsLoading] = useState(true);
-
   const [overdueTodos, setOverdueTodos] = useState<Todo[]>([]);
   const [todayTodos, setTodayTodos] = useState<Todo[]>([]);
   const [completedTodos, setCompletedTodos] = useState<Todo[]>([]);
@@ -133,6 +140,56 @@ const HomeScreen = () => {
   const [isAlertSnackbarVisible, setIsAlertSnackbarVisible] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
 
+  const [sortBy, setSortBy] = useState<sortByType>('date');
+  const [sortDirection, setSortDirection] = useState<sortDirectionType>('asc');
+  const [hideCompleted, setHideCompleted] = useState(false);
+
+  const [parentId, setParentId] = useState('');
+
+  const [isOverdueVisible, setIsOverdueVisible] = useState(true);
+  const [isTodayVisible, setIsTodayVisible] = useState(true);
+  const [isCompletedVisible, setIsCompletedVisible] = useState(true);
+  const [isFABVisible, setIsFABVisible] = useState(true);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [isAddTodoModalVisible, setIsAddTodoModalVisible] = useState(false);
+
+  // Refs
+  const itemRefs = React.useRef(new Map());
+  const sortBottomSheetRef = React.useRef<BottomSheetModal>(null);
+  const editBottomSheetRef = React.useRef<BottomSheetModal>(null);
+  const snapPoints = React.useMemo(() => ['25%', '40%', '75%'], []);
+
+  // Shared Values and Animated Styles
+  const overdueHeight = useSharedValue(0);
+  const todayHeight = useSharedValue(0);
+  const completedHeight = useSharedValue(0);
+
+  const animatedOverdueHeight = useSharedValue(0);
+  const animatedTodayHeight = useSharedValue(0);
+  const animatedCompletedHeight = useSharedValue(0);
+
+  const animatedOverdueStyle = useAnimatedStyle(
+    () => ({
+      height: animatedOverdueHeight.value,
+    }),
+    [animatedOverdueHeight],
+  );
+
+  const animatedTodayStyle = useAnimatedStyle(
+    () => ({
+      height: animatedTodayHeight.value,
+    }),
+    [animatedTodayHeight],
+  );
+
+  const animatedCompletedStyle = useAnimatedStyle(
+    () => ({
+      height: animatedCompletedHeight.value,
+    }),
+    [animatedCompletedHeight],
+  );
+
+  // Callbacks
   const showAlertSnackbar = (message: string) => {
     setAlertMessage(message);
     setIsAlertSnackbarVisible(true);
@@ -143,12 +200,51 @@ const HomeScreen = () => {
     setIsAlertSnackbarVisible(false);
   };
 
-  // user preferences
-  const [sortBy, setSortBy] = useState<sortByType>('date');
-  const [sortDirection, setSortDirection] = useState<sortDirectionType>('asc');
-  const [hideCompleted, setHideCompleted] = useState(false);
+  const saveSortBy = useCallback(async (newSortBy: SortByType) => {
+    setSortBy(newSortBy);
+    try {
+      await saveSetting(SETTINGS.SORT_BY, newSortBy);
+    } catch (error) {
+      console.error('Failed to save sort by setting:', error);
+    }
+  }, []);
 
-  const [parentId, setParentId] = useState('');
+  const saveSortDirection = useCallback(async (newSortDirection: SortDirectionType) => {
+    setSortDirection(newSortDirection);
+    try {
+      await saveSetting(SETTINGS.SORT_DIRECTION, newSortDirection);
+    } catch (error) {
+      console.error('Failed to save sort direction setting:', error);
+    }
+  }, []);
+
+  const saveHideCompleted = useCallback(async (value: boolean) => {
+    setIsMenuVisible(false);
+    setHideCompleted(value);
+    try {
+      await saveSetting(SETTINGS.HIDE_COMPLETED, value);
+    } catch (error) {
+      showAlertSnackbar('Failed to save hide completed setting');
+      console.error('Failed to save hide completed setting:', error);
+    }
+  }, []);
+
+  const changeHeight = useCallback(
+    (height: number, type: string) => {
+      switch (type) {
+        case 'overdue':
+          overdueHeight.value = height;
+          break;
+        case 'today':
+          todayHeight.value = height;
+          break;
+        case 'completed':
+          completedHeight.value = height;
+          break;
+      }
+    },
+    [overdueHeight, todayHeight, completedHeight],
+  );
 
   const sortedTodos = useMemo(() => {
     return sortTodos(todos, sortBy, sortDirection);
@@ -194,80 +290,8 @@ const HomeScreen = () => {
     setIsLoading(false);
   }, []);
 
-  const saveSortBy = useCallback(async (newSortBy: SortByType) => {
-    setSortBy(newSortBy);
-    try {
-      await saveSetting(SETTINGS.SORT_BY, newSortBy);
-    } catch (error) {
-      console.error('Failed to save sort by setting:', error);
-    }
-  }, []);
-
-  const saveSortDirection = useCallback(async (newSortDirection: SortDirectionType) => {
-    setSortDirection(newSortDirection);
-    try {
-      await saveSetting(SETTINGS.SORT_DIRECTION, newSortDirection);
-    } catch (error) {
-      console.error('Failed to save sort direction setting:', error);
-    }
-  }, []);
-
-  const saveHideCompleted = useCallback(async (value: boolean) => {
-    setIsMenuVisible(false);
-    setHideCompleted(value);
-    try {
-      await saveSetting(SETTINGS.HIDE_COMPLETED, value);
-    } catch (error) {
-      console.error('Failed to save hide completed setting:', error);
-    }
-  }, []);
-
-  const [isOverdueVisible, setIsOverdueVisible] = useState(true);
-  const [isTodayVisible, setIsTodayVisible] = useState(true);
-  const [isCompletedVisible, setIsCompletedVisible] = useState(true);
-  const [isFABVisible, setIsFABVisible] = useState(true);
-  const [isMenuVisible, setIsMenuVisible] = useState(false);
-
-  const [isAddTodoModalVisible, setIsAddTodoModalVisible] = useState(false);
-
   const showAddTodoModal = () => setIsAddTodoModalVisible(true);
   const hideAddTodoModal = () => setIsAddTodoModalVisible(false);
-
-  // Swipeable item params
-  const itemRefs = React.useRef(new Map());
-
-  // bottomsheets ref
-  const sortBottomSheetRef = React.useRef<BottomSheetModal>(null);
-  const editBottomSheetRef = React.useRef<BottomSheetModal>(null);
-  const snapPoints = React.useMemo(() => ['25%', '40%', '75%'], []);
-
-  // Shared values for the height animation
-  const overdueHeight = useSharedValue(0);
-  const todayHeight = useSharedValue(0);
-  const completedHeight = useSharedValue(0);
-
-  // Animated values
-  const animatedOverdueHeight = useSharedValue(0);
-  const animatedTodayHeight = useSharedValue(0);
-  const animatedCompletedHeight = useSharedValue(0);
-
-  // Update the height values when the content size changes
-  const changeHeight = useCallback(
-    (height: number, type: string) => {
-      switch (type) {
-        case 'overdue':
-          overdueHeight.value = height;
-          break;
-        case 'today':
-          todayHeight.value = height;
-          break;
-        case 'completed':
-          completedHeight.value = height;
-          break;
-      }
-    },
-    [overdueHeight, todayHeight, completedHeight],
-  );
 
   // useDerivedValue to animate the height
   useDerivedValue(() => {
@@ -287,28 +311,6 @@ const HomeScreen = () => {
       duration: 200,
     });
   }, [isCompletedVisible]);
-
-  // Animated styles for height
-  const animatedOverdueStyle = useAnimatedStyle(
-    () => ({
-      height: animatedOverdueHeight.value,
-    }),
-    [animatedOverdueHeight],
-  );
-
-  const animatedTodayStyle = useAnimatedStyle(
-    () => ({
-      height: animatedTodayHeight.value,
-    }),
-    [animatedTodayHeight],
-  );
-
-  const animatedCompletedStyle = useAnimatedStyle(
-    () => ({
-      height: animatedCompletedHeight.value,
-    }),
-    [animatedCompletedHeight],
-  );
 
   const backdropComponent = React.useCallback(
     (props: React.JSX.IntrinsicAttributes & BottomSheetDefaultBackdropProps) => (
@@ -353,13 +355,13 @@ const HomeScreen = () => {
     }
   };
 
-  const toggleCompleteTodo = (id: string) => {
+  const toggleCompleteTodo = async (id: string) => {
     const todo = todos.find(todo => todo.id === id);
     if (todo) {
-      const newTodo = updateExistingTodos({
+      const newTodo = await updateExistingTodos({
         ...todo,
-        completed: !todo.completed ? 1 : 0,
-        completed_at: todo.completed ? null : new Date().toString(),
+        completed: todo.completed === 0 ? 1 : 0,
+        completed_at: todo.completed === 0 ? new Date().toISOString() : null,
       });
 
       if (!newTodo) {
@@ -367,6 +369,28 @@ const HomeScreen = () => {
         // Alert.alert('Error', 'Failed to update todo');
       } else {
         showAlertSnackbar('Todo updated successfully');
+        console.log('Creating activity log for todo...');
+
+        console.log('newTodo', newTodo);
+        const log: ActivityLog = {
+          id: '',
+          action_type: 'UPDATED' as action_type,
+          action_date: new Date().toISOString(),
+          section_id: null,
+          before_data: JSON.stringify(todo),
+          after_data: JSON.stringify(newTodo),
+          entity_type: 'todo' as entity_type,
+          todo_id: todo.id,
+          user_id: user!.id,
+        };
+
+        const newLog = await createActivityLog(log);
+
+        if (!newLog) {
+          showAlertSnackbar('Failed to create todo activity log');
+        } else {
+          showAlertSnackbar('Activity log created successfully');
+        }
       }
     }
   };
@@ -376,7 +400,6 @@ const HomeScreen = () => {
       // Close the bottom sheet
       await new Promise(resolve => {
         editBottomSheetRef.current?.close();
-        setIsFABVisible(false);
         // Resolve after a short delay to ensure it closes properly
         setTimeout(resolve, 300); // Adjust the delay if needed
       });
@@ -389,23 +412,51 @@ const HomeScreen = () => {
       const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
 
       // Present the updated item
+
+      setIsFABVisible(false);
       editBottomSheetRef.current.present(itemToPresent);
     }
   };
 
-  const deleteTodo = async (id: string) => {
-    await deleteExistingTodos(id)
-      .then(result => {
+  const deleteTodo = async (item: Todo) => {
+    await deleteExistingTodos(item.id)
+      .then(async result => {
         if (result) showAlertSnackbar('Todo deleted successfully');
+
+        const log: ActivityLog = {
+          id: '',
+          action_type: 'DELETED' as action_type,
+          action_date: new Date().toISOString(),
+          section_id: null,
+          before_data: JSON.stringify(item),
+          after_data: '',
+          entity_type: 'todo' as entity_type,
+          todo_id: item.id,
+          user_id: user!.id,
+        };
+
+        const newLog = await createActivityLog(log);
+
+        if (!newLog) {
+          showAlertSnackbar('Failed to create todo activity log');
+        } else {
+          showAlertSnackbar('Activity log created successfully');
+        }
       })
       .catch(error => {
         showAlertSnackbar(`Failed to delete todo: ${error.message}`);
       });
   };
 
+  const getSubItems = useCallback(
+    (itemId: string) => todos.filter(todo => todo.parent_id === itemId),
+    [todos],
+  );
+
   const renderTodoItem = (params: RenderItemParams<Todo>) => (
     <ScaleDecorator>
       <ToDoItem
+        subItems={getSubItems(params.item.id)}
         {...params}
         colors={colors}
         itemRefs={itemRefs}
@@ -429,14 +480,11 @@ const HomeScreen = () => {
     return <PageLoadingActivityIndicator />;
   }
 
-  const showMenu = () => {
-    setIsMenuVisible(true);
-  };
-
+  const showMenu = () => setIsMenuVisible(true);
   const closeMenu = () => setIsMenuVisible(false);
 
   function keyExtractor(item: Todo, index: number): string {
-    return item.id || index.toString();
+    return `todo-${item.id || index.toString()}`;
   }
 
   function Header({title}: {title: string}) {
@@ -486,8 +534,29 @@ const HomeScreen = () => {
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
       const message = await updateTodoWithNotification(selectedTodo, updatedTodo);
-
       showAlertSnackbar(message.message);
+
+      if (message.status === 'error') return;
+
+      const log: ActivityLog = {
+        id: '',
+        action_type: 'UPDATED' as action_type,
+        action_date: new Date().toISOString(),
+        section_id: null,
+        before_data: JSON.stringify(selectedTodo),
+        after_data: JSON.stringify(updatedTodo),
+        entity_type: 'todo' as entity_type,
+        todo_id: updatedTodo.id,
+        user_id: user!.id,
+      };
+
+      const newLog = await createActivityLog(log);
+
+      if (!newLog) {
+        showAlertSnackbar('Failed to create todo activity log');
+      } else {
+        showAlertSnackbar('Activity log created successfully');
+      }
     }
 
     setIsFABVisible(true);
@@ -499,7 +568,34 @@ const HomeScreen = () => {
     setTimeout(() => showAddTodoModal(), 100);
   };
 
-  const handleSubmitEditing = async (newTodo: Todo, selectedSection = 'Inbox') => {
+  /**
+   * Handles the submission of a new to-do item, ensuring it is assigned to the appropriate section.
+   *
+   * This function performs several tasks:
+   * - Verifies the provided `newTodo` item and determines its section.
+   * - If the section does not exist, it creates a new section.
+   * - Associates the to-do item with the correct section (new or existing).
+   * - Adds the to-do item to the database.
+   * - If a reminder option is set, schedules a notification and updates the to-do item with the notification ID.
+   *
+   * @param {Todo} newTodo The new to-do item to be added.
+   * @param {string} [selectedSection='Inbox'] The name of the section to which the to-do item should be assigned.
+   *                                              Defaults to 'Inbox' if not specified.
+   *
+   * @returns {Promise<void>} A promise that resolves when the operation is complete.
+   *
+   * @throws {Error} Handles any errors that occur during the process, including:
+   *   - Failure to create a new section.
+   *   - Failure to add the to-do item.
+   *   - Failure to schedule a notification.
+   *   - Failure to update the to-do item with the notification ID.
+   *
+   * The function provides feedback to the user through snackbar alerts, indicating the success or failure of each operation.
+   */
+  const handleSubmitEditing = async (
+    newTodo: Todo,
+    selectedSection: string = 'Inbox',
+  ): Promise<void> => {
     if (!newTodo) return;
 
     try {
@@ -521,6 +617,25 @@ const HomeScreen = () => {
 
         // Add the new section ID to the todo
         newTodo = {...newTodo, section_id: sectionResult.id};
+
+        const log: ActivityLog = {
+          id: '',
+          action_type: 'CREATED' as action_type,
+          action_date: new Date().toISOString(),
+          section_id: sectionResult.id,
+          before_data: '',
+          after_data: JSON.stringify(sectionResult),
+          entity_type: 'section' as entity_type,
+          todo_id: '',
+          user_id: user!.id,
+        };
+
+        const newLog = await createActivityLog(log);
+
+        if (!newLog) {
+          showAlertSnackbar('Failed to create section activity log');
+          return;
+        }
       } else {
         // Add the existing section ID to the todo
         newTodo = {...newTodo, section_id: findSection.id};
@@ -553,14 +668,31 @@ const HomeScreen = () => {
       } else {
         showAlertSnackbar('Todo added successfully');
       }
+      console.log('Creating activity log for todo...');
+      const log: ActivityLog = {
+        id: '',
+        action_type: 'CREATED' as action_type,
+        action_date: new Date().toISOString(),
+        section_id: null,
+        before_data: '',
+        after_data: JSON.stringify(todoResult),
+        entity_type: 'todo' as entity_type,
+        todo_id: todoResult.id,
+        user_id: user!.id,
+      };
+
+      const newLog = await createActivityLog(log);
+
+      if (!newLog) {
+        showAlertSnackbar('Failed to create section activity log');
+        return;
+      } else {
+        showAlertSnackbar('Activity log created successfully');
+      }
     } catch (error) {
       console.error('An error occurred while handling submit editing:', error);
       showAlertSnackbar('An unexpected error occurred');
     }
-  };
-
-  const onDismiss = () => {
-    console.log('dismissed');
   };
 
   return (
@@ -583,7 +715,13 @@ const HomeScreen = () => {
               title={!hideCompleted ? 'hide Completed' : 'unhide Completed'}
             />
             <Divider />
-            <Menu.Item onPress={() => {}} title="Activity log" />
+            <Menu.Item
+              onPress={() => {
+                closeMenu();
+                router.push('/activity_log');
+              }}
+              title="Activity log"
+            />
             <Divider />
             <Menu.Item
               onPress={() => {
@@ -606,7 +744,8 @@ const HomeScreen = () => {
           <Header title={'Overdue'} />
           <Animated.View style={animatedOverdueStyle} exiting={FadeInUp}>
             <NestableDraggableFlatList
-              initialNumToRender={8}
+              initialNumToRender={7}
+              scrollEnabled={true}
               onContentSizeChange={(w, h) => changeHeight(h, 'overdue')}
               data={overdueTodos}
               renderItem={renderTodoItem}
@@ -623,7 +762,8 @@ const HomeScreen = () => {
           <Animated.View style={animatedTodayStyle} exiting={FadeInUp}>
             <NestableDraggableFlatList
               data={todayTodos}
-              initialNumToRender={8}
+              scrollEnabled={true}
+              initialNumToRender={7}
               onContentSizeChange={(w, h) => changeHeight(h, 'today')}
               renderItem={renderTodoItem}
               keyExtractor={keyExtractor}
@@ -636,25 +776,24 @@ const HomeScreen = () => {
             />
           </Animated.View>
 
+          {!hideCompleted && <Header title={'Completed'} />}
           {!hideCompleted && (
-            <>
-              <Header title={'Completed'} />
-              <Animated.View style={animatedCompletedStyle} exiting={FadeInUp}>
-                <NestableDraggableFlatList
-                  data={completedTodos}
-                  initialNumToRender={8}
-                  onContentSizeChange={(w, h) => changeHeight(h, 'completed')}
-                  renderItem={renderTodoItem}
-                  keyExtractor={keyExtractor}
-                  onDragEnd={({data}) => {
-                    handleEndDrag(data, 'completed');
-                  }}
-                  activationDistance={20}
-                  dragItemOverflow={true}
-                  renderPlaceholder={() => <DraggableItemPlaceholder />}
-                />
-              </Animated.View>
-            </>
+            <Animated.View style={animatedCompletedStyle} exiting={FadeInUp}>
+              <NestableDraggableFlatList
+                data={completedTodos}
+                scrollEnabled={true}
+                initialNumToRender={7}
+                onContentSizeChange={(w, h) => changeHeight(h, 'completed')}
+                renderItem={renderTodoItem}
+                keyExtractor={keyExtractor}
+                onDragEnd={({data}) => {
+                  handleEndDrag(data, 'completed');
+                }}
+                activationDistance={20}
+                dragItemOverflow={true}
+                renderPlaceholder={() => <DraggableItemPlaceholder />}
+              />
+            </Animated.View>
           )}
         </NestableScrollContainer>
 
@@ -775,7 +914,7 @@ const HomeScreen = () => {
             </View>
           </BottomSheetModal>
 
-          <EditTodoModal ref={editBottomSheetRef} onDismiss={onDismiss}>
+          <EditTodoModal ref={editBottomSheetRef}>
             {data => (
               <EditTodoModalContent
                 todo={data.data}
@@ -864,4 +1003,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HomeScreen;
+export default TodayScreen;

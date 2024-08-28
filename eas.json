@@ -22,7 +22,6 @@
       }
     },
     "build-and-maestro-test": {
-      "withoutCredentials": true,
       "config": "build-and-maestro-test.yml",
       "android": {
         "buildType": "apk",

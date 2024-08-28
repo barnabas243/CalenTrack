@@ -1,5 +1,13 @@
-import {Todo} from '@/powersync/AppSchema';
+import {Section, Todo} from '@/powersync/AppSchema';
 
+/**
+ * Define the initial state for the section slice.
+ */
+export interface SectionState {
+  sections: Section[];
+  loading: boolean;
+  error: string | null;
+}
 /**
  * Defines the structure of a section containing todo items.
  *

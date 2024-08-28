@@ -1,0 +1,13 @@
+# agendaCalendar.yaml
+
+AppId: com.barnabas243.CalenTrack
+---
+- launchApp
+
+- tapOn: 'calendar.*'
+- tapOn: 'mode-agenda'
+
+- assertVisible: 'mode-agenda'
+
+- tapOn: 'mode-agenda'
+- takeScreenshot: AgendaCalendar

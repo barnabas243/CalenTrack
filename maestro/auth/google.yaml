@@ -1,5 +1,1 @@
-# appId: com.barnabas243.CalenTrack
-# ---
-# - launchApp
-# - tapOn: "Continue with Google"
-
+# This test is ignored because it is not possible to run it in the CI environment.

@@ -33,11 +33,11 @@ import {RRule} from 'rrule';
 import {getBorderColor} from '../ToDoItem';
 import {PriorityType} from '@/store/todo/types';
 import {useAuth} from '@/hooks/useAuth';
-import {generateUUID} from '@/powersync/uuid';
 import {ReminderOption, Section} from '@/powersync/AppSchema';
 import DatePicker from 'react-native-date-picker';
 import {getFormattedDate} from './EditTodoModalContent';
 import {Portal} from 'react-native-portalize';
+import {useSystem} from '@/powersync/system';
 
 dayjs.extend(isBetween);
 dayjs.extend(calendar);
@@ -51,32 +51,33 @@ const AddTodoModal = ({
   propSelectedSection = undefined,
   propSelectedStartDate = undefined,
   propSelectedDueDate = undefined,
-  propParentId = undefined,
+  propParentId = null,
 }: AddTodoModalProps) => {
   const {colors} = useTheme();
   const {user} = useAuth();
   const [todoName, setTodoName] = useState('');
 
+  const {supabaseConnector} = useSystem();
+
   const [range, setRange] = useState<{startDate: DateType; endDate: DateType}>({
     startDate: propSelectedStartDate,
     endDate: propSelectedDueDate,
   });
-  const [dueDateTitle, setDueDateTitle] = useState(dayjs(new Date()).endOf('day').format('h:mm A'));
+  const [dueDateTitle, setDueDateTitle] = useState('');
 
-  const [startDateTitle, setStartDateTitle] = useState(
-    dayjs(new Date()).startOf('day').format('[Today] h:mm A'),
-  );
+  const [startDateTitle, setStartDateTitle] = useState('today');
 
   const [selectedSection, setSelectedSection] = useState(propSelectedSection?.name ?? 'Inbox');
 
   useEffect(() => {
     if (!propSelectedSection) return;
-    handleTextChange(`@${propSelectedSection.name} `);
+    handleTextChange(`#${propSelectedSection.name} `);
   }, [propSelectedSection]);
   // Initialize state only once
   useEffect(() => {
+    const now = dayjs().toDate();
     const initialEndDate = propSelectedDueDate ?? dayjs().endOf('day').toDate();
-    const initialStartDate = propSelectedStartDate ?? dayjs(initialEndDate).startOf('day').toDate();
+    const initialStartDate = propSelectedStartDate ?? now;
 
     setRange({
       startDate: initialStartDate,
@@ -84,15 +85,19 @@ const AddTodoModal = ({
     });
 
     setStartDateTitle(
-      dayjs(initialStartDate).isSame(dayjs(), 'day')
-        ? dayjs(initialStartDate).format('[Today] h:mm A')
-        : dayjs(initialStartDate).format('ddd, MMM D, h:mm A'),
+      dayjs(initialStartDate).isSame(now)
+        ? 'today'
+        : dayjs(initialStartDate).isSame(now, 'day')
+          ? dayjs(initialStartDate).format('[Today] h:mm A')
+          : dayjs(initialStartDate).format('ddd, MMM D, h:mm A'),
     );
 
     setDueDateTitle(
-      dayjs(initialEndDate).isSame(dayjs(initialStartDate), 'day')
-        ? dayjs(initialEndDate).format('h:mm A')
-        : dayjs(initialEndDate).format('ddd, MMM D, h:mm A'),
+      dayjs(initialEndDate).isSame(dayjs().endOf('day').toDate(), 'minute')
+        ? ''
+        : dayjs(initialEndDate).isSame(dayjs(initialStartDate), 'day')
+          ? dayjs(initialEndDate).format('h:mm A')
+          : dayjs(initialEndDate).format('ddd, MMM D, h:mm A'),
     );
   }, [propSelectedDueDate, propSelectedStartDate]); // Empty dependency array
 
@@ -129,7 +134,7 @@ const AddTodoModal = ({
 
   const shortcutsBtns = [
     {
-      title: `${startDateTitle} - ${dueDateTitle}`,
+      title: `${startDateTitle}${dueDateTitle && dueDateTitle.trim() !== '' ? ` - ${dueDateTitle}` : ''}`,
       icon: 'calendar',
       color: colors.primaryContainer,
       iconColor: colors.primary,
@@ -157,7 +162,7 @@ const AddTodoModal = ({
       iconColor: colors.primary,
       onPress: () => {
         setShortcut('label');
-        insertShortcutText('@');
+        insertShortcutText('#');
       },
     },
   ];
@@ -167,7 +172,8 @@ const AddTodoModal = ({
     setTodoName('');
     setTodoPriority('4');
     setRange({startDate: undefined, endDate: undefined});
-    setDueDateTitle(dayjs(new Date()).endOf('day').format('h:mm A'));
+    setStartDateTitle('today');
+    setDueDateTitle('');
     setShortcut('');
     setSelectedSection('Inbox');
     setRecurrenceRule(null);
@@ -215,10 +221,9 @@ const AddTodoModal = ({
       const latestDates = parsedResult[parsedResult.length - 1];
 
       const isOnlyStartDate = latestDates.start && !latestDates.end;
-      const endDate = isOnlyStartDate ? latestDates.start.date() : latestDates.end!.date();
-      const startDate = isOnlyStartDate
-        ? dayjs(latestDates.start.date()).startOf('day').toDate()
-        : latestDates.start.date();
+      const startDate = latestDates.start.date();
+      const endDate = isOnlyStartDate ? dayjs(startDate).add(1, 'hour') : latestDates.end!.date();
+
       setRange(prevRange => ({
         ...prevRange,
         startDate,
@@ -247,6 +252,14 @@ const AddTodoModal = ({
           {parsedText}
         </Text>
       );
+    } else {
+      setRange(prevRange => ({
+        ...prevRange,
+        startDate: dayjs(new Date()),
+        endDate: dayjs(new Date()).endOf('day'),
+      }));
+      setStartDateTitle('today');
+      setDueDateTitle('');
     }
 
     highlightMentions(text, highlightedElements);
@@ -262,9 +275,9 @@ const AddTodoModal = ({
     }
 
     text.split(' ').forEach((word: string) => {
-      if ((word.startsWith('@') || word.startsWith('!')) && word.length === 1) {
-        const symbol = word === '@' ? 'label' : 'priority';
-        if (word === '@') {
+      if ((word.startsWith('#') || word.startsWith('!')) && word.length === 1) {
+        const symbol = word === '#' ? 'label' : 'priority';
+        if (word === '#') {
           setSelectedSection('');
         } else if (word === '!') {
           setTodoPriority('4');
@@ -273,7 +286,7 @@ const AddTodoModal = ({
 
         setShortcut(symbol);
         setTooltipVisible(true);
-      } else if (word.startsWith('@')) {
+      } else if (word.startsWith('#')) {
         setTooltipVisible(true);
         highlightWord(word, text, highlightedElements, wordStartIndex, 'label');
         setSelectedSection(word.slice(1));
@@ -281,6 +294,10 @@ const AddTodoModal = ({
         highlightWord(word, text, highlightedElements, wordStartIndex, 'priority');
         setTodoPriority(word.slice(1) as PriorityType);
         setTodoPriorityTitle(`P${word.slice(1)}`);
+        setTooltipVisible(false);
+      } else if (word.startsWith('!') && !isValidPriorityType(word.slice(1))) {
+        setTodoPriority('4');
+        setTodoPriorityTitle('P4');
         setTooltipVisible(false);
       } else {
         setTooltipVisible(false);
@@ -349,36 +366,49 @@ const AddTodoModal = ({
   };
 
   function handleLabelPress(label: Section | string): void {
-    updateTextIfSymbolIsLastChar('@', label);
+    updateTextIfSymbolIsLastChar('#', label);
   }
-  const handleSubmitEditing = () => {
-    console.log('reminder_option', reminder_option);
-    onSubmitEditing(
-      {
-        title: todoName.trim(),
-        summary: '',
-        completed: 0,
-        due_date:
-          range?.endDate?.toString() || dayjs(range?.endDate).endOf('day').toISOString() || null,
-        start_date:
-          range?.startDate?.toString() ||
-          dayjs(range?.startDate).startOf('day').toISOString() || // Corrected from `endDate` to `startDate`
-          null,
-        recurrence: recurrenceRule?.toString() || null,
-        priority: todoPriority,
-        section_id: null, // Logic looks correct
-        created_by: user!.id,
-        parent_id: propParentId ?? '23f34f97-6090-4df9-ba65-1bad614ddf60',
-        created_at: null,
-        completed_at: null,
-        id: generateUUID(),
-        reminder_option: reminder_option,
-        notification_id: null,
-      },
-      selectedSection,
-    );
+  const handleSubmitEditing = async () => {
+    const start_date =
+      range?.startDate?.toString() ||
+      dayjs(range?.startDate).startOf('day').add(1, 'second').toISOString() || // Corrected from `endDate` to `startDate`
+      null;
+
+    const due_date =
+      range?.endDate?.toString() || dayjs(range?.endDate).endOf('day').toISOString() || null;
+
+    const newTodo = {
+      title: todoName.trim(),
+      summary: '',
+      completed: 0,
+      due_date: due_date,
+      start_date: start_date,
+      recurrence: recurrenceRule?.toString() || null,
+      priority: todoPriority,
+      section_id: null, // Logic looks correct
+      created_by: user!.id,
+      parent_id: propParentId ?? null,
+      created_at: null,
+      completed_at: null,
+      reminder_option: reminder_option,
+      notification_id: null,
+      type: 'todo',
+    };
 
     resetUserToDoInput();
+
+    const uuid = await supabaseConnector.generateUUID().catch(error => {
+      console.error('Error generating UUID:', error);
+      return;
+    });
+
+    if (!uuid) {
+      console.error('UUID is not defined');
+      return;
+    }
+
+    const updatedTodo = {...newTodo, id: uuid};
+    onSubmitEditing(updatedTodo, selectedSection);
   };
 
   // render tooltip items from shortcut char
@@ -387,11 +417,20 @@ const AddTodoModal = ({
 
     if (shortcut === 'priority') {
       tooltipRows = Array.from({length: 4}, (_, i) => (
-        <TouchableOpacity
-          key={`priority-${i + 1}`}
-          onPress={() => handlePriorityPress((i + 1).toString() as PriorityType)}>
-          <Text>Priority {i + 1}</Text>
-        </TouchableOpacity>
+        <React.Fragment>
+          <TouchableOpacity
+            key={`priority-${i + 1}`}
+            style={{flexDirection: 'row', padding: 10}}
+            onPress={() => handlePriorityPress((i + 1).toString() as PriorityType)}>
+            <Icon
+              source="flag"
+              size={24}
+              color={getBorderColor((i + 1).toString() as PriorityType)}
+            />
+            <Text style={{marginLeft: 10}}>Priority {i + 1}</Text>
+          </TouchableOpacity>
+          {i < 3 && <Divider />}
+        </React.Fragment>
       ));
     } else if (shortcut === 'label') {
       tooltipRows = renderLabelTooltipRows();
@@ -407,12 +446,20 @@ const AddTodoModal = ({
       .filter(([, labelValue]) =>
         labelValue.name!.toLowerCase().includes(selectedSection.toLowerCase()),
       )
-      .forEach(([, labelValue]) => {
+      .forEach(([key, labelValue], index, array) => {
         tooltipRows.push(
-          <TouchableOpacity key={labelValue.id} onPress={() => handleLabelPress(labelValue)}>
-            <Text>{labelValue.name}</Text>
+          <TouchableOpacity
+            key={labelValue.id}
+            style={styles.margin10}
+            onPress={() => handleLabelPress(labelValue)}>
+            <Text>#{labelValue.name}</Text>
           </TouchableOpacity>,
         );
+
+        // Add divider if it's not the last item
+        if (index < array.length - 1) {
+          tooltipRows.push(<Divider />);
+        }
       });
 
     if (
@@ -420,7 +467,10 @@ const AddTodoModal = ({
       !sections.some(label => label.name!.toLowerCase() === selectedSection.toLowerCase())
     ) {
       tooltipRows.push(
-        <TouchableOpacity key="create-new-label" onPress={() => handleLabelPress(selectedSection)}>
+        <TouchableOpacity
+          style={styles.margin10}
+          key="create-new-label"
+          onPress={() => handleLabelPress(selectedSection)}>
           <Text>+ create Label {selectedSection}</Text>
         </TouchableOpacity>,
       );
@@ -485,7 +535,7 @@ const AddTodoModal = ({
       const newHighlightedText = [...highlightedText];
       newHighlightedText.splice(existingIndex, 2); // Remove the existing symbol
 
-      if (symbol === '@') {
+      if (symbol === '#') {
         setSelectedSection('');
       } else if (symbol === '!') {
         setTodoPriority('4');
@@ -556,7 +606,7 @@ const AddTodoModal = ({
     newEndDate?: DateType;
   }) => {
     // Check if newStartDate is defined, otherwise set the title to an empty string
-    const formattedStartDate = newStartDate ? getCustomFormattedDate(dayjs(newStartDate)) : '';
+    const formattedStartDate = getCustomFormattedDate(dayjs(newStartDate));
 
     // Check if newEndDate is defined, otherwise set the title to an empty string
     const formattedEndDate = newEndDate ? getCustomFormattedDate(dayjs(newEndDate)) : '';
@@ -580,9 +630,6 @@ const AddTodoModal = ({
     const currentStartDate = dayjs(range.startDate);
     const currentDueDate = dayjs(range.endDate);
 
-    console.log('currentStartDate', currentStartDate);
-    console.log('currentDueDate', currentDueDate);
-
     if (type === 'start') {
       if (newDate.isAfter(currentDueDate) && newDate.hour() < currentDueDate.hour()) {
         const newDueDate = newDate
@@ -590,7 +637,6 @@ const AddTodoModal = ({
           .set('minute', currentDueDate.minute())
           .set('second', currentDueDate.second());
 
-        console.log('newDueDate', newDueDate);
         setRange(prev => ({
           ...prev,
           startDate: newDate,
@@ -623,8 +669,6 @@ const AddTodoModal = ({
 
         setStartDateTitle(formattedStartDate);
         setDueDateTitle(formattedEndDate);
-        // setStartDateTitle(newDate.format('YYYY-MM-DD HH:mm:ss'));
-        // setDueDateTitle(newDueDate.format('YYYY-MM-DD HH:mm:ss'));
       } else {
         // Update only the start date
         setRange(prev => ({
@@ -653,8 +697,6 @@ const AddTodoModal = ({
 
         setStartDateTitle(formattedStartDate);
         setDueDateTitle(formattedEndDate);
-        // setStartDateTitle(newStartDate.format('YYYY-MM-DD HH:mm:ss'));
-        // setDueDateTitle(newDate.format('YYYY-MM-DD HH:mm:ss'));
       } else if (newDate.isBefore(currentStartDate) && newDate.hour() < currentStartDate.hour()) {
         const newStartDate = newDate
           .subtract(1, 'day')
@@ -672,8 +714,6 @@ const AddTodoModal = ({
 
         setStartDateTitle(formattedStartDate);
         setDueDateTitle(formattedEndDate);
-        // setStartDateTitle(newStartDate.format('YYYY-MM-DD HH:mm:ss'));
-        // setDueDateTitle(newDate.format('YYYY-MM-DD HH:mm:ss'));
       } else {
         // Update only the due date
         setRange(prev => ({
@@ -683,7 +723,6 @@ const AddTodoModal = ({
 
         const formattedEndDate = newDate ? getCustomFormattedDate(dayjs(newDate)) : '';
         setDueDateTitle(formattedEndDate);
-        // setDueDateTitle(newDate.format('YYYY-MM-DD HH:mm:ss'));
       }
     }
   };
@@ -723,7 +762,8 @@ const AddTodoModal = ({
               }}>
               <TextInput
                 ref={inputRef}
-                placeholder="Eg, Schedule a meeting at 10am"
+                placeholder="Eg, Schedule a meeting at 10am #SectionName !1"
+                multiline
                 placeholderTextColor={colors.secondary}
                 onChangeText={handleTextChange}
                 onSelectionChange={e => {
@@ -739,6 +779,8 @@ const AddTodoModal = ({
                 <Text style={[styles.highlightContainer]}>{highlightedText}</Text>
               </TextInput>
               <IconButton
+                id="send-button"
+                testID="send-button"
                 icon="send"
                 size={24}
                 iconColor={todoName.trim() ? colors.primary : colors.surfaceDisabled}
@@ -808,7 +850,8 @@ const AddTodoModal = ({
             <View style={{flexDirection: 'row', marginVertical: 20}}>
               <MaterialCommunityIcons name="pen" size={24} color={colors.onSurface} />
               <Text style={{color: colors.onSurface, marginLeft: 10}}>
-                {startDateTitle} - {dueDateTitle}
+                {startDateTitle}
+                {dueDateTitle && dueDateTitle.trim() !== '' ? ` - ${dueDateTitle}` : ''}
               </Text>
             </View>
             <Divider style={{backgroundColor: colors.secondary}} />
@@ -816,7 +859,7 @@ const AddTodoModal = ({
               <View style={{marginVertical: 20}}>
                 <DateTimePickerUI
                   mode="range"
-                  minDate={dayjs().startOf('day').toDate()}
+                  minDate={dayjs().startOf('day').add(1, 'second').toDate()}
                   startDate={range.startDate}
                   endDate={range.endDate}
                   displayFullDays
@@ -852,7 +895,7 @@ const AddTodoModal = ({
                   title=""
                   right={() => (
                     <DatePicker
-                      minimumDate={dayjs().startOf('day').toDate()}
+                      minimumDate={dayjs().startOf('day').add(1, 'second').toDate()}
                       date={dayjs(range.startDate).toDate()}
                       onDateChange={date => handleDateChange(date, 'start')}
                       dividerColor={colors.primary}
@@ -876,7 +919,7 @@ const AddTodoModal = ({
                   title=""
                   right={() => (
                     <DatePicker
-                      minimumDate={dayjs().startOf('day').toDate()}
+                      minimumDate={dayjs().startOf('day').add(1, 'second').toDate()}
                       date={dayjs(range.endDate).toDate()}
                       onDateChange={date => handleDateChange(date, 'end')}
                       dividerColor={colors.primary}
@@ -984,6 +1027,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'grey',
     padding: 10,
+  },
+  margin10: {
+    margin: 10,
   },
   tooltip: {
     position: 'absolute',

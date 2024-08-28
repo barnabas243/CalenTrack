@@ -1,10 +1,11 @@
 import React, {useState, useEffect} from 'react';
 import {View, StyleSheet, Alert, BackHandler} from 'react-native';
-import {Button, TextInput, useTheme, Appbar} from 'react-native-paper';
+import {Button, TextInput, useTheme, Appbar, HelperText} from 'react-native-paper';
 import {useAuth} from '@/hooks/useAuth'; // Adjust the import according to your structure
 import {useSystem} from '@/powersync/system'; // Adjust the import according to your structure'
 import Avatar from '@/components/Avatar';
 import {router, useLocalSearchParams} from 'expo-router';
+import {isValidEmail} from '@/utils/validationUtils';
 
 const UserDetailsPage = () => {
   const {user} = useAuth(); // Fetch current user data
@@ -71,17 +72,17 @@ const UserDetailsPage = () => {
       <View style={styles.contentContainer}>
         <View style={styles.avatarContainer}>
           <Avatar
+            testID="avatar-image"
             size={200}
             url={avatarUrl}
             onUpload={(url: string) => {
               setAvatarUrl(url);
-              console.log('Avatar uploaded:', url);
-              // handleSave();
             }}
           />
         </View>
 
         <TextInput
+          testID="email-input"
           label="Email"
           value={email}
           onChangeText={setEmail}
@@ -89,15 +90,30 @@ const UserDetailsPage = () => {
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
+          error={email.length > 0 && !isValidEmail(email)} // Show error state only if email is invalid
         />
+        <HelperText
+          type="error"
+          visible={email.length > 0 && !isValidEmail(email)} // Show helper text only if email is invalid
+        >
+          Please enter a valid email address.
+        </HelperText>
         <TextInput
+          testID="full-name-input"
           label="Full Name"
           value={fullName}
           onChangeText={setFullName}
           style={styles.input}
         />
-
-        <Button mode="contained" onPress={handleSave} style={styles.button} disabled={loading}>
+        <HelperText type="info" visible>
+          This is how your name will appear to others
+        </HelperText>
+        <Button
+          testID="save-button"
+          mode="contained"
+          onPress={handleSave}
+          style={styles.button}
+          disabled={loading || !isValidEmail(email)}>
           Save
         </Button>
       </View>

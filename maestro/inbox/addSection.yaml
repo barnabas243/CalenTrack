@@ -1,0 +1,19 @@
+# addSection.yaml
+
+AppId: com.barnabas243.CalenTrack
+---
+- launchApp
+
+- swipe:
+    direction: LEFT
+
+- tapOn: 'add-section-button'
+
+- tapOn: 'section-name-input'
+- inputText: 'new-section'
+
+- tapOn: 'section-name-send-button'
+
+- assertVisible: 'new-section'
+
+- takeScreenshot: AddSection

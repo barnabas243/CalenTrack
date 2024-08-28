@@ -14,17 +14,36 @@ import {TimelineEventProps} from 'react-native-calendars';
 import {isEqual} from 'lodash';
 import {useAuth} from '@/hooks/useAuth';
 import {ICustomCalendarEvent} from '@/components/calendars/WeekCalendar';
-import {Todo} from '@/powersync/AppSchema';
+import {action_type, ActivityLog, entity_type, Todo} from '@/powersync/AppSchema';
 import {useNotification} from '@/contexts/NotificationContext';
 import {Host} from 'react-native-portalize';
+import {getGoogleCalendarEvents} from '@/utils/calendarEvents';
 
 export type Mode = 'month' | 'day' | 'week' | 'agenda';
+
+export type GoogleCalendarEvent = {
+  id: string; // Unique identifier for the event
+  title: string; // summary of the event (required)
+  description?: string; // Optional description of the event
+  start: string; // Start time of the event
+  end: string; // End time of the event
+  type: 'google'; // Event type
+};
+
+const POLL_INTERVAL_MS = 5 * 60 * 1000; // Poll every 5 minutes
 
 const CalendarPage = () => {
   const {colors} = useTheme();
 
-  const {todos, sections, deleteExistingTodos, updateExistingTodos, addNewSection, addNewTodo} =
-    useTodo();
+  const {
+    todos,
+    sections,
+    deleteExistingTodos,
+    updateExistingTodos,
+    addNewSection,
+    addNewTodo,
+    createActivityLog,
+  } = useTodo();
 
   const {user} = useAuth();
 
@@ -35,6 +54,62 @@ const CalendarPage = () => {
   const [expanded, setExpanded] = useState(false);
 
   const [monthlyTodoArray, setMonthlyTodoArray] = useState<MonthlyTodo[]>([]);
+
+  const [googleCalendarEvents, setGoogleCalendarEvents] = useState<Todo[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchGoogleCalendarEvents = async () => {
+      try {
+        const formattedEvents: Todo[] = []; // Initialize an empty array to store the formatted events
+        const events = await getGoogleCalendarEvents(user);
+
+        if (!events || events.length === 0) {
+          console.log('No events found.');
+          setGoogleCalendarEvents([]);
+          return;
+        }
+
+        events.forEach(evt => {
+          // Create a formatted event object
+          const formattedEvent: Todo = {
+            id: evt.id,
+            title: evt.summary,
+            summary: evt.description || '', // Default value if description is missing
+            start_date: evt.start.dateTime || '', // Ensure the field matches your Todo type
+            due_date: evt.end.dateTime || '', // Use end date as due_date
+            completed: dayjs().isAfter(dayjs(evt.end.dateTime)) ? 1 : 0, // Mark as completed if the current date is after the event end date
+            priority: '4', // Default priority; adjust as needed
+            parent_id: null, // Set to null if no parent ID is applicable
+            section_id: null, // Set to null if no section ID is applicable
+            created_by: user.id, // ID of the user who created the todo
+            reminder_option: evt.reminders?.useDefault ? 'At Time of Event' : null, // Reminder option if available
+            notification_id: null, // Set to null; adjust as needed
+            type: 'google', // Type to differentiate Google Calendar events
+            completed_at: dayjs().isAfter(dayjs(evt.end.dateTime)) ? evt.end.dateTime : null, // Set completed_at if event is completed
+            recurrence: evt.recurrence || null, // Recurrence rule if available
+            created_at: evt.created || '', // Set to created date if available
+          };
+
+          // Push the formatted event to the array
+          formattedEvents.push(formattedEvent);
+        });
+
+        setGoogleCalendarEvents(formattedEvents);
+      } catch (err) {
+        console.error('Failed to fetch Google Calendar events:', err);
+      }
+    };
+
+    fetchGoogleCalendarEvents();
+
+    const intervalId = setInterval(async () => {
+      await fetchGoogleCalendarEvents(); // Periodic fetch
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(intervalId); // Clean up on unmount
+  }, [user]);
 
   const newMonthlyTodoArray = useMemo(() => {
     const categorizeTodos = (todos: Todo[]): MonthlyTodo[] => {
@@ -63,6 +138,15 @@ const CalendarPage = () => {
         }
       });
 
+      googleCalendarEvents.forEach(todo => {
+        const dueDate = dayjs(todo.due_date);
+        const key = dueDate.isValid() ? dueDate.format('YYYY-MM-DD') : 'No Due Date';
+        // Only add to the object if the date is within the expected range
+        if (key in todoSortedByDate) {
+          todoSortedByDate[key].push(todo);
+        }
+      });
+
       // Convert the object to a nested array format
       const newMonthlyTodoArray: MonthlyTodo[] = dateRange.map(date => ({
         dueDate: date,
@@ -73,7 +157,7 @@ const CalendarPage = () => {
     };
 
     return categorizeTodos(todos);
-  }, [todos]); // Recompute when todos or sections change
+  }, [googleCalendarEvents, todos]); // Recompute when todos or sections change
 
   useEffect(() => {
     setMonthlyTodoArray(newMonthlyTodoArray);
@@ -95,26 +179,32 @@ const CalendarPage = () => {
       todoSortedByDate[date] = [];
     });
 
-    // Populate the object with the grouped todos
-    todos.forEach(todo => {
-      const dueDate = dayjs(todo.due_date);
-      const key = dueDate.isValid() ? dueDate.format('YYYY-MM-DD') : 'No Due Date';
-      // Only add to the object if the date is within the expected range
-      if (key in todoSortedByDate) {
-        todoSortedByDate[key].push(todo);
-      }
-    });
+    // Populate the object with the grouped todos and googleCalendarEvents
+    const populateDateMap = (items: Todo[]) => {
+      items.forEach(item => {
+        const dueDate = dayjs(item.due_date);
+        const key = dueDate.isValid() ? dueDate.format('YYYY-MM-DD') : 'No Due Date';
+        if (key in todoSortedByDate) {
+          todoSortedByDate[key].push(item);
+        }
+      });
+    };
+
+    // Populate with todos and googleCalendarEvents
+    populateDateMap(todos);
+    populateDateMap(googleCalendarEvents);
 
     // Convert the array to a Record<string, Todo[]>
-    const monthlyTodoRecord: Record<string, Todo[]> = monthlyTodoArray.reduce(
-      (acc: Record<string, Todo[]>, item: MonthlyTodo) => {
-        acc[item.dueDate] = item.data;
+    const monthlyTodoRecord: Record<string, Todo[]> = dateRange.reduce(
+      (acc: Record<string, Todo[]>, date) => {
+        acc[date] = todoSortedByDate[date];
         return acc;
       },
-      {} as Record<string, Todo[]>, // Type the initial value to match the result type
+      {} as Record<string, Todo[]>,
     );
 
     const timelineTodoEvents: TimelineEventProps[] = todos
+      .concat(googleCalendarEvents)
       .filter(todo => todo.start_date && todo.due_date) // Filter todos with both start_date and due_date
       .map(todo => ({
         id: todo.id!,
@@ -126,6 +216,7 @@ const CalendarPage = () => {
       }));
 
     const weekTimelineEvents: ICustomCalendarEvent[] = todos
+      .concat(googleCalendarEvents)
       .filter(todo => todo.start_date && todo.due_date) // Filter todos with both start_date and due_date
       .map(todo => ({
         id: todo.id!,
@@ -134,15 +225,17 @@ const CalendarPage = () => {
         title: todo.title!,
         summary: todo.summary || '',
         color: colors.onPrimaryContainer,
+        type: todo.type || '',
+        reminder_option: todo.reminder_option || '',
+        notification_id: todo.notification_id || '',
       }));
 
     return {
-      monthlyTodoArray: monthlyTodoArray,
-      monthlyTodoRecord: monthlyTodoRecord,
-      timelineTodoEvents: timelineTodoEvents,
-      weekTimelineEvents: weekTimelineEvents,
+      monthlyTodoRecord,
+      timelineTodoEvents,
+      weekTimelineEvents,
     };
-  }, [colors, monthlyTodoArray, todos]); // Only re-compute when todos change
+  }, [colors.onPrimaryContainer, colors.onSurfaceDisabled, googleCalendarEvents, todos]); // Only re-compute when todos or googleCalendarEvents change
 
   const previousExpanded = useRef(expanded);
   const heightAnim = useSharedValue(expanded ? 80 : 0);
@@ -213,6 +306,10 @@ const CalendarPage = () => {
     async (timeline: ICustomCalendarEvent) => {
       console.log('handleTimeLineSubmitEditing', timeline);
 
+      if (timeline.type === 'google') {
+        console.log('Google Calendar event cannot be edited yet');
+        return;
+      }
       // Find existing todo by title
       const existingTodo = todos.find(todo => todo.id === timeline.id);
       if (!existingTodo) {
@@ -264,11 +361,31 @@ const CalendarPage = () => {
           // Create a new section
           const sectionResult = await addNewSection(newSection);
           if (!sectionResult || !sectionResult.id) {
+            console.warn('Section not created');
             return;
           }
 
           // Add the new section ID to the todo
           newTodo = {...newTodo, section_id: sectionResult.id};
+
+          const log: ActivityLog = {
+            id: '',
+            action_type: 'CREATE',
+            action_date: new Date().toISOString(),
+            section_id: sectionResult.id,
+            before_data: '',
+            after_data: JSON.stringify(sectionResult),
+            entity_type: 'section',
+            todo_id: '',
+            user_id: user!.id,
+          };
+
+          const newLog = await createActivityLog(log);
+
+          if (!newLog) {
+            console.warn('Activity log not created');
+            return;
+          }
         } else {
           // Add the existing section ID to the todo
           newTodo = {...newTodo, section_id: findSection.id};
@@ -292,18 +409,75 @@ const CalendarPage = () => {
           if (!updateResult) {
             return;
           }
+        }
+        const log: ActivityLog = {
+          id: '',
+          action_type: 'CREATE',
+          action_date: new Date().toISOString(),
+          section_id: null,
+          before_data: '',
+          after_data: JSON.stringify(todoResult),
+          entity_type: 'todo',
+          todo_id: todoResult.id,
+          user_id: user!.id,
+        };
+
+        const newLog = await createActivityLog(log);
+
+        if (!newLog) {
+          console.warn('Activity log not created');
+          return;
         } else {
+          console.log('Activity log created successfully');
         }
       } catch (error) {
         console.error('An error occurred while handling submit editing:', error);
       }
     },
-    [addNewSection, addNewTodo, scheduleTodoNotification, updateExistingTodos, sections, user],
+    [
+      sections,
+      addNewTodo,
+      user,
+      createActivityLog,
+      addNewSection,
+      scheduleTodoNotification,
+      updateExistingTodos,
+    ],
   );
 
   const renderCalendarComponent = useMemo(() => {
-    const deleteTodo = (id: string) => {
-      deleteExistingTodos(id);
+    const deleteTodo = async (item: Todo) => {
+      await deleteExistingTodos(item.id)
+        .then(async result => {
+          if (result) {
+            console.log('Todo deleted successfully');
+
+            const log: ActivityLog = {
+              id: '',
+              action_type: 'DELETED' as action_type,
+              action_date: new Date().toISOString(),
+              section_id: null,
+              before_data: JSON.stringify(item),
+              after_data: '',
+              entity_type: 'todo' as entity_type,
+              todo_id: item.id,
+              user_id: user!.id,
+            };
+
+            const newLog = await createActivityLog(log);
+
+            if (!newLog) {
+              console.warn('Activity log not created');
+            } else {
+              console.log('Activity log created successfully');
+            }
+          } else {
+            console.warn('Todo not deleted');
+          }
+        })
+        .catch(error => {
+          console.error('An error occurred while deleting todo:', error);
+        });
     };
 
     const toggleCompleteTodo = (id: string) => {
@@ -313,15 +487,73 @@ const CalendarPage = () => {
           ...todo,
           completed: todo.completed === 1 ? 0 : 1,
           completed_at: todo.completed === 1 ? null : new Date().toString(),
-        });
+        })
+          .then(result => {
+            if (result) {
+              console.log('Todo updated successfully');
+
+              const log = {
+                id: '',
+                action_type: 'UPDATED' as action_type,
+                action_date: new Date().toISOString(),
+                section_id: null,
+                before_data: JSON.stringify(todo),
+                after_data: JSON.stringify(result),
+                entity_type: 'todo' as entity_type,
+                todo_id: id,
+                user_id: user!.id,
+              };
+
+              createActivityLog(log)
+                .then(newLog => {
+                  if (!newLog) {
+                    console.warn('Activity log not created');
+                  } else {
+                    console.log('Activity log created successfully');
+                  }
+                })
+                .catch(error => {
+                  console.error('An error occurred while creating activity log:', error);
+                });
+            } else {
+              console.warn('Todo not updated');
+            }
+          })
+          .catch(error => {
+            console.error('An error occurred while updating todo:', error);
+          });
       }
     };
     const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
+      if (selectedTodo.type === 'google') {
+        console.log('Google Calendar event cannot be edited yet');
+        return;
+      }
       // Check if the todo has been updated using deep comparison
       if (!isEqual(updatedTodo, selectedTodo)) {
         const message = await updateTodoWithNotification(selectedTodo, updatedTodo);
 
-        console.log('handleEditModalDismiss:', message);
+        if (message.status === 'error') return Alert.alert('Error', message.message);
+
+        const log = {
+          id: '',
+          action_type: 'UPDATED' as action_type,
+          action_date: new Date().toISOString(),
+          section_id: null,
+          before_data: JSON.stringify(selectedTodo),
+          after_data: JSON.stringify(updatedTodo),
+          entity_type: 'todo' as entity_type,
+          todo_id: selectedTodo.id,
+          user_id: user!.id,
+        };
+
+        const newLog = await createActivityLog(log);
+
+        if (!newLog) {
+          console.warn('Activity log not created');
+        } else {
+          console.log('Activity log created successfully');
+        }
       }
     };
 
@@ -386,6 +618,8 @@ const CalendarPage = () => {
   }, [
     mode,
     deleteExistingTodos,
+    user,
+    createActivityLog,
     todos,
     updateExistingTodos,
     updateTodoWithNotification,
@@ -406,6 +640,7 @@ const CalendarPage = () => {
 
   const renderButton = (label: string, icon: string, modeCheck: Mode) => (
     <TouchableOpacity
+      testID={`mode-${modeCheck}`}
       key={modeCheck}
       onPress={() => changeMode(modeCheck)}
       style={[
@@ -434,6 +669,7 @@ const CalendarPage = () => {
         <Appbar.Header>
           <Appbar.Content title={dayjs(selectedDate).format('MMM YYYY')} />
           <Appbar.Action
+            testID="mode-menu"
             icon={
               mode === 'month'
                 ? 'calendar-month'

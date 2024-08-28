@@ -1,6 +1,15 @@
 import {Todo} from '@/powersync/AppSchema';
 
 /**
+ * Define the initial state for the todo slice.
+ */
+export interface TodoState {
+  todos: Todo[];
+  loading: boolean;
+  error: string | null;
+}
+
+/**
  * Defines the priority level of a task.
  * - Values: 1 (highest priority), 2, 3, 4 (lowest priority).
  */
