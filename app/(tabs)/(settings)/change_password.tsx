@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useEffect} from 'react';
+import React, {useState, useCallback} from 'react';
 import {View, StyleSheet} from 'react-native';
 import {Button, TextInput, Text, useTheme, Appbar, HelperText} from 'react-native-paper';
 import {router} from 'expo-router';

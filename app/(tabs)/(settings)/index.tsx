@@ -22,7 +22,6 @@ import {useSystem} from '@/powersync/system';
 import {router} from 'expo-router';
 import {saveSetting, SETTINGS} from '@/utils/settingUtils';
 import {Profile} from '@/powersync/AppSchema';
-import {set} from 'lodash';
 
 export type Theme = 'system' | 'dark' | 'light';
 

@@ -8,7 +8,6 @@ import dayjs from 'dayjs';
 import advancedFormat from 'dayjs/plugin/advancedFormat';
 import {BackHandler} from 'react-native';
 import {router} from 'expo-router';
-import {Easing} from 'react-native-reanimated';
 
 dayjs.extend(advancedFormat);
 

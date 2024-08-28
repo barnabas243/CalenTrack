@@ -1,6 +1,6 @@
 import {openBrowserAsync} from 'expo-web-browser';
-import React, {useEffect} from 'react';
-import {View, StyleSheet, ScrollView, Platform, Dimensions, BackHandler} from 'react-native';
+import React from 'react';
+import {View, StyleSheet, ScrollView, Platform, Dimensions} from 'react-native';
 import {Text, Button, useTheme, Appbar} from 'react-native-paper';
 import {Image} from 'expo-image';
 import {StatusBar} from 'expo-status-bar';
