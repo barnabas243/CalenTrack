@@ -263,7 +263,7 @@ export default function Register() {
           onPress={handleRegistration}
           style={styles.button}
           disabled={!isFormValid()}>
-          Register
+          Sign Up
         </Button>
       </View>
       <AlertSnackbar visible={isSnackbarVisible} message={message} onDismiss={closeSnackbar} />

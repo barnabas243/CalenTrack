@@ -78,23 +78,57 @@ export const powerSyncUpdateTodo = createAsyncThunk<
   }
 });
 
+export const powerSyncToggleTodoComplete = createAsyncThunk<
+  Todo[],
+  {todoIDs: string[]; completed: number; db: Kysely<any>},
+  {rejectValue: string}
+>('todos/powerSyncToggleTodoComplete', async ({todoIDs, completed, db}, {rejectWithValue}) => {
+  try {
+    const results = await db
+      .updateTable(TODO_TABLE)
+      .set({
+        completed: completed,
+        completed_at: completed === 1 ? new Date().toISOString() : null,
+      })
+      .where('id', 'in', todoIDs)
+      .returningAll()
+      .execute();
+
+    return results as Todo[];
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to update todo');
+  }
+});
+
 /**
- * Thunk to delete a todo by its ID from the database.
- * @param todoId - The ID of the todo to be deleted.
+ * Thunk to delete todos by their IDs from the database.
+ * @param todoIds - The IDs of the todos to be deleted.
  * @param db - The database instance to use for the deletion.
- * @returns A promise that resolves to the ID of the deleted todo.
+ * @returns A promise that resolves to an array of IDs of the deleted todos.
  */
 export const powerSyncDeleteTodo = createAsyncThunk<
-  string,
-  {todoId: string; db: Kysely<any>},
-  {rejectValue: string}
->('todos/powerSyncDeleteTodo', async ({todoId, db}, {rejectWithValue}) => {
+  string[], // The type of the return value (array of deleted todo IDs)
+  {todoIds: string[]; db: Kysely<any>}, // The type of the thunk argument
+  {rejectValue: string} // The type of the reject value
+>('todos/powerSyncDeleteTodo', async ({todoIds, db}, {rejectWithValue}) => {
   try {
-    const result = await db.deleteFrom(TODO_TABLE).where('id', '=', todoId).executeTakeFirst();
-    if (!result) throw new Error('Todo not found');
-    return todoId;
+    // Perform batch deletion
+    const results = await db
+      .deleteFrom(TODO_TABLE)
+      .where('id', 'in', todoIds)
+      .returning('id') // Return the IDs of the deleted todos
+      .execute();
+
+    // Check if results exist
+    if (!results.length) {
+      throw new Error('No todos found for the given IDs');
+    }
+
+    // Return the deleted todo IDs
+    return results.map(result => result.id); // Adjust according to the actual structure of results
   } catch (error) {
-    return rejectWithValue(error.message || 'Failed to delete todo');
+    // Handle errors and return a reject value
+    return rejectWithValue(error.message || 'Failed to delete todos');
   }
 });
 
@@ -171,14 +205,30 @@ const todoSlice = createSlice({
         state.loading = false;
         state.error = action.payload || 'Failed to update todos';
       })
+      .addCase(powerSyncToggleTodoComplete.pending, state => {
+        state.loading = true;
+        state.error = null; // Clear error on update
+      })
+      .addCase(powerSyncToggleTodoComplete.fulfilled, (state, action) => {
+        state.loading = false;
+        state.todos = state.todos.map(todo => action.payload.find(t => t.id === todo.id) || todo);
+      })
+      .addCase(powerSyncToggleTodoComplete.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Failed to update todos';
+      })
       .addCase(powerSyncDeleteTodo.pending, state => {
         state.loading = true;
         state.error = null; // Clear error on delete
       })
       .addCase(powerSyncDeleteTodo.fulfilled, (state, action) => {
         state.loading = false;
-        state.todos = state.todos.filter(todo => todo.id !== action.payload);
+        // Ensure action.payload is an array of deleted IDs
+        const deletedTodoIds = action.payload as string[];
+        // Filter out todos whose IDs are in the array of deleted IDs
+        state.todos = state.todos.filter(todo => !deletedTodoIds.includes(todo.id));
       })
+
       .addCase(powerSyncDeleteTodo.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || 'Failed to delete todos';
