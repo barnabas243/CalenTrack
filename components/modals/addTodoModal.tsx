@@ -348,11 +348,21 @@ const AddTodoModal = ({
     for (let i = startIndex; i < endIndex; i++) {
       highlightedElements[i] = null;
     }
-    highlightedElements[startIndex] = (
-      <Text key={`${shortcutType}-${startIndex}`} style={styles.mention}>
-        {word}
-      </Text>
-    );
+
+    if (shortcutType === 'priority') {
+      const color = getBorderColor(word.slice(1) as PriorityType);
+      highlightedElements[startIndex] = (
+        <Text key={`${shortcutType}-${startIndex}`} style={{backgroundColor: color || 'orange'}}>
+          {word}
+        </Text>
+      );
+    } else {
+      highlightedElements[startIndex] = (
+        <Text key={`${shortcutType}-${startIndex}`} style={styles.mention}>
+          {word}
+        </Text>
+      );
+    }
   };
 
   const isValidPriorityType = (value: string): value is PriorityType => {
@@ -370,12 +380,14 @@ const AddTodoModal = ({
   }
   const handleSubmitEditing = async () => {
     const start_date =
-      range?.startDate?.toString() ||
+      dayjs(range?.startDate).toISOString() ||
       dayjs(range?.startDate).startOf('day').add(1, 'second').toISOString() || // Corrected from `endDate` to `startDate`
       null;
 
     const due_date =
-      range?.endDate?.toString() || dayjs(range?.endDate).endOf('day').toISOString() || null;
+      dayjs(range?.endDate).toISOString() ||
+      dayjs(range?.endDate).endOf('day').toISOString() ||
+      null;
 
     const newTodo = {
       title: todoName.trim(),

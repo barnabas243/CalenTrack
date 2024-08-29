@@ -8,6 +8,7 @@ import {
   insertTodo,
   updateTodo,
   deleteTodo,
+  powerSyncToggleTodoComplete,
 } from '@/store/todo/slice';
 import {
   fetchSections,
@@ -128,9 +129,20 @@ export const useTodo = () => {
     }
   };
 
-  const deleteExistingTodos = async (id: string) => {
+  const toggleBatchCompleteTodo = async (todoIDs: string[], completed: number) => {
     try {
-      const resultAction = await dispatch(powerSyncDeleteTodo({todoId: id, db})).unwrap();
+      const resultAction = await dispatch(
+        powerSyncToggleTodoComplete({todoIDs, completed, db}),
+      ).unwrap();
+      return resultAction; // Return the result
+    } catch (error) {
+      console.error('Error updating todos:', error);
+      throw error; // Re-throw error for higher-level handling
+    }
+  };
+  const deleteExistingTodos = async (ids: string[]) => {
+    try {
+      const resultAction = await dispatch(powerSyncDeleteTodo({todoIds: ids, db})).unwrap();
       return resultAction; // Return the result
     } catch (error) {
       console.error('Error deleting todos:', error);
@@ -175,12 +187,15 @@ export const useTodo = () => {
   };
 
   //activity log actions
-  const createActivityLog = async (log: ActivityLog) => {
+  const createActivityLogs = async (logs: ActivityLog[]) => {
     try {
-      const uuid = await supabaseConnector.generateUUID();
-
-      const updatedLog = {...log, id: uuid};
-      const resultAction = await dispatch(insertActivityLog({log: updatedLog, db})).unwrap();
+      const updatedLogs = await Promise.all(
+        logs.map(async log => {
+          const uuid = await supabaseConnector.generateUUID();
+          return {...log, id: uuid};
+        }),
+      );
+      const resultAction = await dispatch(insertActivityLog({logs: updatedLogs, db})).unwrap();
       return resultAction; // Return the result
     } catch (error) {
       console.error(error);
@@ -204,11 +219,12 @@ export const useTodo = () => {
     activityLogs,
     addNewTodo,
     updateExistingTodos,
+    toggleBatchCompleteTodo,
     deleteExistingTodos,
     addNewSection,
     updateExistingSection,
     deleteExistingSection,
-    createActivityLog,
+    createActivityLogs,
     removeActivityLog,
   };
 };

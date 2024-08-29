@@ -41,7 +41,6 @@
     ]
   },
   "dependencies": {
-    "@10play/tentap-editor": "^0.5.16",
     "@azure/core-asynciterator-polyfill": "^1.0.2",
     "@babel/plugin-transform-async-generator-functions": "^7.25.0",
     "@expo/vector-icons": "^14.0.2",

@@ -20,10 +20,8 @@ import {useAuth} from '@/hooks/useAuth';
 import {AuthError} from '@supabase/supabase-js';
 import {useSystem} from '@/powersync/system';
 import {router} from 'expo-router';
-import {saveSetting, SETTINGS} from '@/utils/settingUtils';
+import {ColorScheme, getSetting, saveSetting, SETTINGS, Theme} from '@/utils/settingUtils';
 import {Profile} from '@/powersync/AppSchema';
-
-export type Theme = 'system' | 'dark' | 'light';
 
 const iconMapping: Record<string, string> = {
   theme: 'theme-light-dark',
@@ -50,9 +48,13 @@ export default function SettingsPage() {
   const {colors} = useTheme();
 
   let colorScheme = Appearance.getColorScheme();
-  const [theme, setTheme] = useState<Theme>(
-    colorScheme === null ? 'system' : (colorScheme as Theme),
+
+  const [userColorScheme, setUserColorScheme] = useState<ColorScheme>(
+    colorScheme === null ? 'system' : (colorScheme as ColorScheme),
   );
+
+  const [theme, setTheme] = useState<Theme>();
+
   const [visible, setVisible] = useState(false);
 
   const {supabaseConnector, powersync} = useSystem();
@@ -79,15 +81,35 @@ export default function SettingsPage() {
       }
     }
 
+    const loadColorScheme = async () => {
+      const savedTheme = await getSetting(SETTINGS.THEME);
+
+      if (savedTheme) {
+        setTheme(savedTheme as Theme);
+      }
+    };
+
+    loadColorScheme();
     fetchProfile();
   }, [supabaseConnector, user]);
+
+  const handleColorSchemeChange = useCallback(async (value: string) => {
+    setIsLoading(true);
+    setUserColorScheme(value as ColorScheme);
+
+    await saveSetting(SETTINGS.COLOR_SCHEME, value);
+    Appearance.setColorScheme(value === 'system' ? null : (value as ColorSchemeName));
+
+    setIsLoading(false);
+  }, []);
 
   const handleThemeChange = useCallback(async (value: string) => {
     setIsLoading(true);
     setTheme(value as Theme);
 
+    console.log('value', value);
+
     await saveSetting(SETTINGS.THEME, value);
-    Appearance.setColorScheme(value === 'system' ? null : (value as ColorSchemeName));
 
     setIsLoading(false);
   }, []);
@@ -231,11 +253,21 @@ export default function SettingsPage() {
           onDismiss={hideModal}
           contentContainerStyle={[styles.modalContainer, {backgroundColor: colors.background}]}>
           <Text style={styles.modalTitle}>Select Theme</Text>
-          <RadioButton.Group onValueChange={handleThemeChange} value={theme}>
+          <RadioButton.Group onValueChange={handleColorSchemeChange} value={userColorScheme}>
             <RadioButton.Item label="System Default" value="system" />
             <RadioButton.Item label="Dark" value="dark" />
             <RadioButton.Item label="Light" value="light" />
           </RadioButton.Group>
+          <Divider />
+          <RadioButton.Group onValueChange={handleThemeChange} value={theme as Theme}>
+            <RadioButton.Item label="Default" value="default" />
+            <RadioButton.Item label="Yellow" value="yellow" />
+            <RadioButton.Item label="Blue" value="blue" />
+            <RadioButton.Item label="Green" value="green" />
+            <RadioButton.Item label="Brown" value="brown" />
+            <RadioButton.Item label="Pink" value="pink" />
+          </RadioButton.Group>
+
           <Button onPress={hideModal} style={styles.modalButton}>
             Close
           </Button>

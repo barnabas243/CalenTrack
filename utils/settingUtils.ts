@@ -35,7 +35,8 @@ export interface SortType {
   direction: SortDirectionType;
 }
 
-export type Theme = 'system' | 'dark' | 'light';
+export type ColorScheme = 'system' | 'dark' | 'light';
+export type Theme = 'default' | 'yellow' | 'blue' | 'green' | 'brown';
 
 // Key for storing all settings
 const SETTINGS_KEY = '@app_settings';
@@ -105,6 +106,7 @@ export const SETTINGS = {
   SORT_BY: 'sortBy',
   SORT_DIRECTION: 'sortDirection',
   HIDE_COMPLETED: 'hideCompleted',
+  COLOR_SCHEME: 'colorScheme',
 };
 
 /**

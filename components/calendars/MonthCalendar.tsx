@@ -13,7 +13,6 @@ import {SwipeableItemImperativeRef} from 'react-native-swipeable-item';
 import EditTodoModal from '../modals/EditTodoModal';
 import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import EditTodoModalContent from '../modals/EditTodoModalContent';
-import {isEqual} from 'lodash';
 import AddTodoModal from '../modals/addTodoModal';
 import AddTodoFAB from '../addTodoFAB';
 import DraggableItemPlaceholder from '../DraggableItemPlaceholder';
@@ -36,6 +35,7 @@ interface MonthCalendarProps {
   sections: Section[];
   onDismiss: (selectedTodo: Todo, updatedTodo: Todo) => void;
   onSubmitEditing: (todo: Todo) => void;
+  getSubItems: (id: string) => Todo[];
 }
 
 interface MonthCalendarState {
@@ -44,6 +44,7 @@ interface MonthCalendarState {
   isAddTodoModalVisible: boolean;
   isDarkMode: boolean;
   parentId: string;
+  isFABVisible: boolean;
 }
 
 class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState> {
@@ -59,6 +60,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
       isAddTodoModalVisible: false,
       isDarkMode: Appearance.getColorScheme() === 'dark',
       parentId: '',
+      isFABVisible: true,
     };
     this.todoItemRefs = {
       current: new Map<string, SwipeableItemImperativeRef>(),
@@ -96,7 +98,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
               const endDate = dayjs.tz(todo.due_date);
               const color = todo.section_id
                 ? await getColorForSection(todo.section_id, this.state.isDarkMode)
-                : '';
+                : 'blue';
 
               let currentDate = startDate;
 
@@ -168,67 +170,49 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
     this.editBottomSheetRef.current?.dismiss();
     this.props.deleteTodo(item);
   };
+
   openEditBottomSheet = async (item: Todo) => {
     if (this.editBottomSheetRef.current) {
-      const waitForClose = () =>
-        new Promise<void>(resolve => {
-          // Using requestAnimationFrame to defer the resolution
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              resolve();
-            });
-          });
-        });
-      try {
-        // Close the bottom sheet
-        this.editBottomSheetRef.current.close();
+      await new Promise(resolve => {
+        this.editBottomSheetRef.current?.close();
+        // Resolve after a short delay to ensure it closes properly
+        setTimeout(resolve, 300); // Adjust the delay if needed
+      });
 
-        // Wait for the bottom sheet to fully close
-        await waitForClose();
+      const subItems: Todo[] = this.props.monthlyTodoArray.reduce((acc: Todo[], todo) => {
+        const filteredSubItems = todo.data.filter(subItem => subItem.parent_id === item.id);
+        return acc.concat(filteredSubItems);
+      }, []);
 
-        const subItems: Todo[] = this.props.monthlyTodoArray.reduce((acc: Todo[], todo) => {
-          const filteredSubItems = todo.data.filter(subItem => subItem.parent_id === item.id);
-          return acc.concat(filteredSubItems);
-        }, []);
+      const subItemsCount = subItems.length;
 
-        const subItemsCount = subItems.length;
+      // Prepare the new item to show
+      const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
 
-        // Prepare the new item to show
-        const itemToPresent = subItemsCount > 0 ? {...item, subItems} : item;
+      this.editBottomSheetRef.current.present(itemToPresent);
 
-        this.editBottomSheetRef.current.present(itemToPresent);
-      } catch (error) {
-        console.error('Error handling bottom sheet:', error);
-      }
+      this.setState({isFABVisible: false});
     }
   };
 
-  handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
-    this.editBottomSheetRef.current?.dismiss();
+  renderTodoItem = (params: RenderItemParams<Todo>) => {
+    const subItems = this.props.getSubItems(params.item.id);
 
-    if (selectedTodo.type === 'google') {
-      console.warn('Google Calendar event cannot be edited yet');
-      return;
-    }
-    // Check if the todo has been updated using deep comparison
-    if (!isEqual(updatedTodo, selectedTodo)) {
-      this.props.updateExistingTodos(updatedTodo);
-    }
+    return (
+      <ScaleDecorator>
+        <ToDoItem
+          {...params}
+          subItems={subItems}
+          onToggleComplete={this.props.toggleCompleteTodo}
+          openEditBottomSheet={this.openEditBottomSheet}
+          deleteTodo={this.handleDeleteTodo}
+          sections={this.props.sections}
+          colors={this.props.colors}
+          itemRefs={this.todoItemRefs}
+        />
+      </ScaleDecorator>
+    );
   };
-
-  renderTodoItem = (params: RenderItemParams<Todo>) => (
-    <ScaleDecorator>
-      <ToDoItem
-        {...params}
-        onToggleComplete={this.props.toggleCompleteTodo}
-        openEditBottomSheet={this.openEditBottomSheet}
-        deleteTodo={this.handleDeleteTodo}
-        sections={this.props.sections}
-        colors={this.props.colors}
-        itemRefs={this.todoItemRefs}
-      />
-    </ScaleDecorator>
-  );
 
   showAddTodoModal = () => {
     this.setState({isAddTodoModalVisible: true});

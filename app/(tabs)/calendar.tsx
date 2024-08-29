@@ -18,6 +18,7 @@ import {action_type, ActivityLog, entity_type, Todo} from '@/powersync/AppSchema
 import {useNotification} from '@/contexts/NotificationContext';
 import {Host} from 'react-native-portalize';
 import {getGoogleCalendarEvents} from '@/utils/calendarEvents';
+import AlertSnackbar from '@/components/AlertSnackbar';
 
 export type Mode = 'month' | 'day' | 'week' | 'agenda';
 
@@ -42,7 +43,8 @@ const CalendarPage = () => {
     updateExistingTodos,
     addNewSection,
     addNewTodo,
-    createActivityLog,
+    createActivityLogs,
+    toggleBatchCompleteTodo,
   } = useTodo();
 
   const {user} = useAuth();
@@ -57,6 +59,18 @@ const CalendarPage = () => {
 
   const [googleCalendarEvents, setGoogleCalendarEvents] = useState<Todo[]>([]);
 
+  const [isAlertSnackbarVisible, setIsAlertSnackbarVisible] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  // Callbacks
+  const showAlertSnackbar = (message: string) => {
+    setAlertMessage(message);
+    setIsAlertSnackbarVisible(true);
+  };
+
+  const hideAlertSnackbar = () => {
+    setAlertMessage('');
+    setIsAlertSnackbarVisible(false);
+  };
   useEffect(() => {
     if (!user) return;
 
@@ -380,7 +394,7 @@ const CalendarPage = () => {
             user_id: user!.id,
           };
 
-          const newLog = await createActivityLog(log);
+          const newLog = await createActivityLogs([log]);
 
           if (!newLog) {
             console.warn('Activity log not created');
@@ -422,7 +436,7 @@ const CalendarPage = () => {
           user_id: user!.id,
         };
 
-        const newLog = await createActivityLog(log);
+        const newLog = await createActivityLogs([log]);
 
         if (!newLog) {
           console.warn('Activity log not created');
@@ -438,104 +452,158 @@ const CalendarPage = () => {
       sections,
       addNewTodo,
       user,
-      createActivityLog,
+      createActivityLogs,
       addNewSection,
       scheduleTodoNotification,
       updateExistingTodos,
     ],
   );
+  const getSubItems = useCallback(
+    (itemId: string) => todos.filter(todo => todo.parent_id === itemId),
+    [todos],
+  );
 
   const renderCalendarComponent = useMemo(() => {
     const deleteTodo = async (item: Todo) => {
-      await deleteExistingTodos(item.id)
-        .then(async result => {
-          if (result) {
-            console.log('Todo deleted successfully');
+      // Recursive function to find all nested sub-items
+      const findAllSubTodos = (parentId: string): Todo[] => {
+        const directSubTodos = todos.filter(subTodo => subTodo.parent_id === parentId);
+        return directSubTodos.flatMap(subTodo => [subTodo, ...findAllSubTodos(subTodo.id)]);
+      };
 
-            const log: ActivityLog = {
-              id: '',
-              action_type: 'DELETED' as action_type,
-              action_date: new Date().toISOString(),
-              section_id: null,
-              before_data: JSON.stringify(item),
-              after_data: '',
-              entity_type: 'todo' as entity_type,
-              todo_id: item.id,
-              user_id: user!.id,
-            };
+      // Get all sub-items, including the current item
+      const allTodos = [item, ...findAllSubTodos(item.id)];
 
-            const newLog = await createActivityLog(log);
+      // Extract IDs of all todos to be deleted
+      const allTodosIDs = allTodos.map(todo => todo.id);
 
-            if (!newLog) {
-              console.warn('Activity log not created');
-            } else {
-              console.log('Activity log created successfully');
-            }
-          } else {
-            console.warn('Todo not deleted');
-          }
-        })
-        .catch(error => {
-          console.error('An error occurred while deleting todo:', error);
+      try {
+        // Perform batch delete
+        const deleteResults = await deleteExistingTodos(allTodosIDs);
+
+        if (!deleteResults) {
+          throw new Error('Failed to delete todos');
+        }
+
+        showAlertSnackbar('Todos deleted successfully');
+        console.log('Creating activity logs for deleted todos...');
+
+        // Create activity logs for each deleted todo
+        const logs = allTodos.map(todo => {
+          const log: ActivityLog = {
+            id: '',
+            action_type: 'DELETED' as action_type,
+            action_date: new Date().toISOString(),
+            section_id: null,
+            before_data: JSON.stringify(todo),
+            after_data: '',
+            entity_type: 'todo' as entity_type,
+            todo_id: todo.id,
+            user_id: user!.id,
+          };
+          return log;
         });
-    };
 
-    const toggleCompleteTodo = (id: string) => {
-      const todo = todos.find(todo => todo.id === id);
-      if (todo) {
-        updateExistingTodos({
-          ...todo,
-          completed: todo.completed === 1 ? 0 : 1,
-          completed_at: todo.completed === 1 ? null : new Date().toString(),
-        })
-          .then(result => {
-            if (result) {
-              console.log('Todo updated successfully');
+        // Insert activity logs
+        const insertedLogIds = await createActivityLogs(logs);
 
-              const log = {
-                id: '',
-                action_type: 'UPDATED' as action_type,
-                action_date: new Date().toISOString(),
-                section_id: null,
-                before_data: JSON.stringify(todo),
-                after_data: JSON.stringify(result),
-                entity_type: 'todo' as entity_type,
-                todo_id: id,
-                user_id: user!.id,
-              };
-
-              createActivityLog(log)
-                .then(newLog => {
-                  if (!newLog) {
-                    console.warn('Activity log not created');
-                  } else {
-                    console.log('Activity log created successfully');
-                  }
-                })
-                .catch(error => {
-                  console.error('An error occurred while creating activity log:', error);
-                });
-            } else {
-              console.warn('Todo not updated');
-            }
-          })
-          .catch(error => {
-            console.error('An error occurred while updating todo:', error);
-          });
+        if (!insertedLogIds) {
+          showAlertSnackbar('Failed to insert activity logs');
+        } else {
+          showAlertSnackbar('Activity logs created successfully');
+        }
+      } catch (error) {
+        showAlertSnackbar(`Failed to delete todos: ${error.message}`);
       }
     };
-    const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
-      if (selectedTodo.type === 'google') {
-        console.log('Google Calendar event cannot be edited yet');
+
+    const toggleCompleteTodo = async (id: string) => {
+      // Find the current todo
+      const todo = todos.find(todo => todo.id === id);
+
+      if (!todo) {
+        showAlertSnackbar('Todo not found');
         return;
       }
+
+      // Recursive function to find all nested sub-items
+      const findAllSubTodos = (parentId: string): Todo[] => {
+        const directSubTodos = todos.filter(subTodo => subTodo.parent_id === parentId);
+        return directSubTodos.flatMap(subTodo => [subTodo, ...findAllSubTodos(subTodo.id)]);
+      };
+
+      // Get all sub-items, including the current todo
+      const allTodos = [todo, ...findAllSubTodos(id)];
+
+      // Filter todos that match the completed value
+      const filterTodosByCompletion = (todos: Todo[], completed: number): Todo[] =>
+        todos.filter(todo => todo.completed === completed);
+
+      // Filter todos by completion status
+      const filteredTodos = filterTodosByCompletion(allTodos, todo.completed as number);
+
+      // Extract unique IDs
+      const allTodosIDs = Array.from(new Set(filteredTodos.map(todo => todo.id)));
+
+      // Perform batch update
+      const newTodos = await toggleBatchCompleteTodo(allTodosIDs, todo.completed === 0 ? 1 : 0);
+
+      if (!newTodos) {
+        showAlertSnackbar('Failed to update todos');
+        return;
+      }
+
+      showAlertSnackbar('Todos updated successfully');
+      console.log('Creating activity logs for todos...');
+
+      // Create logs for each todo
+      const logs = filteredTodos
+        .map(todo => {
+          const oldTodo = allTodos.find(t => t.id === todo.id);
+          const newTodo = newTodos.find(t => t.id === todo.id);
+
+          if (!oldTodo || !newTodo) {
+            console.error(`Failed to find old or new todo for ID ${todo.id}`);
+            return null;
+          }
+
+          return {
+            id: '',
+            action_type: 'UPDATED' as action_type,
+            action_date: new Date().toISOString(),
+            section_id: null,
+            before_data: JSON.stringify(oldTodo),
+            after_data: JSON.stringify(newTodo),
+            entity_type: 'todo' as entity_type,
+            todo_id: todo.id,
+            user_id: user!.id,
+          };
+        })
+        .filter(log => log !== null) as ActivityLog[];
+
+      // Insert activity logs
+      const insertedLogIds = await createActivityLogs(logs);
+
+      if (!insertedLogIds) {
+        showAlertSnackbar('Failed to insert activity logs');
+      } else {
+        showAlertSnackbar('Activity logs created successfully');
+      }
+    };
+
+    const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
       // Check if the todo has been updated using deep comparison
       if (!isEqual(updatedTodo, selectedTodo)) {
+        if (selectedTodo.completed !== updatedTodo.completed) {
+          selectedTodo = {...selectedTodo, completed: updatedTodo.completed};
+          await toggleCompleteTodo(updatedTodo.id);
+        }
         const message = await updateTodoWithNotification(selectedTodo, updatedTodo);
+        showAlertSnackbar(message.message);
 
-        if (message.status === 'error') return Alert.alert('Error', message.message);
+        if (message.status === 'error') return;
 
-        const log = {
+        const log: ActivityLog = {
           id: '',
           action_type: 'UPDATED' as action_type,
           action_date: new Date().toISOString(),
@@ -543,16 +611,16 @@ const CalendarPage = () => {
           before_data: JSON.stringify(selectedTodo),
           after_data: JSON.stringify(updatedTodo),
           entity_type: 'todo' as entity_type,
-          todo_id: selectedTodo.id,
+          todo_id: updatedTodo.id,
           user_id: user!.id,
         };
 
-        const newLog = await createActivityLog(log);
+        const newLog = await createActivityLogs([log]);
 
         if (!newLog) {
-          console.warn('Activity log not created');
+          showAlertSnackbar('Failed to create todo activity log');
         } else {
-          console.log('Activity log created successfully');
+          showAlertSnackbar('Activity log created successfully');
         }
       }
     };
@@ -612,6 +680,7 @@ const CalendarPage = () => {
             sections={sections}
             onDismiss={handleEditModalDismiss}
             onSubmitEditing={handleSubmitEditing}
+            getSubItems={getSubItems}
           />
         );
     }
@@ -619,9 +688,9 @@ const CalendarPage = () => {
     mode,
     deleteExistingTodos,
     user,
-    createActivityLog,
+    createActivityLogs,
     todos,
-    updateExistingTodos,
+    toggleBatchCompleteTodo,
     updateTodoWithNotification,
     timelineTodoEvents,
     selectedDate,
@@ -632,8 +701,10 @@ const CalendarPage = () => {
     weekTimelineEvents,
     handleWeekCalendarSubmitEditing,
     monthlyTodoRecord,
+    updateExistingTodos,
     monthlyTodoArray,
     handleEndDrag,
+    getSubItems,
   ]);
 
   const onMenuPress = useCallback(() => setExpanded(prev => !prev), []);
@@ -694,6 +765,11 @@ const CalendarPage = () => {
           </View>
         </Animated.View>
         {renderCalendarComponent}
+        <AlertSnackbar
+          visible={isAlertSnackbarVisible}
+          message={alertMessage}
+          onDismiss={hideAlertSnackbar}
+        />
       </View>
     </Host>
   );

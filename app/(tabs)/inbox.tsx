@@ -56,7 +56,8 @@ const InboxScreen = () => {
     deleteExistingSection,
     updateExistingTodos,
     deleteExistingTodos,
-    createActivityLog,
+    createActivityLogs,
+    toggleBatchCompleteTodo,
   } = useTodo();
 
   const [isLayoutReady, setLayoutReady] = useState(false);
@@ -185,14 +186,14 @@ const InboxScreen = () => {
       user_id: user!.id,
     };
 
-    const newLog = await createActivityLog(log);
+    const newLog = await createActivityLogs([log]);
 
     if (!newLog) {
       showAlertSnackbar('Failed to create section activity log');
     } else {
       showAlertSnackbar('Activity log created successfully');
     }
-  }, [newSectionName, addNewSection, user, createActivityLog]);
+  }, [newSectionName, addNewSection, user, createActivityLogs]);
 
   const handlePress = useCallback(
     (sectionId: string) => {
@@ -241,7 +242,7 @@ const InboxScreen = () => {
         user_id: user!.id,
       };
 
-      const newLog = await createActivityLog(log);
+      const newLog = await createActivityLogs([log]);
 
       if (!newLog) {
         showAlertSnackbar('Failed to create section activity log');
@@ -251,7 +252,7 @@ const InboxScreen = () => {
     } catch {
       showAlertSnackbar('Failed to delete section');
     }
-  }, [selectedSection, deleteExistingSection, user, createActivityLog]);
+  }, [selectedSection, deleteExistingSection, user, createActivityLogs]);
 
   const displayDeleteSectionAlert = useCallback(() => {
     Alert.alert('Delete Section', 'Are you sure you want to delete this section?', [
@@ -291,7 +292,7 @@ const InboxScreen = () => {
           user_id: user!.id,
         };
 
-        const newLog = await createActivityLog(log);
+        const newLog = await createActivityLogs([log]);
 
         if (!newLog) {
           showAlertSnackbar('Failed to create section activity log');
@@ -302,7 +303,7 @@ const InboxScreen = () => {
     } catch {
       showAlertSnackbar('Failed to update section');
     }
-  }, [selectedSection, newSectionName, updateExistingSection, user, createActivityLog]);
+  }, [selectedSection, newSectionName, updateExistingSection, user, createActivityLogs]);
 
   const isSectionNameInvalid =
     !newSectionName ||
@@ -372,7 +373,7 @@ const InboxScreen = () => {
           user_id: user!.id,
         };
 
-        const newLog = await createActivityLog(log);
+        const newLog = await createActivityLogs([log]);
 
         if (!newLog) {
           showAlertSnackbar('Failed to create section activity log');
@@ -423,7 +424,7 @@ const InboxScreen = () => {
         user_id: user!.id,
       };
 
-      const newLog = await createActivityLog(log);
+      const newLog = await createActivityLogs([log]);
 
       if (!newLog) {
         showAlertSnackbar('Failed to create section activity log');
@@ -453,39 +454,76 @@ const InboxScreen = () => {
   };
 
   const toggleCompleteTodo = async (id: string) => {
+    // Find the current todo
     const todo = todos.find(todo => todo.id === id);
-    if (todo) {
-      updateExistingTodos({
-        ...todo,
-        completed: todo.completed === 1 ? 0 : 1,
-        completed_at: todo.completed === 1 ? null : new Date().toISOString(),
+
+    if (!todo) {
+      showAlertSnackbar('Todo not found');
+      return;
+    }
+
+    // Recursive function to find all nested sub-items
+    const findAllSubTodos = (parentId: string): Todo[] => {
+      const directSubTodos = todos.filter(subTodo => subTodo.parent_id === parentId);
+      return directSubTodos.flatMap(subTodo => [subTodo, ...findAllSubTodos(subTodo.id)]);
+    };
+
+    // Get all sub-items, including the current todo
+    const allTodos = [todo, ...findAllSubTodos(id)];
+
+    // Filter todos that match the completed value
+    const filterTodosByCompletion = (todos: Todo[], completed: number): Todo[] =>
+      todos.filter(todo => todo.completed === completed);
+
+    // Filter todos by completion status
+    const filteredTodos = filterTodosByCompletion(allTodos, todo.completed as number);
+
+    // Extract unique IDs
+    const allTodosIDs = Array.from(new Set(filteredTodos.map(todo => todo.id)));
+
+    // Perform batch update
+    const newTodos = await toggleBatchCompleteTodo(allTodosIDs, todo.completed === 0 ? 1 : 0);
+
+    if (!newTodos) {
+      showAlertSnackbar('Failed to update todos');
+      return;
+    }
+
+    showAlertSnackbar('Todos updated successfully');
+    console.log('Creating activity logs for todos...');
+
+    // Create logs for each todo
+    const logs = filteredTodos
+      .map(todo => {
+        const oldTodo = allTodos.find(t => t.id === todo.id);
+        const newTodo = newTodos.find(t => t.id === todo.id);
+
+        if (!oldTodo || !newTodo) {
+          console.error(`Failed to find old or new todo for ID ${todo.id}`);
+          return null;
+        }
+
+        return {
+          id: '',
+          action_type: 'UPDATED' as action_type,
+          action_date: new Date().toISOString(),
+          section_id: null,
+          before_data: JSON.stringify(oldTodo),
+          after_data: JSON.stringify(newTodo),
+          entity_type: 'todo' as entity_type,
+          todo_id: todo.id,
+          user_id: user!.id,
+        };
       })
-        .then(result => {
-          if (result) showAlertSnackbar('Todo updated successfully');
+      .filter(log => log !== null) as ActivityLog[];
 
-          const log: ActivityLog = {
-            id: '',
-            action_type: 'UPDATED' as action_type,
-            action_date: new Date().toISOString(),
-            section_id: null,
-            before_data: JSON.stringify(todo),
-            after_data: JSON.stringify(result),
-            entity_type: 'todo' as entity_type,
-            todo_id: todo.id,
-            user_id: user!.id,
-          };
+    // Insert activity logs
+    const insertedLogIds = await createActivityLogs(logs);
 
-          const newLog = createActivityLog(log);
-
-          if (!newLog) {
-            showAlertSnackbar('Failed to create todo activity log');
-          } else {
-            showAlertSnackbar('Activity log created successfully');
-          }
-        })
-        .catch(error => {
-          showAlertSnackbar(`Failed to update todo: ${error.message}`);
-        });
+    if (!insertedLogIds) {
+      showAlertSnackbar('Failed to insert activity logs');
+    } else {
+      showAlertSnackbar('Activity logs created successfully');
     }
   };
 
@@ -517,33 +555,56 @@ const InboxScreen = () => {
   };
 
   const deleteTodo = async (item: Todo) => {
-    await deleteExistingTodos(item.id)
-      .then(async result => {
-        if (result) showAlertSnackbar('Todo deleted successfully');
+    // Recursive function to find all nested sub-items
+    const findAllSubTodos = (parentId: string): Todo[] => {
+      const directSubTodos = todos.filter(subTodo => subTodo.parent_id === parentId);
+      return directSubTodos.flatMap(subTodo => [subTodo, ...findAllSubTodos(subTodo.id)]);
+    };
 
+    // Get all sub-items, including the current item
+    const allTodos = [item, ...findAllSubTodos(item.id)];
+
+    // Extract IDs of all todos to be deleted
+    const allTodosIDs = allTodos.map(todo => todo.id);
+
+    try {
+      // Perform batch delete
+      const deleteResults = await deleteExistingTodos(allTodosIDs);
+
+      if (!deleteResults) {
+        throw new Error('Failed to delete todos');
+      }
+
+      showAlertSnackbar('Todos deleted successfully');
+      console.log('Creating activity logs for deleted todos...');
+
+      // Create activity logs for each deleted todo
+      const logs = allTodos.map(todo => {
         const log: ActivityLog = {
           id: '',
           action_type: 'DELETED' as action_type,
           action_date: new Date().toISOString(),
           section_id: null,
-          before_data: JSON.stringify(item),
+          before_data: JSON.stringify(todo),
           after_data: '',
           entity_type: 'todo' as entity_type,
-          todo_id: item.id,
+          todo_id: todo.id,
           user_id: user!.id,
         };
-
-        const newLog = await createActivityLog(log);
-
-        if (!newLog) {
-          showAlertSnackbar('Failed to create todo activity log');
-        } else {
-          showAlertSnackbar('Activity log created successfully');
-        }
-      })
-      .catch(error => {
-        showAlertSnackbar(`Failed to delete todo: ${error.message}`);
+        return log;
       });
+
+      // Insert activity logs
+      const insertedLogIds = await createActivityLogs(logs);
+
+      if (!insertedLogIds) {
+        showAlertSnackbar('Failed to insert activity logs');
+      } else {
+        showAlertSnackbar('Activity logs created successfully');
+      }
+    } catch (error) {
+      showAlertSnackbar(`Failed to delete todos: ${error.message}`);
+    }
   };
 
   const getSubItems = useCallback(
@@ -571,12 +632,39 @@ const InboxScreen = () => {
 
   const handleEditModalDismiss = async (selectedTodo: Todo, updatedTodo: Todo) => {
     editBottomSheetRef.current?.close();
+
     // Check if the todo has been updated using deep comparison
     if (!isEqual(updatedTodo, selectedTodo)) {
+      if (selectedTodo.completed !== updatedTodo.completed) {
+        selectedTodo = {...selectedTodo, completed: updatedTodo.completed};
+        await toggleCompleteTodo(updatedTodo.id);
+      }
       const message = await updateTodoWithNotification(selectedTodo, updatedTodo);
-
       showAlertSnackbar(message.message);
+
+      if (message.status === 'error') return;
+
+      const log: ActivityLog = {
+        id: '',
+        action_type: 'UPDATED' as action_type,
+        action_date: new Date().toISOString(),
+        section_id: null,
+        before_data: JSON.stringify(selectedTodo),
+        after_data: JSON.stringify(updatedTodo),
+        entity_type: 'todo' as entity_type,
+        todo_id: updatedTodo.id,
+        user_id: user!.id,
+      };
+
+      const newLog = await createActivityLogs([log]);
+
+      if (!newLog) {
+        showAlertSnackbar('Failed to create todo activity log');
+      } else {
+        showAlertSnackbar('Activity log created successfully');
+      }
     }
+
     setShowFAB(true);
   };
 

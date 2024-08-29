@@ -31,17 +31,16 @@ export const fetchActivityLogs = createAsyncThunk<
 
 // Insert a new activity log
 export const insertActivityLog = createAsyncThunk<
-  ActivityLog,
-  {log: ActivityLog; db: Kysely<any>},
+  string[],
+  {logs: ActivityLog[]; db: Kysely<any>},
   {rejectValue: string}
->('activityLogs/insertActivityLog', async ({log, db}, {rejectWithValue}) => {
+>('activityLogs/insertActivityLog', async ({logs, db}, {rejectWithValue}) => {
   try {
-    const result = await db
-      .insertInto(ACTIVITY_LOG_TABLE)
-      .values(log)
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    return result as ActivityLog;
+    const result = await db.insertInto(ACTIVITY_LOG_TABLE).values(logs).returning('id').execute();
+
+    // Extract and return the array of IDs
+    const ids = result.map(row => row.id as string);
+    return ids as string[];
   } catch (error) {
     return rejectWithValue(error.message || 'Failed to insert activity log');
   }
