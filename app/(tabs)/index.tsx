@@ -573,8 +573,8 @@ const TodayScreen = () => {
         onPress={handleSectionHeaderPress(title)}
         disabled={length === 0}
         style={[styles.sectionHeaderContainer, {backgroundColor: colors.background, zIndex: -1}]}>
-        <Text style={styles.sectionHeader}>{title}</Text>
-        <View style={styles.sectionHeaderContainer}>
+        <Text variant="titleMedium">{title}</Text>
+        <View style={styles.chevronTodo}>
           <Text>{length}</Text>
           <MaterialCommunityIcons
             name={isVisible ? 'chevron-down' : 'chevron-right'}
@@ -1029,12 +1029,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingTop: 10,
+    paddingBottom: 4,
+    paddingHorizontal: 10,
   },
-  sectionHeader: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  chevronTodo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
+
   item: {
     backgroundColor: '#f9c2ff',
     padding: 20,

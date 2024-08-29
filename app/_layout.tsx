@@ -94,7 +94,6 @@ export default function RootLayout() {
 
   useEffect(() => {
     const handleAppearanceChange = ({colorScheme}: {colorScheme: ColorSchemeName}) => {
-      console.log('Appearance changed:', colorScheme);
       setTheme(() => getTheme(savedTheme, colorScheme));
     };
 

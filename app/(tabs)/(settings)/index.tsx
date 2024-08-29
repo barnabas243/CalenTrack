@@ -3,6 +3,7 @@ import {Alert, SectionList, View, StyleSheet, ColorSchemeName, Appearance} from 
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
+  Appbar,
   Avatar,
   Button,
   Card,
@@ -198,8 +199,11 @@ export default function SettingsPage() {
   );
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: colors.background}]}>
+    <View style={[styles.container, {backgroundColor: colors.background}]}>
       <StatusBar style="auto" />
+      <Appbar.Header elevated>
+        <Appbar.Content title="Settings" />
+      </Appbar.Header>
       <SectionList
         showsVerticalScrollIndicator={false}
         sections={sections}
@@ -228,6 +232,7 @@ export default function SettingsPage() {
                     source={{uri: profile?.avatar_url ?? ''}}
                   />
                 )}
+                right={() => <List.Icon icon="chevron-right" style={{paddingRight: 20}} />}
               />
             </Card>
           </View>
@@ -252,20 +257,51 @@ export default function SettingsPage() {
           visible={visible}
           onDismiss={hideModal}
           contentContainerStyle={[styles.modalContainer, {backgroundColor: colors.background}]}>
-          <Text style={styles.modalTitle}>Select Theme</Text>
+          <Text style={styles.modalTitle}>Theme:</Text>
           <RadioButton.Group onValueChange={handleColorSchemeChange} value={userColorScheme}>
             <RadioButton.Item label="System Default" value="system" />
             <RadioButton.Item label="Dark" value="dark" />
             <RadioButton.Item label="Light" value="light" />
           </RadioButton.Group>
           <Divider />
+          <Text style={styles.modalTitle}>Color Scheme:</Text>
           <RadioButton.Group onValueChange={handleThemeChange} value={theme as Theme}>
             <RadioButton.Item label="Default" value="default" />
-            <RadioButton.Item label="Yellow" value="yellow" />
-            <RadioButton.Item label="Blue" value="blue" />
-            <RadioButton.Item label="Green" value="green" />
-            <RadioButton.Item label="Brown" value="brown" />
-            <RadioButton.Item label="Pink" value="pink" />
+            <RadioButton.Item
+              label="Yellow"
+              value="yellow"
+              labelStyle={{color: userColorScheme === 'dark' ? '#F5BC6F' : '#805610'}}
+              color={userColorScheme === 'dark' ? '#F5BC6F' : '#805610'}
+              uncheckedColor={userColorScheme === 'dark' ? '#F5BC6F' : '#805610'}
+            />
+            <RadioButton.Item
+              label="Blue"
+              value="blue"
+              labelStyle={{color: userColorScheme === 'dark' ? '#A2C9FE' : '#38608F'}}
+              color={userColorScheme === 'dark' ? '#A2C9FE' : '#38608F'}
+              uncheckedColor={userColorScheme === 'dark' ? '#A2C9FE' : '#38608F'}
+            />
+            <RadioButton.Item
+              label="Green"
+              value="green"
+              labelStyle={{color: userColorScheme === 'dark' ? '#9FD49B' : '#3A693B'}}
+              color={userColorScheme === 'dark' ? '#9FD49B' : '#3A693B'}
+              uncheckedColor={userColorScheme === 'dark' ? '#9FD49B' : '#3A693B'}
+            />
+            <RadioButton.Item
+              label="Brown"
+              value="brown"
+              labelStyle={{color: userColorScheme === 'dark' ? '#E2C46D' : '#725C0C'}}
+              color={userColorScheme === 'dark' ? '#E2C46D' : '#725C0C'}
+              uncheckedColor={userColorScheme === 'dark' ? '#E2C46D' : '#725C0C'}
+            />
+            <RadioButton.Item
+              label="Pink"
+              value="pink"
+              labelStyle={{color: userColorScheme === 'dark' ? '#F9B1DB' : '#864B70'}}
+              color={userColorScheme === 'dark' ? '#F9B1DB' : '#864B70'}
+              uncheckedColor={userColorScheme === 'dark' ? '#F9B1DB' : '#864B70'}
+            />
           </RadioButton.Group>
 
           <Button onPress={hideModal} style={styles.modalButton}>
@@ -285,7 +321,7 @@ export default function SettingsPage() {
           <ActivityIndicator />
         </Modal>
       </Portal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -329,7 +365,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    marginBottom: 20,
+    marginVertical: 20,
+    marginLeft: 10,
   },
   modalButton: {
     marginTop: 20,
