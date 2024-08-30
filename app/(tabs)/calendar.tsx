@@ -19,6 +19,8 @@ import {useNotification} from '@/contexts/NotificationContext';
 import {Host} from 'react-native-portalize';
 import {getGoogleCalendarEvents} from '@/utils/calendarEvents';
 import AlertSnackbar from '@/components/AlertSnackbar';
+import NetInfo from '@react-native-community/netinfo';
+import ConnectionStatusBanner from '@/components/ConnectionStatusBanner';
 
 export type Mode = 'month' | 'day' | 'week' | 'agenda';
 
@@ -58,6 +60,8 @@ const CalendarPage = () => {
   const [monthlyTodoArray, setMonthlyTodoArray] = useState<MonthlyTodo[]>([]);
 
   const [googleCalendarEvents, setGoogleCalendarEvents] = useState<Todo[]>([]);
+
+  const [isConnected, setIsConnected] = useState(true);
 
   const [isAlertSnackbarVisible, setIsAlertSnackbarVisible] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
@@ -251,6 +255,24 @@ const CalendarPage = () => {
     };
   }, [colors.onPrimaryContainer, colors.onSurfaceDisabled, googleCalendarEvents, todos]); // Only re-compute when todos or googleCalendarEvents change
 
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      console.log('Connection type', state.type);
+      console.log('Is connected?', state.isConnected);
+
+      setIsConnected(prev => {
+        if (state.isConnected === null || prev === state.isConnected) {
+          return prev;
+        }
+
+        return state.isConnected;
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
   const previousExpanded = useRef(expanded);
   const heightAnim = useSharedValue(expanded ? 80 : 0);
 
@@ -508,9 +530,7 @@ const CalendarPage = () => {
         const insertedLogIds = await createActivityLogs(logs);
 
         if (!insertedLogIds) {
-          showAlertSnackbar('Failed to insert activity logs');
-        } else {
-          showAlertSnackbar('Activity logs created successfully');
+          console.warn('Failed to create todo activity log');
         }
       } catch (error) {
         showAlertSnackbar(`Failed to delete todos: ${error.message}`);
@@ -585,9 +605,7 @@ const CalendarPage = () => {
       const insertedLogIds = await createActivityLogs(logs);
 
       if (!insertedLogIds) {
-        showAlertSnackbar('Failed to insert activity logs');
-      } else {
-        showAlertSnackbar('Activity logs created successfully');
+        console.warn('Failed to create todo activity log');
       }
     };
 
@@ -618,9 +636,7 @@ const CalendarPage = () => {
         const newLog = await createActivityLogs([log]);
 
         if (!newLog) {
-          showAlertSnackbar('Failed to create todo activity log');
-        } else {
-          showAlertSnackbar('Activity log created successfully');
+          console.warn('Failed to create todo activity log');
         }
       }
     };
@@ -756,6 +772,7 @@ const CalendarPage = () => {
           />
           <Appbar.Action icon="dots-vertical" onPress={() => {}} />
         </Appbar.Header>
+        <ConnectionStatusBanner isConnected={isConnected} />
         <Animated.View style={[animatedStyle]}>
           <View style={styles.buttonRow}>
             {renderButton('Month', 'calendar-month', 'month')}

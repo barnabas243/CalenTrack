@@ -31,6 +31,7 @@ import {
   pinkLightTheme,
 } from '@/constants/theme'; // Adjust path as needed
 import useAsyncStorageSubscription from '@/hooks/useAsyncStorageSubscription';
+import {Host} from 'react-native-portalize';
 
 const getTheme = (theme: string, colorScheme: ColorSchemeName) => {
   switch (theme) {
@@ -113,7 +114,9 @@ export default function RootLayout() {
               <NotificationProvider>
                 <GestureHandlerRootView>
                   <AutocompleteDropdownContextProvider>
-                    <Stack screenOptions={{headerShown: false, animation: 'fade_from_bottom'}} />
+                    <Host>
+                      <Stack screenOptions={{headerShown: false, animation: 'fade_from_bottom'}} />
+                    </Host>
                   </AutocompleteDropdownContextProvider>
                 </GestureHandlerRootView>
               </NotificationProvider>

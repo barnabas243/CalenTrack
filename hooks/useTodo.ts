@@ -9,6 +9,7 @@ import {
   updateTodo,
   deleteTodo,
   powerSyncToggleTodoComplete,
+  addTodo,
 } from '@/store/todo/slice';
 import {
   fetchSections,
@@ -32,9 +33,9 @@ export const useTodo = () => {
 
   useEffect(() => {
     if (user) {
-      dispatch(fetchTodos({db})).unwrap();
-      dispatch(fetchSections({db})).unwrap();
-      dispatch(fetchActivityLogs({db})).unwrap();
+      dispatch(fetchTodos({id: user.id, db})).unwrap();
+      dispatch(fetchSections({id: user.id, db})).unwrap();
+      dispatch(fetchActivityLogs({id: user.id, db})).unwrap();
     }
   }, [user, dispatch, db]);
 
@@ -47,9 +48,9 @@ export const useTodo = () => {
           event: 'INSERT',
           schema: 'public',
         },
-        payload => {
+        async payload => {
           console.log('received todo insert event: ', payload);
-          updateTodo(payload.new);
+          addNewTodo(payload.new as Todo).catch(error => console.error(error));
         },
       )
       .on(
@@ -58,9 +59,9 @@ export const useTodo = () => {
           event: 'UPDATE',
           schema: 'public',
         },
-        payload => {
-          console.log('received todo update event: ', payload.new);
-          updateTodo(payload.new);
+        async payload => {
+          console.log('received todo update event: ', payload);
+          await updateExistingTodos(payload.new as Todo).catch(error => console.error(error));
         },
       )
       .on(
@@ -69,9 +70,9 @@ export const useTodo = () => {
           event: 'DELETE',
           schema: 'public',
         },
-        payload => {
-          console.log('received todo delete event: ', payload.new);
-          deleteTodo(payload.new);
+        async payload => {
+          console.log('received todo delete event: ', payload);
+          await deleteExistingTodos([payload.old.id]).catch(error => console.error(error));
         },
       )
       .subscribe();
@@ -84,7 +85,7 @@ export const useTodo = () => {
           event: 'INSERT',
           schema: 'public',
         },
-        payload => console.log('received section insert event: ', payload),
+        payload => console.log('received section insert event: ', payload.new),
       )
       .on(
         'postgres_changes',
@@ -92,7 +93,7 @@ export const useTodo = () => {
           event: 'UPDATE',
           schema: 'public',
         },
-        payload => console.log('received section update event: ', payload),
+        payload => console.log('received section update event: ', payload.new),
       )
       .on(
         'postgres_changes',
@@ -100,7 +101,7 @@ export const useTodo = () => {
           event: 'DELETE',
           schema: 'public',
         },
-        payload => console.log('received section delete event: ', payload),
+        payload => console.log('received section delete event: ', payload.new),
       );
     return () => {
       todoChannel.unsubscribe();

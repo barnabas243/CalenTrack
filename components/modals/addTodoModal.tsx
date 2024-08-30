@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  BackHandler,
 } from 'react-native';
 import Modal from 'react-native-modal';
 import {AddTodoModalProps, HighlightedElementType} from './addTodoModal.types';
@@ -38,6 +39,7 @@ import DatePicker from 'react-native-date-picker';
 import {getFormattedDate} from './EditTodoModalContent';
 import {Portal} from 'react-native-portalize';
 import {useSystem} from '@/powersync/system';
+import {router} from 'expo-router';
 
 dayjs.extend(isBetween);
 dayjs.extend(calendar);
@@ -55,6 +57,8 @@ const AddTodoModal = ({
 }: AddTodoModalProps) => {
   const {colors} = useTheme();
   const {user} = useAuth();
+
+  const [index, setIndex] = useState(-1);
   const [todoName, setTodoName] = useState('');
 
   const {supabaseConnector} = useSystem();
@@ -76,20 +80,36 @@ const AddTodoModal = ({
   // Initialize state only once
   useEffect(() => {
     const now = dayjs().toDate();
-    const initialEndDate = propSelectedDueDate ?? dayjs().endOf('day').toDate();
-    const initialStartDate = propSelectedStartDate ?? now;
 
+    // Define initial values
+    let initialStartDate = now;
+    let initialEndDate = dayjs().endOf('day').toDate();
+
+    if (propSelectedDueDate && !propSelectedStartDate) {
+      initialStartDate = dayjs(propSelectedDueDate).subtract(1, 'hour').toDate();
+      initialEndDate = dayjs(propSelectedDueDate).toDate();
+    } else {
+      if (propSelectedDueDate) {
+        initialEndDate = dayjs(propSelectedDueDate).toDate();
+      }
+      if (propSelectedStartDate) {
+        initialStartDate = dayjs(propSelectedStartDate).toDate();
+      }
+    }
+
+    // Set range
     setRange({
       startDate: initialStartDate,
       endDate: initialEndDate,
     });
 
+    // Set titles
     setStartDateTitle(
-      dayjs(initialStartDate).isSame(now)
-        ? 'today'
-        : dayjs(initialStartDate).isSame(now, 'day')
-          ? dayjs(initialStartDate).format('[Today] h:mm A')
-          : dayjs(initialStartDate).format('ddd, MMM D, h:mm A'),
+      dayjs(initialStartDate).isSame(now, 'day')
+        ? dayjs(initialStartDate).format(
+            dayjs().isSame(initialStartDate, 'day') ? '[Today] h:mm A' : 'ddd, MMM D, h:mm A',
+          )
+        : dayjs(initialStartDate).format('ddd, MMM D, h:mm A'),
     );
 
     setDueDateTitle(
@@ -99,7 +119,40 @@ const AddTodoModal = ({
           ? dayjs(initialEndDate).format('h:mm A')
           : dayjs(initialEndDate).format('ddd, MMM D, h:mm A'),
     );
-  }, [propSelectedDueDate, propSelectedStartDate]); // Empty dependency array
+
+    // Handle text change if both dates are provided
+    if (propSelectedStartDate) {
+      if (dayjs(propSelectedDueDate).isSame(propSelectedStartDate, 'day')) {
+        handleTextChange(
+          `${propSelectedStartDate ? getCustomFormattedDate(dayjs(propSelectedStartDate)) : ''} - ${propSelectedDueDate ? dayjs(propSelectedDueDate).format('h:mm A') : ''}`,
+        );
+      } else {
+        handleTextChange(
+          `${propSelectedStartDate ? getCustomFormattedDate(dayjs(propSelectedStartDate)) : ''} - ${propSelectedDueDate ? getCustomFormattedDate(dayjs(propSelectedDueDate)) : ''}}`,
+        );
+      }
+    }
+  }, [propSelectedDueDate, propSelectedStartDate]);
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      // Check if the modal is open
+      if (index > 0) {
+        dueDateBottomSheetRef.current?.close();
+      } else {
+        if (router.canGoBack()) {
+          console.log('Can go back');
+          router.back();
+        } else {
+          BackHandler.exitApp();
+        }
+      }
+      return true; // Prevent default back action (exit app)
+    };
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    return () => backHandler.remove(); // Cleanup
+  }, [index]);
 
   const [recurrenceRule, setRecurrenceRule] = useState<RRule | null>(null);
 
@@ -744,6 +797,7 @@ const AddTodoModal = ({
       if (index === -1) {
         setIsVisible(true);
       }
+      setIndex(index);
     },
     [setIsVisible],
   );
@@ -1018,9 +1072,11 @@ const styles = StyleSheet.create({
   },
   highlight: {
     backgroundColor: 'yellow',
+    color: 'black',
   },
   mention: {
     backgroundColor: 'orange',
+    color: 'black',
   },
   roundButton: {
     position: 'absolute',

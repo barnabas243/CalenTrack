@@ -73,7 +73,6 @@ const ActivityLogScreen = () => {
           Alert.alert('Error Fetching Profile', error.message);
         }
         setIsLoading(false);
-      } finally {
       }
     }
 
