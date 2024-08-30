@@ -17,21 +17,26 @@ export const initialState: SectionState = {
 
 /**
  * Thunk to fetch sections for a given user ID from the database.
- * @param userId - The ID of the user whose sections are to be fetched.
+ * @param id - The ID of the user whose sections are to be fetched.
  * @param db - The database instance to use for the query.
  * @returns A promise that resolves to an array of sections.
  */
-export const fetchSections = createAsyncThunk<Section[], {db: Kysely<any>}, {rejectValue: string}>(
-  'sections/fetchSections',
-  async ({db}, {rejectWithValue}) => {
-    try {
-      const sections = await db.selectFrom(SECTION_TABLE).selectAll().execute();
-      return sections as Section[];
-    } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch sections');
-    }
-  },
-);
+export const fetchSections = createAsyncThunk<
+  Section[],
+  {id: string; db: Kysely<any>},
+  {rejectValue: string}
+>('sections/fetchSections', async ({id, db}, {rejectWithValue}) => {
+  try {
+    const sections = await db
+      .selectFrom(SECTION_TABLE)
+      .selectAll()
+      .where('user_id', '=', id)
+      .execute();
+    return sections as Section[];
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to fetch sections');
+  }
+});
 
 /**
  * Thunk to insert a new section into the database.

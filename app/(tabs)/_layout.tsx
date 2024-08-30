@@ -60,71 +60,69 @@ export default function TabsIndexScreen() {
   const currentHourText = hourToText(currentTime.hour());
   const clockIcon = `clock-time-${currentHourText}` as 'clock'; // Example icons: clock-time-one, clock-time-two, ..., clock-time-twelve
   return (
-    <>
-      <MaterialBottomTabs
-        safeAreaInsets={{bottom: 0}}
-        activeColor={colors.primary}
-        barStyle={{backgroundColor: colors.background}}
-        activeIndicatorStyle={{backgroundColor: colors.primaryContainer}}
-        screenListeners={{
-          focus: () => BackHandler.addEventListener('hardwareBackPress', handleBackButton),
-          blur: () => BackHandler.removeEventListener('hardwareBackPress', handleBackButton),
+    <MaterialBottomTabs
+      safeAreaInsets={{bottom: 0}}
+      activeColor={colors.primary}
+      barStyle={{backgroundColor: colors.background}}
+      activeIndicatorStyle={{backgroundColor: colors.primaryContainer}}
+      screenListeners={{
+        focus: () => BackHandler.addEventListener('hardwareBackPress', handleBackButton),
+        blur: () => BackHandler.removeEventListener('hardwareBackPress', handleBackButton),
+      }}
+      initialRouteName="index">
+      <MaterialBottomTabs.Screen
+        name="index"
+        options={{
+          title: 'Today',
+          tabBarLabel: `Today (${currentTime.format('Do')})`, // Include current day in label. Example: Today (23rd)
+          tabBarIcon: ({color, focused}) => (
+            <MaterialCommunityIcons
+              color={color}
+              size={24}
+              name={focused ? clockIcon : `${clockIcon}-outline`}
+            />
+          ),
         }}
-        initialRouteName="index">
-        <MaterialBottomTabs.Screen
-          name="index"
-          options={{
-            title: 'Today',
-            tabBarLabel: `Today (${currentTime.format('Do')})`, // Include current day in label. Example: Today (23rd)
-            tabBarIcon: ({color, focused}) => (
-              <MaterialCommunityIcons
-                color={color}
-                size={24}
-                name={focused ? clockIcon : `${clockIcon}-outline`}
-              />
-            ),
-          }}
-        />
-        <MaterialBottomTabs.Screen
-          name="inbox"
-          options={{
-            tabBarLabel: 'Inbox',
-            tabBarIcon: ({color, focused}) => (
-              <MaterialCommunityIcons
-                color={color}
-                size={24}
-                name={focused ? 'inbox' : 'inbox-outline'}
-              />
-            ),
-          }}
-        />
-        <MaterialBottomTabs.Screen
-          name="calendar"
-          options={{
-            tabBarLabel: 'calendar',
-            tabBarIcon: ({color, focused}) => (
-              <MaterialCommunityIcons
-                color={color}
-                size={24}
-                name={focused ? 'calendar-clock' : 'calendar-clock-outline'}
-              />
-            ),
-          }}
-        />
-        <MaterialBottomTabs.Screen
-          name="(settings)"
-          options={{
-            tabBarLabel: 'settings',
-            tabBarIcon: ({color, focused}) => (
-              <MaterialCommunityIcons
-                color={color}
-                size={24}
-                name={focused ? 'cog' : 'cog-outline'}
-              />
-            ),
-          }}
-        />
-      </MaterialBottomTabs>
-    </>
+      />
+      <MaterialBottomTabs.Screen
+        name="inbox"
+        options={{
+          tabBarLabel: 'Inbox',
+          tabBarIcon: ({color, focused}) => (
+            <MaterialCommunityIcons
+              color={color}
+              size={24}
+              name={focused ? 'inbox' : 'inbox-outline'}
+            />
+          ),
+        }}
+      />
+      <MaterialBottomTabs.Screen
+        name="calendar"
+        options={{
+          tabBarLabel: 'calendar',
+          tabBarIcon: ({color, focused}) => (
+            <MaterialCommunityIcons
+              color={color}
+              size={24}
+              name={focused ? 'calendar-clock' : 'calendar-clock-outline'}
+            />
+          ),
+        }}
+      />
+      <MaterialBottomTabs.Screen
+        name="(settings)"
+        options={{
+          tabBarLabel: 'settings',
+          tabBarIcon: ({color, focused}) => (
+            <MaterialCommunityIcons
+              color={color}
+              size={24}
+              name={focused ? 'cog' : 'cog-outline'}
+            />
+          ),
+        }}
+      />
+    </MaterialBottomTabs>
   );
 }

@@ -271,15 +271,16 @@ const WeekCalendar = ({
         height={height - 60}
         events={events}
         maxVisibleEventCount={3}
-        showAllDayEventCell
+        showAllDayEventCell={false} // Show all day event cell
         onLongPressCell={addLongEvent}
         onPressCell={addEvent}
         onPressEvent={event => {
           setSelectedEvent(event);
           bottomSheetRef.current?.expand();
         }}
-        sortedMonthView={false}
         mode={'week'}
+        dayHeaderHighlightColor={colors.primary}
+        weekDayHeaderHighlightColor={colors.primary}
         itemSeparatorComponent={() => <Divider bold horizontalInset />}
       />
       <BottomSheet

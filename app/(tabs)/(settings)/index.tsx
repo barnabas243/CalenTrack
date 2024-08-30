@@ -83,11 +83,13 @@ export default function SettingsPage() {
     }
 
     const loadColorScheme = async () => {
+      setIsLoading(true);
       const savedTheme = await getSetting(SETTINGS.THEME);
 
       if (savedTheme) {
         setTheme(savedTheme as Theme);
       }
+      setIsLoading(false);
     };
 
     loadColorScheme();
@@ -107,8 +109,6 @@ export default function SettingsPage() {
   const handleThemeChange = useCallback(async (value: string) => {
     setIsLoading(true);
     setTheme(value as Theme);
-
-    console.log('value', value);
 
     await saveSetting(SETTINGS.THEME, value);
 

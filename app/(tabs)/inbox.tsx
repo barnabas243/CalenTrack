@@ -28,7 +28,11 @@ import SwiperFlatList from 'react-native-swiper-flatlist';
 import {SwipeableItemImperativeRef} from 'react-native-swipeable-item';
 import {useTodo} from '@/hooks/useTodo';
 import {SectionWithTodos} from '@/store/section/types';
-import {BottomSheetModal, BottomSheetModalProvider} from '@gorhom/bottom-sheet';
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetModalProvider,
+} from '@gorhom/bottom-sheet';
 import EditTodoModal from '@/components/modals/EditTodoModal';
 import EditTodoModalContent from '@/components/modals/EditTodoModalContent';
 import {isEqual} from 'lodash';
@@ -43,6 +47,15 @@ import {MaterialCommunityIcons} from '@expo/vector-icons';
 import AlertSnackbar from '@/components/AlertSnackbar';
 import {useNotification} from '@/contexts/NotificationContext';
 import {Host} from 'react-native-portalize';
+import {
+  getSetting,
+  saveSetting,
+  SETTINGS,
+  SortByType,
+  SortDirectionType,
+} from '@/utils/settingUtils';
+import {BottomSheetDefaultBackdropProps} from '@gorhom/bottom-sheet/lib/typescript/components/bottomSheetBackdrop/types';
+import {sortTodos} from '@/utils/filterSortTodos';
 
 const InboxScreen = () => {
   const {colors} = useTheme();
@@ -74,6 +87,60 @@ const InboxScreen = () => {
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
 
   const [parentId, setParentId] = useState('');
+
+  const [sortBy, setSortBy] = useState<SortByType>('date');
+  const [sortDirection, setSortDirection] = useState<SortDirectionType>('asc');
+
+  const sortBottomSheetRef = useRef<BottomSheetModal>(null);
+  const snapPoints = React.useMemo(() => ['25%', '40%', '75%'], []);
+
+  const saveSortBy = useCallback(async (newSortBy: SortByType) => {
+    setSortBy(newSortBy);
+    try {
+      await saveSetting(SETTINGS.SORT_BY, newSortBy);
+    } catch (error) {
+      console.error('Failed to save sort by setting:', error);
+    }
+  }, []);
+
+  const saveSortDirection = useCallback(async (newSortDirection: SortDirectionType) => {
+    setSortDirection(newSortDirection);
+    try {
+      await saveSetting(SETTINGS.SORT_DIRECTION, newSortDirection);
+    } catch (error) {
+      console.error('Failed to save sort direction setting:', error);
+    }
+  }, []);
+
+  // Load settings when the component mounts
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        // Fetch individual settings for index page
+        const savedSortBy = await getSetting<SortByType>(SETTINGS.SORT_BY);
+        const savedSortDirection = await getSetting<SortDirectionType>(SETTINGS.SORT_DIRECTION);
+
+        // Update state with saved settings or default values
+        setSortBy(savedSortBy ?? 'date');
+        setSortDirection(savedSortDirection ?? 'asc');
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+
+    // To unsubscribe to these update, just use:
+    loadSettings();
+  }, []);
+
+  const handleSort = () => {
+    if (sortBottomSheetRef.current) sortBottomSheetRef.current.present();
+
+    setShowFAB(false);
+    closeMenu();
+  };
+
+  const showMenu = () => setIsMenuVisible(true);
+  const closeMenu = () => setIsMenuVisible(false);
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
 
@@ -115,9 +182,13 @@ const InboxScreen = () => {
   const showAddTodoModal = useCallback(() => setIsAddTodoModalVisible(true), []);
   const hideAddTodoModal = useCallback(() => setIsAddTodoModalVisible(false), []);
 
+  const sortedTodos = useMemo(() => {
+    return sortTodos(todos, sortBy, sortDirection);
+  }, [sortBy, sortDirection, todos]);
+
   const memoizedGroupedSections = useMemo(() => {
     // Map of section IDs to section names
-    const groupedSectionsData = todos.reduce((acc, item) => {
+    const groupedSectionsData = sortedTodos.reduce((acc, item) => {
       const sectionId = item.section_id || '568c6c1d-9441-4cbc-9fc5-23c98fee1d3d';
       if (!acc.has(sectionId)) {
         acc.set(sectionId, []);
@@ -143,7 +214,7 @@ const InboxScreen = () => {
     });
 
     return updatedSections;
-  }, [todos, sectionNameMap]);
+  }, [sortedTodos, sectionNameMap]);
 
   // Update state when memoizedGroupedSections changes
   useEffect(() => {
@@ -189,9 +260,7 @@ const InboxScreen = () => {
     const newLog = await createActivityLogs([log]);
 
     if (!newLog) {
-      showAlertSnackbar('Failed to create section activity log');
-    } else {
-      showAlertSnackbar('Activity log created successfully');
+      console.warn('Failed to create section activity log');
     }
   }, [newSectionName, addNewSection, user, createActivityLogs]);
 
@@ -244,11 +313,7 @@ const InboxScreen = () => {
 
       const newLog = await createActivityLogs([log]);
 
-      if (!newLog) {
-        showAlertSnackbar('Failed to create section activity log');
-      } else {
-        showAlertSnackbar('Activity log created successfully');
-      }
+      if (!newLog) console.warn('Failed to create section activity log');
     } catch {
       showAlertSnackbar('Failed to delete section');
     }
@@ -294,11 +359,7 @@ const InboxScreen = () => {
 
         const newLog = await createActivityLogs([log]);
 
-        if (!newLog) {
-          showAlertSnackbar('Failed to create section activity log');
-        } else {
-          showAlertSnackbar('Activity log created successfully');
-        }
+        if (!newLog) console.warn('Failed to create section activity log');
       }
     } catch {
       showAlertSnackbar('Failed to update section');
@@ -376,7 +437,7 @@ const InboxScreen = () => {
         const newLog = await createActivityLogs([log]);
 
         if (!newLog) {
-          showAlertSnackbar('Failed to create section activity log');
+          console.warn('Failed to create section activity log');
           return;
         }
       } else {
@@ -427,10 +488,8 @@ const InboxScreen = () => {
       const newLog = await createActivityLogs([log]);
 
       if (!newLog) {
-        showAlertSnackbar('Failed to create section activity log');
+        console.warn('Failed to create section activity log');
         return;
-      } else {
-        showAlertSnackbar('Activity log created successfully');
       }
     } catch (error) {
       console.error('An error occurred while handling submit editing:', error);
@@ -490,7 +549,6 @@ const InboxScreen = () => {
     }
 
     showAlertSnackbar('Todos updated successfully');
-    console.log('Creating activity logs for todos...');
 
     // Create logs for each todo
     const logs = filteredTodos
@@ -521,9 +579,7 @@ const InboxScreen = () => {
     const insertedLogIds = await createActivityLogs(logs);
 
     if (!insertedLogIds) {
-      showAlertSnackbar('Failed to insert activity logs');
-    } else {
-      showAlertSnackbar('Activity logs created successfully');
+      console.warn('Failed to create todo activity log');
     }
   };
 
@@ -598,9 +654,7 @@ const InboxScreen = () => {
       const insertedLogIds = await createActivityLogs(logs);
 
       if (!insertedLogIds) {
-        showAlertSnackbar('Failed to insert activity logs');
-      } else {
-        showAlertSnackbar('Activity logs created successfully');
+        console.warn('Failed to create todo activity log');
       }
     } catch (error) {
       showAlertSnackbar(`Failed to delete todos: ${error.message}`);
@@ -659,9 +713,7 @@ const InboxScreen = () => {
       const newLog = await createActivityLogs([log]);
 
       if (!newLog) {
-        showAlertSnackbar('Failed to create todo activity log');
-      } else {
-        showAlertSnackbar('Activity log created successfully');
+        console.warn('Failed to create todo activity log');
       }
     }
 
@@ -712,7 +764,7 @@ const InboxScreen = () => {
     return sections.findIndex(sec => sec.id === id);
   };
   // Callback function to handle text changes
-  const handleSelectItem = (item: AutocompleteDropdownItem | null) => {
+  const handleSelectItem = async (item: AutocompleteDropdownItem | null) => {
     if (!item) {
       return;
     }
@@ -722,6 +774,12 @@ const InboxScreen = () => {
     // If the idParts has more than one element, the item id is the last element
     const sectionId = idParts[0];
     const sectionIndex = findSectionIndexById(sectionId);
+
+    await new Promise(resolve => {
+      editBottomSheetRef.current?.close();
+      // Resolve after a short delay to ensure it closes properly
+      setTimeout(resolve, 200); // Adjust the delay if needed
+    });
 
     swiperRef.current?.scrollToIndex({index: sectionIndex, animated: true});
 
@@ -742,168 +800,270 @@ const InboxScreen = () => {
     }
   };
 
+  const backdropComponent = React.useCallback(
+    (props: React.JSX.IntrinsicAttributes & BottomSheetDefaultBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        opacity={0.5}
+        enableTouchThrough={false}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        style={[{backgroundColor: 'rgba(0, 0, 0, 1)'}, StyleSheet.absoluteFillObject]}
+      />
+    ),
+    [],
+  );
   return (
-    <Host>
-      <View
-        style={[styles.container, {backgroundColor: colors.background}]}
-        onLayout={handleLayout}>
-        <Appbar.Header mode="small" elevated>
-          <Appbar.Content title="Inbox" style={{flex: 1}} titleStyle={{margin: 0, padding: 0}} />
-          <View style={styles.searchContainer}>
-            <AutoCompleteDropDown
-              testID="autocomplete-dropdown"
-              data={autoCompleteItems}
-              onSelectItem={handleSelectItem}
-            />
-          </View>
-          <Menu
-            anchorPosition="bottom"
-            visible={isMenuVisible}
-            onDismiss={() => setIsMenuVisible(false)}
-            anchor={
-              <Appbar.Action
-                icon="dots-vertical"
-                color={colors.onSurface}
-                onPress={() => setIsMenuVisible(true)}
-              />
-            }>
-            <Menu.Item onPress={() => {}} title="Sort" />
-            <Menu.Item onPress={() => {}} title="Select tasks" />
-            <Divider />
-            <Menu.Item
-              onPress={() => {
-                setIsMenuVisible(false);
-                router.push('/activity_log');
-              }}
-              title="Activity log"
-            />
-            <Divider />
-            <Menu.Item
-              onPress={() => {
-                setIsMenuVisible(false);
-                router.push('/_prototype-feedback');
-              }}
-              title="CalenTrack Feedback"
-            />
-          </Menu>
-        </Appbar.Header>
+    <View style={[styles.container, {backgroundColor: colors.background}]} onLayout={handleLayout}>
+      <Appbar.Header mode="small" elevated>
+        <Appbar.Content title="Inbox" style={{flex: 1}} titleStyle={{margin: 0, padding: 0}} />
+        <View style={styles.searchContainer}>
+          <AutoCompleteDropDown
+            testID="autocomplete-dropdown"
+            data={autoCompleteItems}
+            onSelectItem={handleSelectItem}
+          />
+        </View>
+        <Menu
+          anchorPosition="bottom"
+          visible={isMenuVisible}
+          onDismiss={() => setIsMenuVisible(false)}
+          anchor={
+            <Appbar.Action icon="dots-vertical" color={colors.onSurface} onPress={showMenu} />
+          }>
+          <Menu.Item onPress={handleSort} title="Sort" />
+          <Menu.Item onPress={() => {}} title="Select tasks" />
+          <Divider />
+          <Menu.Item
+            onPress={() => {
+              setIsMenuVisible(false);
+              router.push('/activity_log');
+            }}
+            title="Activity log"
+          />
+          <Divider />
+          <Menu.Item
+            onPress={() => {
+              setIsMenuVisible(false);
+              router.push('/_prototype-feedback');
+            }}
+            title="CalenTrack Feedback"
+          />
+        </Menu>
+      </Appbar.Header>
 
-        <SwiperFlatList
-          ref={swiperRef}
-          keyExtractor={item => item.key}
-          data={groupedSections}
-          showPagination
-          paginationActiveColor={colors.primary}
-          paginationDefaultColor={colors.inverseOnSurface}
-          paginationStyleItem={{width: 8, height: 8}}
-          initialNumToRender={3}
-          onChangeIndex={onChangeIndex}
-          showsVerticalScrollIndicator={false}
-          renderItem={({item}) => (
-            <DraggableFlatList
-              ref={ref => {
-                if (ref) {
-                  draggableListRefs.current.set(item.key, ref); // Set the ref for the whole list, not individual items
+      <SwiperFlatList
+        ref={swiperRef}
+        keyExtractor={item => item.key}
+        data={groupedSections}
+        showPagination
+        paginationActiveColor={colors.primary}
+        paginationDefaultColor={colors.inverseOnSurface}
+        paginationStyleItem={{width: 8, height: 8}}
+        initialNumToRender={3}
+        onChangeIndex={onChangeIndex}
+        showsVerticalScrollIndicator={false}
+        renderItem={({item}) => (
+          <DraggableFlatList
+            ref={ref => {
+              if (ref) {
+                draggableListRefs.current.set(item.key, ref); // Set the ref for the whole list, not individual items
+              }
+            }}
+            data={item.data}
+            showsVerticalScrollIndicator={false}
+            renderItem={renderTodoItem}
+            keyExtractor={item => item.id!}
+            onDragEnd={({data}) => handleEndDrag(data, item.name)}
+            initialNumToRender={8}
+            activationDistance={20}
+            stickyHeaderIndices={[0]}
+            containerStyle={[styles.todoList, {backgroundColor: colors.background}]}
+            renderPlaceholder={renderPlaceholder}
+            ListEmptyComponent={renderEmptyComponent(item)}
+            ListHeaderComponent={renderHeaderComponent(item)}
+          />
+        )}
+      />
+
+      <BottomSheetModalProvider>
+        <Modal
+          isVisible={isSectionModalVisible}
+          onBackdropPress={hideAddSectionModal}
+          onBackButtonPress={hideAddSectionModal}
+          useNativeDriver>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{
+              flex: 1,
+              justifyContent: 'flex-end',
+              paddingBottom: 50,
+            }}>
+            <View style={[styles.modalContent, {backgroundColor: colors.surface}]}>
+              <TextInput
+                testID="section-name-input"
+                style={styles.textInput}
+                label="Section Name"
+                value={newSectionName}
+                onChangeText={setNewSectionName}
+                error={isSectionNameInvalid}
+                autoFocus
+                right={
+                  <TextInput.Icon
+                    testID="section-name-send-button"
+                    icon="send"
+                    color={isSectionNameInvalid ? colors.error : colors.primary}
+                    disabled={isSectionNameInvalid}
+                    onPress={selectedSection ? handleUpdateSection : handleAddSection}
+                  />
                 }
-              }}
-              data={item.data}
-              showsVerticalScrollIndicator={false}
-              renderItem={renderTodoItem}
-              keyExtractor={item => item.id!}
-              onDragEnd={({data}) => handleEndDrag(data, item.name)}
-              initialNumToRender={8}
-              activationDistance={20}
-              stickyHeaderIndices={[0]}
-              containerStyle={[styles.todoList, {backgroundColor: colors.background}]}
-              renderPlaceholder={renderPlaceholder}
-              ListEmptyComponent={renderEmptyComponent(item)}
-              ListHeaderComponent={renderHeaderComponent(item)}
+              />
+              {isSectionNameInvalid && (
+                <HelperText type="error">
+                  {newSectionName === ''
+                    ? 'Section name must be 1-20 characters long without spaces'
+                    : /\s/.test(newSectionName)
+                      ? 'Section name cannot contain spaces.'
+                      : newSectionName.length > 20
+                        ? 'Section name must be 20 characters or fewer.'
+                        : ''}
+                </HelperText>
+              )}
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        <AddTodoModal
+          isVisible={isAddTodoModalVisible}
+          setIsVisible={setIsAddTodoModalVisible}
+          onBackdropPress={hideAddTodoModal}
+          onSubmitEditing={handleSubmitEditing}
+          sections={sections}
+          propSelectedSection={selectedSection || undefined}
+          propParentId={parentId}
+        />
+
+        <EditTodoModal ref={editBottomSheetRef}>
+          {data => (
+            <EditTodoModalContent
+              todo={data.data}
+              onDismiss={handleEditModalDismiss}
+              sections={sections}
+              colors={colors}
+              deleteTodo={deleteTodo}
+              openEditBottomSheet={openEditBottomSheet}
+              onPress={handleAddSubTodo}
+              toggleCompleteTodo={toggleCompleteTodo}
             />
           )}
-        />
-
-        <BottomSheetModalProvider>
-          <Modal
-            isVisible={isSectionModalVisible}
-            onBackdropPress={hideAddSectionModal}
-            onBackButtonPress={hideAddSectionModal}
-            useNativeDriver>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={{
-                flex: 1,
-                justifyContent: 'flex-end',
-                paddingBottom: 50,
-              }}>
-              <View style={[styles.modalContent, {backgroundColor: colors.surface}]}>
-                <TextInput
-                  testID="section-name-input"
-                  style={styles.textInput}
-                  label="Section Name"
-                  value={newSectionName}
-                  onChangeText={setNewSectionName}
-                  error={isSectionNameInvalid}
-                  autoFocus
-                  right={
-                    <TextInput.Icon
-                      testID="section-name-send-button"
-                      icon="send"
-                      color={isSectionNameInvalid ? colors.error : colors.primary}
-                      disabled={isSectionNameInvalid}
-                      onPress={selectedSection ? handleUpdateSection : handleAddSection}
-                    />
-                  }
-                />
-                {isSectionNameInvalid && (
-                  <HelperText type="error">
-                    {newSectionName === ''
-                      ? 'Section name must be 1-20 characters long without spaces'
-                      : /\s/.test(newSectionName)
-                        ? 'Section name cannot contain spaces.'
-                        : newSectionName.length > 20
-                          ? 'Section name must be 20 characters or fewer.'
-                          : ''}
-                  </HelperText>
-                )}
+        </EditTodoModal>
+        <BottomSheetModal
+          backdropComponent={backdropComponent}
+          handleComponent={null}
+          enableContentPanningGesture={false}
+          ref={sortBottomSheetRef}
+          index={1}
+          snapPoints={snapPoints}
+          stackBehavior={'push'}
+          onDismiss={() => setShowFAB(true)}>
+          <View style={[styles.contentContainer, {backgroundColor: colors.secondaryContainer}]}>
+            <View style={styles.section}>
+              <Text variant="titleMedium" style={{color: colors.onSurfaceVariant}}>
+                Sort By
+              </Text>
+              <View style={styles.buttonGrid}>
+                <Button
+                  mode={sortBy === 'date' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortBy === 'date' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
+                  onPress={() => {
+                    saveSortBy('date');
+                  }}>
+                  Date
+                </Button>
+                <Button
+                  mode={sortBy === 'title' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortBy === 'title' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
+                  onPress={() => {
+                    saveSortBy('title');
+                  }}>
+                  Title
+                </Button>
+                <Button
+                  mode={sortBy === 'priority' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortBy === 'priority' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
+                  onPress={() => {
+                    saveSortBy('priority');
+                  }}>
+                  Priority
+                </Button>
               </View>
-            </KeyboardAvoidingView>
-          </Modal>
+            </View>
+            <Divider />
+            <View style={styles.section}>
+              <Text variant="titleMedium" style={{color: colors.onSurfaceVariant}}>
+                Sort Direction
+              </Text>
+              <View style={[styles.buttonGrid, {backgroundColor: colors.secondaryContainer}]}>
+                <Button
+                  mode={sortDirection === 'asc' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortDirection === 'asc' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
+                  onPress={() => {
+                    saveSortDirection('asc');
+                  }}>
+                  Ascending
+                </Button>
+                <Button
+                  mode={sortDirection === 'desc' ? 'contained' : 'outlined'}
+                  style={[
+                    styles.button,
+                    {
+                      backgroundColor:
+                        sortDirection === 'desc' ? colors.primary : colors.secondaryContainer,
+                    },
+                  ]}
+                  onPress={() => {
+                    saveSortDirection('desc');
+                  }}>
+                  Descending
+                </Button>
+              </View>
+            </View>
+          </View>
+        </BottomSheetModal>
+      </BottomSheetModalProvider>
 
-          <AddTodoModal
-            isVisible={isAddTodoModalVisible}
-            setIsVisible={setIsAddTodoModalVisible}
-            onBackdropPress={hideAddTodoModal}
-            onSubmitEditing={handleSubmitEditing}
-            sections={sections}
-            propSelectedSection={selectedSection || undefined}
-            propParentId={parentId}
-          />
+      {showFAB && <AddTodoFAB onPress={showAddTodoModal} />}
 
-          <EditTodoModal ref={editBottomSheetRef}>
-            {data => (
-              <EditTodoModalContent
-                todo={data.data}
-                onDismiss={handleEditModalDismiss}
-                sections={sections}
-                colors={colors}
-                deleteTodo={deleteTodo}
-                openEditBottomSheet={openEditBottomSheet}
-                onPress={handleAddSubTodo}
-                toggleCompleteTodo={toggleCompleteTodo}
-              />
-            )}
-          </EditTodoModal>
-        </BottomSheetModalProvider>
-
-        {showFAB && <AddTodoFAB onPress={showAddTodoModal} />}
-
-        <AlertSnackbar
-          visible={isAlertSnackbarVisible}
-          message={alertMessage}
-          onDismiss={hideAlertSnackbar}
-        />
-      </View>
-    </Host>
+      <AlertSnackbar
+        visible={isAlertSnackbarVisible}
+        message={alertMessage}
+        onDismiss={hideAlertSnackbar}
+      />
+    </View>
   );
 };
 
@@ -912,6 +1072,10 @@ const width = Dimensions.get('window').width;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  contentContainer: {
+    flex: 1,
+    alignItems: 'center',
   },
   modalContent: {
     padding: 20,
@@ -954,6 +1118,20 @@ const styles = StyleSheet.create({
   paginationStyleItem: {
     width: 10,
     height: 10,
+  },
+  section: {
+    margin: 20,
+  },
+  buttonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  button: {
+    margin: 5,
+  },
+  sortButton: {
+    marginTop: 16,
   },
 });
 

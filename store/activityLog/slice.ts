@@ -14,13 +14,14 @@ export const initialState: ActivityLogState = {
 // Fetch activity logs
 export const fetchActivityLogs = createAsyncThunk<
   ActivityLog[],
-  {db: Kysely<any>},
+  {id: string; db: Kysely<any>},
   {rejectValue: string}
->('activityLogs/fetchActivityLogs', async ({db}, {rejectWithValue}) => {
+>('activityLogs/fetchActivityLogs', async ({id, db}, {rejectWithValue}) => {
   try {
     const logs = await db
       .selectFrom(ACTIVITY_LOG_TABLE)
       .selectAll()
+      .where('user_id', '=', id) // Adjust as needed
       .orderBy('action_date', 'desc')
       .execute();
     return logs as ActivityLog[];

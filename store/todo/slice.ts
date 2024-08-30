@@ -18,17 +18,24 @@ const initialState: TodoState = {
  * @param db - The database instance to use for the query.
  * @returns A promise that resolves to an array of todos.
  */
-export const fetchTodos = createAsyncThunk<Todo[], {db: Kysely<any>}, {rejectValue: string}>(
-  'todos/fetchTodos',
-  async ({db}, {rejectWithValue}) => {
-    try {
-      const todos = await db.selectFrom(TODO_TABLE).selectAll().execute();
-      return todos as Todo[];
-    } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch todos');
-    }
-  },
-);
+export const fetchTodos = createAsyncThunk<
+  Todo[],
+  {id: string; db: Kysely<any>},
+  {rejectValue: string}
+>('todos/fetchTodos', async ({id, db}, {rejectWithValue}) => {
+  try {
+    const todos = await db
+      .selectFrom(TODO_TABLE)
+      .selectAll()
+      .where('created_by', '=', id)
+      .orderBy('completed')
+      .orderBy('created_at', 'desc')
+      .execute();
+    return todos as Todo[];
+  } catch (error) {
+    return rejectWithValue(error.message || 'Failed to fetch todos');
+  }
+});
 
 /**
  * Thunk to insert a new todo into the database.
@@ -153,8 +160,7 @@ const todoSlice = createSlice({
      * @param action - The action containing the updated todo.
      */
     updateTodo: (state, action) => {
-      const index = state.todos.findIndex(todo => todo.id === action.payload.id);
-      if (index !== -1) state.todos[index] = action.payload;
+      state.todos.map(todo => (todo.id === action.payload.id ? action.payload : todo));
     },
     /**
      * Reducer to delete a todo from the state.

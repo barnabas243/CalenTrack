@@ -47,9 +47,7 @@ const UserDetailsPage = () => {
       await Promise.all([
         supabaseConnector.updateEmail(email),
         supabaseConnector.updateProfile(updates),
-      ]).then(([emailResult, profileResult]) => {
-        console.log('Email update result:', emailResult);
-        console.log('Profile update result:', profileResult);
+      ]).then(() => {
         Alert.alert('Profile and email updated successfully');
 
         router.replace('/(settings)');
