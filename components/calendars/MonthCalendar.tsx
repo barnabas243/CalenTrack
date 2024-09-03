@@ -299,7 +299,7 @@ class MonthCalendar extends PureComponent<MonthCalendarProps, MonthCalendarState
             onBackdropPress={this.hideAddTodoModal}
             onSubmitEditing={this.props.onSubmitEditing}
             sections={this.props.sections}
-            propSelectedDueDate={dayjs(selectedDate).toDate()}
+            propSelectedStartDate={dayjs(selectedDate).toDate()}
             propParentId={this.state.parentId}
           />
           <EditTodoModal ref={this.editBottomSheetRef}>

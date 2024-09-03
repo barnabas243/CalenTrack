@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from 'react';
-import {View, StyleSheet, Alert, BackHandler} from 'react-native';
+import {View, StyleSheet, Alert, BackHandler, ScrollView} from 'react-native';
 import {Button, TextInput, useTheme, Appbar, HelperText} from 'react-native-paper';
 import {useAuth} from '@/hooks/useAuth'; // Adjust the import according to your structure
 import {useSystem} from '@/powersync/system'; // Adjust the import according to your structure'
@@ -62,7 +62,7 @@ const UserDetailsPage = () => {
   }
 
   return (
-    <View style={[styles.container, {backgroundColor: colors.background}]}>
+    <ScrollView style={[styles.container, {backgroundColor: colors.background}]}>
       <Appbar.Header elevated>
         <Appbar.BackAction onPress={() => router.back()} />
         <Appbar.Content title="Details" />
@@ -115,7 +115,7 @@ const UserDetailsPage = () => {
           Save
         </Button>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
