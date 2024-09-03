@@ -508,7 +508,6 @@ const CalendarPage = () => {
         }
 
         showAlertSnackbar('Todos deleted successfully');
-        console.log('Creating activity logs for deleted todos...');
 
         // Create activity logs for each deleted todo
         const logs = allTodos.map(todo => {
@@ -574,7 +573,6 @@ const CalendarPage = () => {
       }
 
       showAlertSnackbar('Todos updated successfully');
-      console.log('Creating activity logs for todos...');
 
       // Create logs for each todo
       const logs = filteredTodos

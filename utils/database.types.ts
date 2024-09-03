@@ -37,22 +37,7 @@ export type Database = {
           todo_id?: string | null;
           user_id?: string | null;
         };
-        Relationships: [
-          {
-            foreignKeyName: 'activity_logs_section_id_fkey';
-            columns: ['section_id'];
-            isOneToOne: false;
-            referencedRelation: 'sections';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'activity_logs_todo_id_fkey';
-            columns: ['todo_id'];
-            isOneToOne: false;
-            referencedRelation: 'todos';
-            referencedColumns: ['id'];
-          },
-        ];
+        Relationships: [];
       };
       notifications: {
         Row: {

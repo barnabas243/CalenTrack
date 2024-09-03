@@ -49,7 +49,6 @@ CalenTrack is a final year project developed as part of UOL FYP curriculum. It w
 ![Settings](./examples/settings.gif)  
 *Settings screen where users can customize their preferences.*
 
-
 ## Frameworks
 
 ### Front-End
@@ -107,7 +106,8 @@ follow these steps to set up your development environment:
 4 **Run the Application**:
 
   ```Node
-      npx expo start
+      npx expo prebuild
+      npx expo run:android
   ```
 
 5 **Start Exploring**: Access the app on your device or emulator and start exploring its features!
@@ -145,6 +145,7 @@ follow these steps to set up your development environment:
 
 - [ ] **Add Recurring Task Support**: Implement functionality to handle tasks that repeat on a regular basis (e.g., daily, weekly).
 - [ ] **Cross-Table Drag and Drop Feature**: Allows users to drag and drop tasks between different tables or categories for improved organization.
+- [ ] **Task Chaining**: Allow users to create multiple or chain tasks so that the completion of one task automatically triggers or sets up the next task in the sequence.
 - [ ] **Enhanced Notification System**: Introduce more advanced notification options and custom reminders to keep users informed.
 - [ ] **Multi-language Support**: Add support for multiple languages to make the app accessible to a broader audience.
 - [ ] **Improved Analytics Dashboard**: Develop a more detailed dashboard for analyzing task management and productivity trends.
@@ -161,7 +162,7 @@ If you encounter any issues or have any questions, feel free to reach out at [bt
 - **React Native**: For providing the framework that powers our app.
 - **Expo**: For simplifying the development process.
 - **Supabase**: For providing a robust backend solution.
-- **powersync**:  For enabling offline capabilities.
+- **powersync**:  For enabling offline capabilities with sqlite.
 - **Kysely**: TypeScript-first query builder for simplified, type-safe SQLite queries.
 - **Chrono-node**: For its library that facilitates natural date parsing.
 
