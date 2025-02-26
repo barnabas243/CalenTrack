@@ -88,7 +88,7 @@
     "lodash": "^4.17.21",
     "open-cli": "^8.0.0",
     "react": "18.2.0",
-    "react-dom": "18.2.0",
+    "react-dom": "18.3.1",
     "react-native": "0.74.5",
     "react-native-autocomplete-dropdown": "^4.0.0-rc.5",
     "react-native-big-calendar": "^4.13.2",
