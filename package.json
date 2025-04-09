@@ -89,7 +89,7 @@
     "open-cli": "^8.0.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "react-native": "0.74.5",
+    "react-native": "0.79.0",
     "react-native-autocomplete-dropdown": "^4.0.0-rc.5",
     "react-native-big-calendar": "^4.13.2",
     "react-native-calendars": "^1.1305.0",
